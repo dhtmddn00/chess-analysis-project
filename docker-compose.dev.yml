@@ -1,0 +1,117 @@
+services:
+  # PostgreSQL Database (동일)
+  postgres:
+    image: postgres:16-alpine
+    container_name: chess-postgres
+    environment:
+      POSTGRES_DB: chess_analysis
+      POSTGRES_USER: chess_user
+      POSTGRES_PASSWORD: chess_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess_user -d chess_analysis"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache & Queue (동일)
+  redis:
+    image: redis:7-alpine
+    container_name: chess-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Spring Boot API - 개발용 최적화
+  chess-api:
+    build:
+      context: ./chess-analysis-api
+      dockerfile: Dockerfile.dev
+    container_name: chess-api-dev
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/chess_analysis
+      - SPRING_DATASOURCE_USERNAME=chess_user
+      - SPRING_DATASOURCE_PASSWORD=chess_password
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - JAVA_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=*:5005
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Debug port
+    volumes:
+      - ./chess-analysis-api/src:/app/src:cached
+      - gradle_cache:/root/.gradle
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Frontend - Hot Reload 지원
+  chess-frontend:
+    build:
+      context: ./chess-analysis-frontend
+      dockerfile: Dockerfile.dev
+    container_name: chess-frontend-dev
+    environment:
+      - NEXT_PUBLIC_API_URL=http://chess-api:8080
+      - WATCHPACK_POLLING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./chess-analysis-frontend:/app:cached
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - chess-api
+    restart: unless-stopped
+
+  # Python Workers - 소스 코드 볼륨 마운트
+  chess-worker-1:
+    build:
+      context: ./chess-analysis-worker
+      dockerfile: Dockerfile.dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=chess_analysis
+      - DB_USER=chess_user
+      - DB_PASSWORD=chess_password
+      - STOCKFISH_PATH=/usr/bin/stockfish
+      - WORKER_ID=1
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./chess-analysis-worker/src:/app/src:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chess-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  gradle_cache:
+  node_modules:
+
+networks:
+  default:
+    name: chess-analysis-dev-network

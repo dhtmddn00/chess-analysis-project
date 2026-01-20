@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # 기존 FastAPI 서버 (마이그레이션 기간 중 유지)
+  legacy-api:
+    build: .
+    container_name: chess-legacy-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://chess_user:chess_password@postgres:5432/chess_analysis
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./temp:/app/temp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - chess-network
+    profiles:
+      - legacy
+
+  # Spring Boot API 서버 (새로운 주 서버)
+  api-server:
+    build:
+      context: ./api-server
+      dockerfile: Dockerfile
+    container_name: chess-api-server
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/chess_analysis
+      - DATABASE_USERNAME=chess_user
+      - DATABASE_PASSWORD=chess_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHON_WORKER_URL=http://python-worker:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - chess-network
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles:
+      - microservices
+
+  # Python Worker (Stockfish 분석 전용)
+  python-worker:
+    build:
+      context: ./python-worker
+      dockerfile: Dockerfile
+    container_name: chess-python-worker
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://chess_user:chess_password@postgres:5432/chess_analysis
+      - STOCKFISH_PATH=/usr/games/stockfish
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - chess-network
+    volumes:
+      - ./logs:/app/logs
+      - ./engines:/app/engines
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles:
+      - microservices
+
+  # Next.js 프론트엔드
+  frontend-nextjs:
+    build:
+      context: ./frontend-nextjs
+      dockerfile: Dockerfile
+    container_name: chess-frontend-nextjs
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+    networks:
+      - chess-network
+    depends_on:
+      - api-server
+    restart: unless-stopped
+    profiles:
+      - microservices
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: chess-postgres
+    environment:
+      - POSTGRES_DB=chess_analysis
+      - POSTGRES_USER=chess_user
+      - POSTGRES_PASSWORD=chess_password
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - chess-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess_user -d chess_analysis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chess-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - chess-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - api-server
+    restart: unless-stopped
+    networks:
+      - chess-network
+    profiles:
+      - microservices
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  chess-network:
+    driver: bridge

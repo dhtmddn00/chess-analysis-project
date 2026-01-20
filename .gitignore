@@ -1,0 +1,55 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.env
+.venv
+venv/
+ENV/
+env/
+env.bak
+venv.bak
+pip-wheel-metadata/
+.pytest_cache/
+
+# Java / Gradle
+.gradle
+build/
+!build/cache
+out/
+*.jar
+*.war
+*.ear
+
+# Docker
+docker-compose.override.yml
+.env.local
+
+# Other
+.claude/
+engines/

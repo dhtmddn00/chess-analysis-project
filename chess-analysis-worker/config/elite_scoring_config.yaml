@@ -1,0 +1,167 @@
+# Elite Scoring Configuration
+# Bucket-based rating system for accurate evaluation of world-class players
+
+rating_bands:
+  B1:
+    name: "Beginner-Intermediate"
+    elo_max: 1600
+    accuracy_k: 0.45
+    accuracy_alpha: 1.00
+    tactical_epsilon: 30
+    min_score: 0
+    max_score: 100
+  
+  B2:
+    name: "Club Players"
+    elo_min: 1600
+    elo_max: 2200
+    accuracy_k: 0.40
+    accuracy_alpha: 0.95
+    tactical_epsilon: 25
+    min_score: 0
+    max_score: 100
+  
+  B3:
+    name: "Expert-Master"
+    elo_min: 2200
+    elo_max: 2600
+    accuracy_k: 0.36
+    accuracy_alpha: 0.90
+    tactical_epsilon: 20
+    min_score: 0
+    max_score: 100
+  
+  B4:
+    name: "Grandmaster"
+    elo_min: 2600
+    elo_max: 2900
+    accuracy_k: 0.32
+    accuracy_alpha: 0.85
+    tactical_epsilon: 20
+    min_score: 40
+    max_score: 98
+  
+  B5:
+    name: "Super-Elite"
+    elo_min: 2900
+    accuracy_k: 0.25
+    accuracy_alpha: 0.75
+    tactical_epsilon: 15
+    min_score: 60
+    max_score: 98
+
+# Opponent strength bands
+opponent_bands:
+  O1:
+    name: "Weaker Opponent"
+    rating_diff_max: -200
+    weight_multiplier: 0.9
+  
+  O2:
+    name: "Similar Strength"
+    rating_diff_min: -200
+    rating_diff_max: 200
+    weight_multiplier: 1.0
+  
+  O3:
+    name: "Stronger Opponent"
+    rating_diff_min: 200
+    weight_multiplier: 1.25
+
+# Time control specific settings
+time_models:
+  bullet:
+    beta_by_band:
+      B1: 4.0
+      B2: 3.5
+      B3: 3.0
+      B4: 2.5
+      B5: 2.0
+    critical_relief: 0.4
+    
+  blitz_3_0:
+    beta_by_band:
+      B1: 3.0
+      B2: 2.8
+      B3: 2.5
+      B4: 2.2
+      B5: 2.0
+    critical_relief: 0.5
+    
+  rapid:
+    beta_by_band:
+      B1: 4.0
+      B2: 3.8
+      B3: 3.5
+      B4: 3.2
+      B5: 3.0
+    critical_relief: 0.3
+
+# Tactical evaluation settings
+tactics:
+  difficulty_weights:
+    forcing: 0.4      # Check/capture forcing moves
+    length: 0.3       # PV length to meaningful gain
+    uniqueness: 0.3   # How unique the best defense is
+  
+  miss_penalty_factors:
+    B1: 1.0
+    B2: 1.0
+    B3: 0.9
+    B4: 0.7
+    B5: 0.6  # Elite players get reduced penalty for missing high-difficulty tactics
+  
+  excellent_thresholds:
+    B1: 30
+    B2: 25
+    B3: 20
+    B4: 20
+    B5: 15
+
+# Opponent strength weighting
+opponent_weighting:
+  lambda_by_band:
+    B1: 0.10
+    B2: 0.12
+    B3: 0.15
+    B4: 0.20
+    B5: 0.25
+  max_weight: 1.30
+
+# Blunder and mistake caps (prevent single mistake from destroying score)
+score_caps:
+  blunder_phase_caps:
+    opening: 
+      B1: 8
+      B2: 6
+      B3: 4
+      B4: 3
+      B5: 2
+    middlegame:
+      B1: 12
+      B2: 10
+      B3: 8
+      B4: 6
+      B5: 6
+    endgame:
+      B1: 10
+      B2: 8
+      B3: 6
+      B4: 5
+      B5: 4
+
+# Position complexity adjustment
+complexity:
+  entropy_thresholds:
+    simple: 0.3   # Reduce error tolerance
+    complex: 0.7  # Increase error tolerance
+  
+  adjustment_factors:
+    simple_penalty: 1.2    # Less forgiving on simple positions
+    complex_relief: 0.8    # More forgiving on complex positions
+
+# Version and metadata
+version: "2.0-elite"
+description: "Elite player optimized scoring system"
+author: "Chess Analysis System"
+date: "2025-08-24"

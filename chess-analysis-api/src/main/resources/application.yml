@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: chess-analysis-api
+  
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chess_analysis
+    username: ${DB_USERNAME:chess_user}
+    password: ${DB_PASSWORD:chess_password}
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: true
+    
+  # Redis Configuration  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 2000ms
+      
+  # Jackson Configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+# Management/Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+# Custom Application Properties
+chess-analysis:
+  chess-com:
+    api-url: https://api.chess.com/pub
+    rate-limit:
+      requests-per-minute: 60
+      
+  worker:
+    queue-name: chess-analysis-queue
+    retry-attempts: 3
+    
+  aws:
+    s3:
+      bucket-name: ${AWS_S3_BUCKET:chess-analysis-reports}
+      region: ${AWS_REGION:us-east-1}
+      
+  pdf:
+    template-path: /templates/analysis-report.html
+    
+  shortlink:
+    base-url: ${SHORTLINK_BASE_URL:http://localhost:8080/s}
+    expiry-days: 30
+
+# Logging Configuration
+logging:
+  level:
+    com.chessanalysis: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/chess-analysis-api.log

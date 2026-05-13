@@ -143,6 +143,7 @@ export default function UnifiedAnalyzePage() {
   
   const [hasSearched, setHasSearched] = useState(false);
   const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Player summary hook
   const { summary, isLoading: summaryLoading, error: summaryError, refetch } = usePlayerSummary(
@@ -171,6 +172,7 @@ export default function UnifiedAnalyzePage() {
     
     setHasSearched(true);
     setAnalysisStarted(false);
+    setAnalysisError(null);
     setDetailedResult(null);
   };
 
@@ -178,6 +180,7 @@ export default function UnifiedAnalyzePage() {
     if (!summary) return;
     
     try {
+      setAnalysisError(null);
       await createJob({
         platform: searchForm.platform,
         username: searchForm.username,
@@ -188,6 +191,7 @@ export default function UnifiedAnalyzePage() {
       setAnalysisStarted(true);
     } catch (error) {
       console.error('Failed to start analysis:', error);
+      setAnalysisError(error instanceof Error ? error.message : '상세 분석을 시작할 수 없습니다.');
     }
   };
 
@@ -434,6 +438,12 @@ export default function UnifiedAnalyzePage() {
                 </button>
               )}
             </div>
+
+            {analysisError && (
+              <div className="mb-6 rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-800">
+                {analysisError}
+              </div>
+            )}
 
             {/* Ratings by Time Control */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

@@ -2,7 +2,9 @@ package com.chessanalysis.api.controller;
 
 import com.chessanalysis.api.dto.AnalysisRequestDto;
 import com.chessanalysis.api.dto.AnalysisResponseDto;
+import com.chessanalysis.api.service.AnalysisRateLimitException;
 import com.chessanalysis.api.service.AnalysisService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,14 +26,18 @@ public class AnalysisController {
     private final AnalysisService analysisService;
     
     @PostMapping
-    public ResponseEntity<AnalysisResponseDto> createAnalysis(@Valid @RequestBody AnalysisRequestDto request) {
+    public ResponseEntity<?> createAnalysis(@Valid @RequestBody AnalysisRequestDto request, HttpServletRequest httpRequest) {
         try {
             log.info("Creating analysis for user: {} on platform: {}", 
                     request.getUsername(), request.getPlatform());
             
-            AnalysisResponseDto response = analysisService.createAnalysis(request);
+            AnalysisResponseDto response = analysisService.createAnalysis(request, resolveClientIp(httpRequest));
             return ResponseEntity.ok(response);
             
+        } catch (AnalysisRateLimitException e) {
+            log.warn("Analysis rate limit exceeded: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(e.getDetails());
         } catch (IllegalStateException e) {
             log.warn("Analysis creation failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -41,6 +47,20 @@ public class AnalysisController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(null);
         }
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+
+        return request.getRemoteAddr();
     }
     
     @GetMapping("/{analysisId}")

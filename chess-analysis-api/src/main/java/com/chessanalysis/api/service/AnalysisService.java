@@ -28,12 +28,13 @@ public class AnalysisService {
     private final AnalysisRepository analysisRepository;
     private final AnalysisQueueService queueService;
     private final ShortLinkService shortLinkService;
+    private final AnalysisRateLimitService rateLimitService;
     private final DataSource dataSource;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     
     @Transactional
-    public AnalysisResponseDto createAnalysis(AnalysisRequestDto request) {
+    public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp) {
         // Check for existing active analysis (within last 5 minutes - reduced window)
         Optional<Analysis> activeAnalysis = analysisRepository.findActiveAnalysis(
                 request.getUsername(), request.getPlatform(), 
@@ -45,6 +46,8 @@ public class AnalysisService {
             log.info("Returning existing active analysis {} for user: {}", existing.getId(), request.getUsername());
             return AnalysisResponseDto.fromEntity(existing);
         }
+
+        rateLimitService.enforceLimits(request, clientIp);
         
         // Create new analysis
         Analysis analysis = Analysis.builder()

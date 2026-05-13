@@ -85,6 +85,9 @@ class ChessAnalysisWorker:
         logger.info(f"Processing analysis {analysis_id} for user {username}")
         
         try:
+            if platform not in ('chess.com', 'chesscom'):
+                raise Exception("Only chess.com analysis is currently supported")
+
             # Update status: Starting
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 0, 'Starting analysis'
@@ -92,7 +95,7 @@ class ChessAnalysisWorker:
             
             # Step 1: Collect games (0-20%)
             logger.info(f"Collecting games for user: {username}")
-            games = await self.chess_api.get_recent_games(username, game_count)
+            games, player_info = await self.chess_api.get_recent_games(username, game_count)
             
             if not games:
                 raise Exception("No games found for user")
@@ -591,25 +594,40 @@ class ChessAnalysisWorker:
             if hasattr(profile, 'style_tags'):
                 # PlayerProfile object - extract from style_scores
                 style_scores = profile.style_scores
+                style_scores_by_name = {
+                    dimension.value: score.score
+                    for dimension, score in style_scores.items()
+                }
+                tactical_rating = self._get_style_score(style_scores, 'tactical_dependency')
+                positional_rating = self._get_style_score(style_scores, 'positional_orientation')
+                aggression_rating = self._get_style_score(style_scores, 'aggression')
+                consistency = self._get_style_score(style_scores, 'consistency')
+                risk_tolerance = self._get_style_score(style_scores, 'risk_taking')
+                blunder_tendency = max(0.0, min(100.0, 100.0 - consistency))
+                piece_activity_preference = max(
+                    0.0,
+                    min(100.0, (aggression_rating * 0.45) + (positional_rating * 0.35) + (tactical_rating * 0.20))
+                )
+                playing_style = self._determine_playing_style(style_scores_by_name)
                 params = [
                     analysis_id,
                     playing_style,
-                    json.dumps(profile.style_tags, ensure_ascii=False),  # strengths as style_tags
-                    json.dumps([], ensure_ascii=False),  # weaknesses - not available in PlayerProfile
+                    json.dumps(self._extract_strengths(style_scores_by_name), ensure_ascii=False),
+                    json.dumps(self._extract_weaknesses(style_scores_by_name), ensure_ascii=False),
                     json.dumps(profile.opening_repertoire, ensure_ascii=False),
                     # Extract scores from StyleDimension enum keys
-                    float(self._get_style_score(style_scores, 'tactical_dependency')),
-                    float(self._get_style_score(style_scores, 'positional_orientation')), 
+                    float(tactical_rating),
+                    float(positional_rating),
                     float(self._get_style_score(style_scores, 'endgame_technique')),
                     float(self._get_style_score(style_scores, 'time_management')),
-                    float(0.0),  # blunder_tendency - not available in style_scores
-                    float(self._get_style_score(style_scores, 'risk_taking')),
-                    float(0.0),  # piece_activity_preference - not available
-                    float(self._get_style_score(style_scores, 'aggression')),
+                    float(blunder_tendency),
+                    float(risk_tolerance),
+                    float(piece_activity_preference),
+                    float(aggression_rating),
                     float(self._get_style_score(style_scores, 'exchange_preference')),
                     float(self._get_style_score(style_scores, 'opening_variety')),
                     float(self._get_style_score(style_scores, 'lead_conversion')),
-                    float(self._get_style_score(style_scores, 'consistency')),
+                    float(consistency),
                     float(self._get_style_score(style_scores, 'swindle_resistance')),
                     json.dumps(self._profile_to_json_serializable(profile), ensure_ascii=False),
                     json.dumps(self._profile_to_json_serializable(profile.metadata), ensure_ascii=False),

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
@@ -67,11 +67,13 @@ export interface AnalysisStatus {
   id: string;
   status: string;
   progress: number;
-  current_step: string;
-  created_at: string;
+  currentStep?: string;
+  current_step?: string;
+  errorMessage?: string;
+  error_message?: string;
+  created_at?: string;
   started_at?: string;
   completed_at?: string;
-  error_message?: string;
   queue_info?: Record<string, any>;
 }
 

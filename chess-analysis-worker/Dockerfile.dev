@@ -17,7 +17,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir watchdog
 
 # Create source directory
-RUN mkdir -p /app/src
+RUN mkdir -p /app/src /app/config
+
+# Copy scoring configuration used by the worker. In development this is also
+# bind-mounted so config edits are picked up with the running compose stack.
+COPY config/ ./config/
 
 # Set Python path
 ENV PYTHONPATH=/app/src

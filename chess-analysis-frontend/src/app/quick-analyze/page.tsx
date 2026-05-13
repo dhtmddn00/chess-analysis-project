@@ -9,7 +9,7 @@ import { JobProgress } from '../../components/JobProgress';
 
 export default function QuickAnalyzePage() {
   const [searchForm, setSearchForm] = useState({
-    platform: 'chesscom',
+    platform: 'chess.com',
     username: '',
     n: 10,
     priority: 'fast' as 'fast' | 'precise',
@@ -68,7 +68,7 @@ export default function QuickAnalyzePage() {
   };
 
   const handleReset = () => {
-    setSearchForm({ ...searchForm, username: '' });
+    setSearchForm({ ...searchForm, username: '', platform: 'chess.com' });
     setHasSearched(false);
     reset();
   };
@@ -105,8 +105,8 @@ export default function QuickAnalyzePage() {
                   onChange={(e) => setSearchForm({...searchForm, platform: e.target.value})}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="chesscom">Chess.com</option>
-                  <option value="lichess">Lichess</option>
+                  <option value="chess.com">Chess.com</option>
+                  <option value="lichess" disabled>Lichess (준비 중)</option>
                 </select>
               </div>
               

@@ -8,13 +8,11 @@ Apple 스타일의 모던한 체스 분석 웹 애플리케이션 프론트엔�
 - **반응형 디자인**: 모바일, 태블릿, 데스크톱 모든 화면 크기 지원
 - **다국어 지원**: 한국어/영어 실시간 언어 전환
 - **실시간 분석**: Chess.com 계정 연동을 통한 실시간 게임 분석
-- **인터랙티브 차트**: Chart.js를 활용한 시각적 분석 결과 표시
 
 ## 🛠 기술 스택
 
 - **Framework**: Next.js 15.5.0 with TypeScript
 - **Styling**: Tailwind CSS + Apple Design System
-- **Charts**: Chart.js with React Chart.js 2
 - **Icons**: Lucide React
 - **Language**: TypeScript
 - **Package Manager**: npm
@@ -37,10 +35,10 @@ npm start
 
 ## 🌐 환경 변수
 
-`.env.local` 파일을 생성하고 다음 환경 변수를 설정하세요:
+기본 개발 환경에서는 Next.js rewrite가 `/api/v1` 요청을 `http://localhost:8080`으로 프록시하므로 별도 설정이 없어도 됩니다. 다른 API 서버를 사용할 때만 다음 값을 설정하세요:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
 ## 📱 주요 기능
@@ -53,14 +51,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 - **apple-gradient-text**: 그라데이션 텍스트
 
 ### 🎯 핵심 컴포넌트
-- **ChessAnalysisForm**: 분석 요청 폼 (사용자명, 플랫폼, 게임 수)
-- **AnalysisResults**: 분석 결과 표시
-- **StyleScoresChart**: 플레이 스타일 레이더 차트
-- **SystemStats**: 실시간 시스템 상태
-- **LanguageToggle**: 언어 전환 버튼
+- **PlayerSummaryCard**: 플레이어 요약 표시
+- **JobProgress**: 분석 진행 상태 표시
+- **Toast**: 사용자 피드백 알림
 
 ### 📊 분석 결과 시각화
-- **레이더 차트**: 12차원 플레이 스타일 분석
+- **스타일 점수 패널**: 12차원 플레이 스타일 분석
 - **진행률 표시**: 실시간 분석 진행 상황
 - **성능 지표**: ACPL, 승률, 시간 관리 등
 
@@ -80,11 +76,9 @@ src/
 │   ├── layout.tsx         # 루트 레이아웃
 │   └── page.tsx           # 메인 페이지
 ├── components/            # 재사용 가능한 컴포넌트
-│   ├── ChessAnalysisForm.tsx
-│   ├── AnalysisResults.tsx
-│   ├── StyleScoresChart.tsx
-│   ├── SystemStats.tsx
-│   ├── LanguageToggle.tsx
+│   ├── PlayerSummaryCard.tsx
+│   ├── JobProgress.tsx
+│   ├── Toast.tsx
 │   └── ...
 ├── hooks/                 # 커스텀 훅
 │   └── useTranslation.ts  # 다국어 지원 훅

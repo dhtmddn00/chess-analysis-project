@@ -11,7 +11,7 @@ public class AnalysisRequestDto {
     private String username;
     
     @NotBlank(message = "Platform is required")
-    @Pattern(regexp = "chess\\.com|lichess", message = "Platform must be chess.com or lichess")
+    @Pattern(regexp = "chess\\.com", message = "Only chess.com analysis is currently supported")
     private String platform = "chess.com";
     
     @NotNull(message = "Game count is required")

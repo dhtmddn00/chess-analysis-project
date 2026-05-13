@@ -3,9 +3,10 @@ package com.chessanalysis.api.queue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.UUID;
 
 @Service
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Slf4j
 public class AnalysisQueueService {
     
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     
     private static final String QUEUE_NAME = "chess-analysis-queue";
@@ -22,7 +23,7 @@ public class AnalysisQueueService {
     public void enqueueAnalysisJob(AnalysisJobDto job) {
         try {
             log.info("Enqueuing analysis job for user: {} (ID: {})", job.getUsername(), job.getAnalysisId());
-            redisTemplate.opsForList().leftPush(QUEUE_NAME, job);
+            redisTemplate.opsForList().leftPush(QUEUE_NAME, objectMapper.writeValueAsString(job));
             log.info("Analysis job enqueued successfully");
         } catch (Exception e) {
             log.error("Failed to enqueue analysis job: {}", e.getMessage(), e);
@@ -40,7 +41,7 @@ public class AnalysisQueueService {
                     .timestamp(System.currentTimeMillis())
                     .build();
                     
-            redisTemplate.opsForValue().set(key, update);
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(update));
             redisTemplate.expire(key, java.time.Duration.ofHours(24));
             
             log.debug("Progress updated for analysis {}: {}% - {}", analysisId, progress, currentStep);
@@ -52,8 +53,11 @@ public class AnalysisQueueService {
     public ProgressUpdateDto getProgress(UUID analysisId) {
         try {
             String key = PROGRESS_KEY_PREFIX + analysisId.toString();
-            Object result = redisTemplate.opsForValue().get(key);
-            return result != null ? (ProgressUpdateDto) result : null;
+            String result = redisTemplate.opsForValue().get(key);
+            return result != null ? objectMapper.readValue(result, ProgressUpdateDto.class) : null;
+        } catch (IOException e) {
+            log.error("Failed to parse progress for analysis {}: {}", analysisId, e.getMessage(), e);
+            return null;
         } catch (Exception e) {
             log.error("Failed to get progress for analysis {}: {}", analysisId, e.getMessage(), e);
             return null;

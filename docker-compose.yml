@@ -85,8 +85,6 @@ services:
       chess-api:
         condition: service_healthy
     restart: unless-stopped
-    volumes:
-      - ./chess-analysis-backend/data:/app/data:ro
 
   chess-worker-2:
     build:
@@ -110,8 +108,6 @@ services:
       chess-api:
         condition: service_healthy
     restart: unless-stopped
-    volumes:
-      - ./chess-analysis-backend/data:/app/data:ro
 
   # Next.js Frontend
   chess-frontend:
@@ -120,7 +116,8 @@ services:
       dockerfile: Dockerfile
     container_name: chess-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://chess-api:8080
+      - INTERNAL_API_URL=http://chess-api:8080
+      - NEXT_PUBLIC_API_URL=
     ports:
       - "3000:3000"
     depends_on:

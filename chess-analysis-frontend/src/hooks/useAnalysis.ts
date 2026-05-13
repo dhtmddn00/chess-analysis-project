@@ -1,18 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import useSWR from 'swr';
 
-export interface AnalysisJobRequest {
+export interface CreateAnalysisRequest {
   platform: string;
   username: string;
   n?: number;
   priority?: 'fast' | 'precise';
   timeControl?: string;
-}
-
-export interface AnalysisJobResponse {
-  jobId: string;
-  status: 'queued' | 'running' | 'done' | 'failed';
-  etaSec?: number;
 }
 
 export interface AnalysisJobStatus {
@@ -58,7 +52,7 @@ export interface AnalysisJobStatus {
 
 interface UseAnalysisResult {
   // Job creation
-  createJob: (request: AnalysisJobRequest) => Promise<string>;
+  createJob: (request: CreateAnalysisRequest) => Promise<string>;
   
   // Current job status
   jobId: string | null;
@@ -127,7 +121,7 @@ export function useAnalysis(): UseAnalysisResult {
     }
   );
 
-  const createJob = useCallback(async (request: AnalysisJobRequest): Promise<string> => {
+  const createJob = useCallback(async (request: CreateAnalysisRequest): Promise<string> => {
     setIsCreating(true);
     
     try {

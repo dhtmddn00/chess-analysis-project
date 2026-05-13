@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3 } from 'lucide-react';
+import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen } from 'lucide-react';
 import { usePlayerSummary } from '../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../hooks/useAnalysis';
 
@@ -48,6 +48,21 @@ interface AnalysisResult {
   totalBlunders: number;
   totalMistakes: number;
   totalInaccuracies: number;
+
+  openingStats?: {
+    whiteTotal: number;
+    blackTotal: number;
+    white: Array<{
+      name: string;
+      count: number;
+      percentage: number;
+    }>;
+    black: Array<{
+      name: string;
+      count: number;
+      percentage: number;
+    }>;
+  };
   
   explanations: {
     accuracyExplanation: string;
@@ -196,9 +211,9 @@ export default function UnifiedAnalyzePage() {
   }, [isDone, jobId]);
 
   const getResultColor = (result: string) => {
-    if (result === 'W') return 'text-green-600 bg-green-100';
-    if (result === 'L') return 'text-red-600 bg-red-100';
-    return 'text-yellow-600 bg-yellow-100';
+    if (result === 'W') return 'text-white bg-black';
+    if (result === 'L') return 'text-black bg-white border border-black/20';
+    return 'text-zinc-700 bg-zinc-200';
   };
 
   const getResultText = (result: string) => {
@@ -208,21 +223,37 @@ export default function UnifiedAnalyzePage() {
   };
 
   const getRatingColor = (rating: number) => {
-    if (rating >= 80) return 'text-green-600 bg-green-50';
-    if (rating >= 60) return 'text-blue-600 bg-blue-50';
-    if (rating >= 40) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (rating >= 80) return 'text-black bg-zinc-100';
+    if (rating >= 60) return 'text-zinc-800 bg-zinc-100';
+    if (rating >= 40) return 'text-zinc-600 bg-zinc-100';
+    return 'text-zinc-500 bg-zinc-100';
+  };
+
+  const getBriefStyleAnalysis = (analysis?: string) => {
+    if (!analysis) return '';
+    const sentences = analysis.match(/[^.!?。]+[.!?。]/g);
+    if (!sentences || sentences.length === 0) return analysis;
+    return sentences.slice(0, 2).join(' ').trim();
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="chess-toss min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-white shadow-sm chess-hero">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-6">
+          <div className="flex items-center justify-between gap-6 py-6">
             <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
+                <span className="text-base leading-none">♟</span>
+                Chess intelligence
+              </div>
               <h1 className="text-3xl font-bold text-gray-900">체스 플레이어 분석</h1>
-              <p className="text-gray-600 mt-1">즉시 요약 확인 → 자동 상세 분석 업데이트</p>
+              <p className="text-gray-600 mt-1">최근 게임을 읽고, 스타일과 약점을 빠르게 정리합니다</p>
+            </div>
+            <div className="hidden sm:grid chess-board-mini" aria-hidden="true">
+              {['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜', '♙', '♙', '♙', '♙', '♟', '♟', '♟', '♟'].map((piece, index) => (
+                <span key={`${piece}-${index}`}>{piece}</span>
+              ))}
             </div>
           </div>
         </div>
@@ -230,7 +261,14 @@ export default function UnifiedAnalyzePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search form */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8 chess-panel">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="chess-icon-tile">♘</div>
+            <div>
+              <h2 className="text-lg font-bold text-zinc-950">플레이어 검색</h2>
+              <p className="text-sm text-zinc-500">사용자명만 입력하면 최근 게임 요약부터 확인합니다</p>
+            </div>
+          </div>
           <form onSubmit={handleSearch}>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-2">
@@ -241,7 +279,7 @@ export default function UnifiedAnalyzePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="chess.com">Chess.com</option>
-                  <option value="lichess">Lichess</option>
+                  <option value="lichess" disabled>Lichess (준비 중)</option>
                 </select>
               </div>
               
@@ -353,7 +391,7 @@ export default function UnifiedAnalyzePage() {
 
         {/* Instant Summary */}
         {summary && summary.player && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 chess-panel">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-4">
                 {/* Avatar */}
@@ -403,7 +441,7 @@ export default function UnifiedAnalyzePage() {
                 <div className="text-2xl font-bold text-yellow-600">
                   {summary.player.ratings?.rapid || summary.player.time_controls?.rapid?.rating || 'N/A'}
                 </div>
-                <div className="text-sm text-gray-600">래피드</div>
+                <div className="text-sm text-gray-600">♙ 래피드</div>
                 {summary.player.time_controls?.rapid && (
                   <div className="text-xs text-gray-500 mt-1">
                     {((summary.player.time_controls.rapid.winrate || 0) * 100).toFixed(1)}% 승률
@@ -415,7 +453,7 @@ export default function UnifiedAnalyzePage() {
                 <div className="text-2xl font-bold text-green-600">
                   {summary.player.ratings?.blitz || summary.player.time_controls?.blitz?.rating || 'N/A'}
                 </div>
-                <div className="text-sm text-gray-600">블리츠</div>
+                <div className="text-sm text-gray-600">♞ 블리츠</div>
                 {summary.player.time_controls?.blitz && (
                   <div className="text-xs text-gray-500 mt-1">
                     {((summary.player.time_controls.blitz.winrate || 0) * 100).toFixed(1)}% 승률
@@ -427,7 +465,7 @@ export default function UnifiedAnalyzePage() {
                 <div className="text-2xl font-bold text-red-600">
                   {summary.player.ratings?.bullet || summary.player.time_controls?.bullet?.rating || 'N/A'}
                 </div>
-                <div className="text-sm text-gray-600">불릿</div>
+                <div className="text-sm text-gray-600">♜ 불릿</div>
                 {summary.player.time_controls?.bullet && (
                   <div className="text-xs text-gray-500 mt-1">
                     {((summary.player.time_controls.bullet.winrate || 0) * 100).toFixed(1)}% 승률
@@ -507,7 +545,7 @@ export default function UnifiedAnalyzePage() {
           <div className="space-y-8">
             {/* Progress Indicator */}
             {!isDone && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
                 <h3 className="text-xl font-bold text-gray-900 mb-4">분석 진행 중...</h3>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">전체 진행률</span>
@@ -557,9 +595,9 @@ export default function UnifiedAnalyzePage() {
             {detailedResult && (
               <div className="space-y-8">
                 {/* Executive Summary */}
-                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg p-6">
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg p-6 chess-result-hero">
                   <div className="flex items-center mb-4">
-                    <BarChart3 className="w-8 h-8 mr-3" />
+                    <div className="mr-3 flex h-12 w-12 items-center justify-center rounded-lg bg-white text-2xl text-black">♔</div>
                     <div>
                       <h3 className="text-2xl font-bold">종합 분석 결과</h3>
                       <p className="text-blue-100">플레이어: {detailedResult.username} • 분석 게임: {detailedResult.totalGames}개</p>
@@ -568,27 +606,30 @@ export default function UnifiedAnalyzePage() {
                 </div>
 
                 {/* Performance Metrics Dashboard */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h4 className="text-xl font-bold text-gray-900 mb-6">📊 성과 지표</h4>
+                <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
+                  <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    성과 지표
+                  </h4>
                   
                   <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
                     <div className="text-center p-4 bg-blue-50 rounded-lg border">
                       <div className="text-2xl font-bold text-blue-600">
-                        {detailedResult.averageAccuracy?.toFixed(1) || '0.0'}%
+                        ♕ {detailedResult.averageAccuracy?.toFixed(1) || '0.0'}%
                       </div>
                       <div className="text-xs text-gray-600">평균 정확도</div>
                     </div>
                     
                     <div className="text-center p-4 bg-green-50 rounded-lg border">
                       <div className="text-2xl font-bold text-green-600">
-                        {detailedResult.averageCentipawnLoss?.toFixed(1) || '0.0'}
+                        ♙ {detailedResult.averageCentipawnLoss?.toFixed(1) || '0.0'}
                       </div>
                       <div className="text-xs text-gray-600">평균 CPL</div>
                     </div>
                     
                     <div className="text-center p-4 bg-yellow-50 rounded-lg border">
                       <div className="text-2xl font-bold text-yellow-600">
-                        {detailedResult.tacticalOverview?.tacticalAccuracy || '0.0%'}
+                        ♞ {detailedResult.tacticalOverview?.tacticalAccuracy || '0.0%'}
                       </div>
                       <div className="text-xs text-gray-600">전술 정확도</div>
                     </div>
@@ -615,54 +656,112 @@ export default function UnifiedAnalyzePage() {
                     </div>
                   </div>
 
+                  {/* Opening Repertoire */}
+                  {detailedResult.openingStats && (
+                    <div className="mb-6 rounded-lg border bg-slate-50 p-4">
+                      <div className="mb-4 flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-slate-700" />
+                        <h5 className="font-semibold text-gray-900">주요 오프닝 레퍼토리</h5>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {[
+                          { title: '백으로 시작한 게임', total: detailedResult.openingStats.whiteTotal, rows: detailedResult.openingStats.white },
+                          { title: '흑으로 시작한 게임', total: detailedResult.openingStats.blackTotal, rows: detailedResult.openingStats.black },
+                        ].map((section) => (
+                          <div key={section.title} className="rounded-lg border bg-white p-4">
+                            <div className="mb-3 flex items-baseline justify-between">
+                              <div className="text-sm font-semibold text-gray-800">{section.title}</div>
+                              <div className="text-xs text-gray-500">총 {section.total}판</div>
+                            </div>
+
+                            {section.rows.length > 0 ? (
+                              <div className="space-y-3">
+                                {section.rows.map((opening, index) => (
+                                  <div key={`${section.title}-${opening.name}`} className="space-y-1">
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                      <div className="min-w-0 font-medium text-gray-800">
+                                        {index + 1}. {opening.name}
+                                      </div>
+                                      <div className="shrink-0 text-gray-600">
+                                        {opening.count}판 · {opening.percentage.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                    <div className="h-1.5 w-full rounded-full bg-gray-200">
+                                      <div
+                                        className="h-1.5 rounded-full bg-slate-700"
+                                        style={{ width: `${Math.min(opening.percentage, 100)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500">해당 색으로 분석된 게임이 없습니다.</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Performance Analysis */}
                   <div className="space-y-4">
                     <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                      <div className="font-medium text-blue-900 mb-1">📈 정확도 분석</div>
+                      <div className="font-medium text-blue-900 mb-1">♕ 정확도 분석</div>
                       <p className="text-sm text-blue-800">{detailedResult.explanations?.accuracyExplanation}</p>
                     </div>
                     
                     <div className="p-4 bg-green-50 border-l-4 border-green-400 rounded-lg">
-                      <div className="font-medium text-green-900 mb-1">⚖️ 센티폰 손실 분석</div>
+                      <div className="font-medium text-green-900 mb-1">♙ 센티폰 손실 분석</div>
                       <p className="text-sm text-green-800">{detailedResult.explanations?.acplExplanation}</p>
                     </div>
                     
                     <div className="p-4 bg-orange-50 border-l-4 border-orange-400 rounded-lg">
-                      <div className="font-medium text-orange-900 mb-1">🎯 실수 패턴 분석</div>
+                      <div className="font-medium text-orange-900 mb-1">♟ 실수 패턴 분석</div>
                       <p className="text-sm text-orange-800">{detailedResult.explanations?.errorAnalysis}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Comprehensive Style Profile */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h4 className="text-xl font-bold text-gray-900 mb-6">🎭 12차원 스타일 프로파일링</h4>
+                <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
+                  <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    12차원 스타일 프로파일링
+                  </h4>
                   
                   {/* Main Playing Style */}
-                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-6 rounded-lg mb-6 border">
+                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-6 rounded-lg mb-6 border chess-style-summary">
                     <div className="text-center">
+                      <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-black text-2xl text-white">♚</div>
                       <h5 className="text-lg font-bold text-purple-800 mb-2">주요 플레이 스타일</h5>
                       <div className="text-2xl font-bold text-purple-900">
                         {detailedResult.styleProfile?.playingStyle || '분석 중'}
                       </div>
+                      {detailedResult.styleProfile?.dimensionExplanations?.overallStyleAnalysis && (
+                        <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-purple-800">
+                          {getBriefStyleAnalysis(detailedResult.styleProfile.dimensionExplanations.overallStyleAnalysis)}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
                   {/* All 12 Dimensions */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {[
-                      { name: '전술적 감각', key: 'tacticalRating', icon: '⚔️' },
-                      { name: '포지셔널', key: 'positionalRating', icon: '🏛️' },
+                      { name: '전술적 감각', key: 'tacticalRating', icon: '♞' },
+                      { name: '포지셔널', key: 'positionalRating', icon: '♗' },
                       { name: '엔드게임', key: 'endgameRating', icon: '♔' },
-                      { name: '시간 관리', key: 'timeManagementRating', icon: '⏰' },
-                      { name: '공격성', key: 'aggressionRating', icon: '🔥' },
-                      { name: '일관성', key: 'consistency', icon: '📊' },
-                      { name: '리스크 감수', key: 'riskTolerance', icon: '🎲' },
-                      { name: '교환 선호도', key: 'exchangePreference', icon: '↔️' },
-                      { name: '오프닝 다양성', key: 'openingVariety', icon: '📚' },
-                      { name: '우세 변환력', key: 'leadConversion', icon: '🏆' },
-                      { name: '역전 저항력', key: 'swindleResistance', icon: '🛡️' },
-                      { name: '블런더 경향', key: 'blunderTendency', icon: '⚠️' }
+                      { name: '시간 관리', key: 'timeManagementRating', icon: '♟' },
+                      { name: '공격성', key: 'aggressionRating', icon: '♛' },
+                      { name: '일관성', key: 'consistency', icon: '♖' },
+                      { name: '리스크 감수', key: 'riskTolerance', icon: '♘' },
+                      { name: '교환 선호도', key: 'exchangePreference', icon: '♜' },
+                      { name: '오프닝 다양성', key: 'openingVariety', icon: '♙' },
+                      { name: '우세 변환력', key: 'leadConversion', icon: '♕' },
+                      { name: '역전 저항력', key: 'swindleResistance', icon: '♚' },
+                      { name: '블런더 경향', key: 'blunderTendency', icon: '♟' }
                     ].map((dimension) => {
                       const score = detailedResult.styleProfile?.[dimension.key as keyof typeof detailedResult.styleProfile] as number || 0;
                       return (
@@ -689,14 +788,16 @@ export default function UnifiedAnalyzePage() {
                       <h5 className="font-semibold text-gray-900 mb-3">📝 차원별 상세 분석</h5>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(detailedResult.styleProfile.dimensionExplanations).map(([key, explanation]) => (
-                          <div key={key} className="p-3 bg-gray-50 rounded-lg border text-sm">
-                            <div className="font-medium text-gray-800 mb-1">
-                              {key.replace('Explanation', '').replace(/([A-Z])/g, ' $1').trim()}
+                        {Object.entries(detailedResult.styleProfile.dimensionExplanations)
+                          .filter(([key]) => key !== 'overallStyleAnalysis')
+                          .map(([key, explanation]) => (
+                            <div key={key} className="p-3 bg-gray-50 rounded-lg border text-sm">
+                              <div className="font-medium text-gray-800 mb-1">
+                                {key.replace('Explanation', '').replace(/([A-Z])/g, ' $1').trim()}
+                              </div>
+                              <div className="text-gray-600">{explanation}</div>
                             </div>
-                            <div className="text-gray-600">{explanation}</div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   )}
@@ -704,7 +805,7 @@ export default function UnifiedAnalyzePage() {
 
                 {/* Tactical Analysis */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h4 className="text-xl font-bold text-gray-900 mb-6">⚔️ 전술 분석</h4>
+                  <h4 className="text-xl font-bold text-gray-900 mb-6">♞ 전술 분석</h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-green-50 p-4 rounded-lg border">
@@ -749,7 +850,7 @@ export default function UnifiedAnalyzePage() {
                 {/* Training Recommendations */}
                 {detailedResult.trainingRecommendations && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h4 className="text-xl font-bold text-gray-900 mb-6">🎯 맞춤형 훈련 계획</h4>
+                    <h4 className="text-xl font-bold text-gray-900 mb-6">♙ 맞춤형 훈련 계획</h4>
                     
                     <div className="space-y-4">
                       {detailedResult.trainingRecommendations.map((recommendation, index) => (
@@ -772,7 +873,7 @@ export default function UnifiedAnalyzePage() {
                 {/* Player Metadata */}
                 {detailedResult.playerMetadata && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h4 className="text-xl font-bold text-gray-900 mb-6">👤 플레이어 정보</h4>
+                    <h4 className="text-xl font-bold text-gray-900 mb-6">♔ 플레이어 정보</h4>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {detailedResult.playerMetadata.country && (

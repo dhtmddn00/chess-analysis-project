@@ -43,6 +43,7 @@ build/
 !build/cache
 out/
 *.jar
+!gradle-wrapper.jar
 *.war
 *.ear
 

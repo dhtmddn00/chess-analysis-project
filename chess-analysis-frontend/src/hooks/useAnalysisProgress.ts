@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { analysisApi, AnalysisStatus } from '@/lib/api';
 
 export interface ProgressState {
@@ -19,29 +19,38 @@ export function useAnalysisProgress(analysisId: string | null) {
     isPolling: false
   });
 
-  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const normalizeStatus = (status: string): ProgressState['status'] => {
+    const normalized = status.toUpperCase();
+    if (normalized === 'PENDING' || normalized === 'IN_PROGRESS' || normalized === 'COMPLETED' || normalized === 'FAILED' || normalized === 'CANCELLED') {
+      return normalized;
+    }
+    return null;
+  };
 
   const fetchProgress = useCallback(async () => {
     if (!analysisId) return;
 
     try {
       const statusData = await analysisApi.getAnalysisStatus(analysisId);
+      const normalizedStatus = normalizeStatus(statusData.status);
       
       const newState: ProgressState = {
-        status: statusData.status as ProgressState['status'],
+        status: normalizedStatus,
         progress: statusData.progress || 0,
-        currentStep: statusData.current_step || '',
-        error: statusData.error_message,
+        currentStep: statusData.currentStep || statusData.current_step || '',
+        error: statusData.errorMessage || statusData.error_message,
         isPolling: progressState.isPolling
       };
 
       setProgressState(newState);
 
       // Stop polling if analysis is completed or failed
-      if (statusData.status === 'COMPLETED' || statusData.status === 'FAILED') {
-        if (intervalId) {
-          clearInterval(intervalId);
-          setIntervalId(null);
+      if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'FAILED') {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
         setProgressState(prev => ({ ...prev, isPolling: false }));
       }
@@ -54,15 +63,15 @@ export function useAnalysisProgress(analysisId: string | null) {
         isPolling: false
       }));
       
-      if (intervalId) {
-        clearInterval(intervalId);
-        setIntervalId(null);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     }
-  }, [analysisId, intervalId, progressState.isPolling]);
+  }, [analysisId, progressState.isPolling]);
 
   const startPolling = useCallback(() => {
-    if (!analysisId || intervalId) return;
+    if (!analysisId || intervalRef.current) return;
 
     setProgressState(prev => ({ ...prev, isPolling: true }));
     
@@ -70,39 +79,40 @@ export function useAnalysisProgress(analysisId: string | null) {
     fetchProgress();
     
     // Set up polling every 2 seconds
-    const id = setInterval(fetchProgress, 2000);
-    setIntervalId(id);
-  }, [analysisId, intervalId, fetchProgress]);
+    intervalRef.current = setInterval(fetchProgress, 2000);
+  }, [analysisId, fetchProgress]);
 
   const stopPolling = useCallback(() => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      setIntervalId(null);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
     setProgressState(prev => ({ ...prev, isPolling: false }));
-  }, [intervalId]);
+  }, []);
 
   // Auto-start polling when analysisId is provided
   useEffect(() => {
-    if (analysisId && !intervalId) {
+    if (analysisId && !intervalRef.current) {
       startPolling();
     }
 
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-  }, [analysisId, startPolling, intervalId]);
+  }, [analysisId, startPolling]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-  }, [intervalId]);
+  }, []);
 
   return {
     ...progressState,

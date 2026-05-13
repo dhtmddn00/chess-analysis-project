@@ -62,19 +62,8 @@ case "$1" in
     ;;
   
   test)
-    echo "🧪 Running end-to-end test..."
-    # Test API
-    echo "Testing API..."
-    response=$(curl -s -X POST "http://localhost:8080/api/v1/analysis" \
-      -H "Content-Type: application/json" \
-      -d '{"username": "testuser123", "platform": "chess.com", "gameCount": 5}')
-    
-    if echo "$response" | grep -q '"status":"PENDING"'; then
-      echo "✅ API test passed!"
-    else
-      echo "❌ API test failed!"
-      echo "$response"
-    fi
+    echo "🧪 Running Docker Compose smoke test..."
+    ./scripts/smoke-test.sh
     ;;
   
   *)

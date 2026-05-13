@@ -14,6 +14,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import javax.sql.DataSource;
@@ -288,6 +290,8 @@ public class AnalysisService {
                     
                     result.put("explanations", explanations);
                 }
+
+                result.put("openingStats", getOpeningStats(connection, analysisId, analysisResult.getString("username")));
                 
                 // Get enhanced style profile with all data
                 var styleStmt = connection.prepareStatement(
@@ -342,6 +346,10 @@ public class AnalysisService {
                     double timeManagementRating = styleResult.getDouble("time_management_rating");
                     double aggressionRating = styleResult.getDouble("aggression_rating");
                     double consistency = styleResult.getDouble("consistency");
+                    double riskTolerance = styleResult.getDouble("risk_tolerance");
+                    double exchangePreference = styleResult.getDouble("exchange_preference");
+                    double openingVariety = styleResult.getDouble("opening_variety");
+                    double leadConversion = styleResult.getDouble("lead_conversion");
                     
                     // 전술적 감각 설명
                     String tacticalExplanation = getTacticalExplanation(tacticalRating);
@@ -370,7 +378,9 @@ public class AnalysisService {
                     // 전체적인 플레이 스타일 해석
                     String overallStyleAnalysis = getOverallStyleAnalysis(
                         styleResult.getString("playing_style"),
-                        tacticalRating, positionalRating, aggressionRating, endgameRating
+                        tacticalRating, positionalRating, aggressionRating, endgameRating,
+                        riskTolerance, consistency, exchangePreference, openingVariety,
+                        leadConversion
                     );
                     dimensionExplanations.put("overallStyleAnalysis", overallStyleAnalysis);
                     
@@ -631,6 +641,122 @@ public class AnalysisService {
         
         return games;
     }
+
+    private Map<String, Object> getOpeningStats(java.sql.Connection connection, UUID analysisId, String username) throws Exception {
+        Map<String, OpeningCounter> whiteOpenings = new HashMap<>();
+        Map<String, OpeningCounter> blackOpenings = new HashMap<>();
+        int whiteGames = 0;
+        int blackGames = 0;
+
+        var stmt = connection.prepareStatement(
+            "SELECT white_player, black_player, opening, pgn FROM games_worker WHERE analysis_id = ?");
+        stmt.setObject(1, analysisId);
+        var rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            String whitePlayer = rs.getString("white_player");
+            String blackPlayer = rs.getString("black_player");
+            String opening = normalizeOpeningName(rs.getString("opening"), rs.getString("pgn"));
+
+            if (whitePlayer != null && whitePlayer.equalsIgnoreCase(username)) {
+                whiteGames++;
+                incrementOpening(whiteOpenings, opening);
+            } else if (blackPlayer != null && blackPlayer.equalsIgnoreCase(username)) {
+                blackGames++;
+                incrementOpening(blackOpenings, opening);
+            }
+        }
+
+        Map<String, Object> openingStats = new HashMap<>();
+        openingStats.put("whiteTotal", whiteGames);
+        openingStats.put("blackTotal", blackGames);
+        openingStats.put("white", toOpeningRows(whiteOpenings, whiteGames));
+        openingStats.put("black", toOpeningRows(blackOpenings, blackGames));
+        return openingStats;
+    }
+
+    private void incrementOpening(Map<String, OpeningCounter> openings, String opening) {
+        OpeningCounter counter = openings.computeIfAbsent(opening, key -> new OpeningCounter(key));
+        counter.count++;
+    }
+
+    private List<Map<String, Object>> toOpeningRows(Map<String, OpeningCounter> openings, int totalGames) {
+        return openings.values().stream()
+            .sorted((a, b) -> {
+                int countCompare = Integer.compare(b.count, a.count);
+                return countCompare != 0 ? countCompare : a.name.compareToIgnoreCase(b.name);
+            })
+            .limit(2)
+            .map(counter -> {
+                Map<String, Object> row = new HashMap<>();
+                row.put("name", counter.name);
+                row.put("count", counter.count);
+                row.put("percentage", totalGames > 0 ? Math.round((counter.count * 10000.0) / totalGames) / 100.0 : 0.0);
+                return row;
+            })
+            .toList();
+    }
+
+    private String normalizeOpeningName(String opening, String pgn) {
+        String resolved = opening;
+        if (resolved == null || resolved.isBlank() || resolved.equalsIgnoreCase("Unknown")) {
+            resolved = extractPgnTag(pgn, "Opening");
+        }
+        if (resolved == null || resolved.isBlank() || resolved.equalsIgnoreCase("Unknown")) {
+            resolved = openingNameFromEcoUrl(extractPgnTag(pgn, "ECOUrl"));
+        }
+        if (resolved == null || resolved.isBlank() || resolved.equalsIgnoreCase("Unknown")) {
+            resolved = extractPgnTag(pgn, "ECO");
+        }
+        if (resolved == null || resolved.isBlank()) {
+            return "오프닝 미분류";
+        }
+        int variationStart = resolved.indexOf("...");
+        if (variationStart > 0) {
+            resolved = resolved.substring(0, variationStart);
+        }
+        resolved = resolved.replace('-', ' ').replaceAll("\\s+", " ").trim();
+        return resolved.length() > 70 ? resolved.substring(0, 67) + "..." : resolved;
+    }
+
+    private String extractPgnTag(String pgn, String tagName) {
+        if (pgn == null || pgn.isBlank()) {
+            return null;
+        }
+        String marker = "[" + tagName + " \"";
+        int start = pgn.indexOf(marker);
+        if (start < 0) {
+            return null;
+        }
+        int valueStart = start + marker.length();
+        int valueEnd = pgn.indexOf("\"]", valueStart);
+        if (valueEnd < 0) {
+            return null;
+        }
+        return pgn.substring(valueStart, valueEnd);
+    }
+
+    private String openingNameFromEcoUrl(String ecoUrl) {
+        if (ecoUrl == null || ecoUrl.isBlank()) {
+            return null;
+        }
+        String slug = ecoUrl.substring(ecoUrl.lastIndexOf('/') + 1);
+        String decoded = URLDecoder.decode(slug, StandardCharsets.UTF_8);
+        int variationStart = decoded.indexOf("...");
+        if (variationStart > 0) {
+            decoded = decoded.substring(0, variationStart);
+        }
+        return decoded.replace('-', ' ');
+    }
+
+    private static class OpeningCounter {
+        private final String name;
+        private int count;
+
+        private OpeningCounter(String name) {
+            this.name = name;
+        }
+    }
     
     // 전술적 감각 설명 생성
     private String getTacticalExplanation(double tacticalRating) {
@@ -712,30 +838,67 @@ public class AnalysisService {
     
     // 전체적인 스타일 분석
     private String getOverallStyleAnalysis(String playingStyle, double tacticalRating, 
-                                         double positionalRating, double aggressionRating, double endgameRating) {
+                                         double positionalRating, double aggressionRating, double endgameRating,
+                                         double riskTolerance, double consistency, double exchangePreference,
+                                         double openingVariety, double leadConversion) {
+        Map<String, Double> dimensions = new LinkedHashMap<>();
+        dimensions.put("전술 의존도", tacticalRating);
+        dimensions.put("포지셔널 지향", positionalRating);
+        dimensions.put("공격성", aggressionRating);
+        dimensions.put("엔드게임", endgameRating);
+        dimensions.put("리스크 감수", riskTolerance);
+        dimensions.put("일관성", consistency);
+        dimensions.put("교환 선호", exchangePreference);
+        dimensions.put("오프닝 다양성", openingVariety);
+        dimensions.put("우세 변환", leadConversion);
+
+        var topDimensions = dimensions.entrySet().stream()
+            .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+            .limit(3)
+            .toList();
+        var lowDimensions = dimensions.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue())
+            .limit(2)
+            .toList();
+
+        String topSummary = topDimensions.stream()
+            .map(entry -> entry.getKey() + " " + Math.round(entry.getValue()))
+            .reduce((a, b) -> a + ", " + b)
+            .orElse("주요 지표 부족");
+        String lowSummary = lowDimensions.stream()
+            .map(entry -> entry.getKey() + " " + Math.round(entry.getValue()))
+            .reduce((a, b) -> a + ", " + b)
+            .orElse("보완 지표 부족");
+
         StringBuilder analysis = new StringBuilder();
-        analysis.append("당신의 플레이 스타일은 '").append(playingStyle).append("'입니다. ");
-        
-        if (tacticalRating > positionalRating) {
-            if (aggressionRating >= 70) {
-                analysis.append("전술적 계산력이 뛰어나고 공격적인 성향을 가진 플레이어입니다. 복잡한 포지션에서 콤비네이션을 통해 우위를 점하는 것을 선호합니다. ");
-                analysis.append("이러한 스타일은 빠른 게임에서 특히 효과적이지만, 포지셔널 이해도를 더 높이면 장기전에서도 더 나은 성과를 거둘 수 있을 것입니다.");
-            } else {
-                analysis.append("전술적 능력이 우수하지만 상대적으로 신중한 접근을 보입니다. 확실한 전술적 기회를 놓치지 않으면서도 리스크 관리를 잘 하는 스타일입니다.");
-            }
-        } else if (positionalRating > tacticalRating) {
-            analysis.append("포지셔널 이해도가 높은 전략적 플레이어입니다. 장기적인 계획을 세우고 서서히 우위를 축적하는 것을 선호합니다. ");
-            analysis.append("전술적 계산력을 더 향상시키면 더욱 완성도 높은 플레이어가 될 수 있습니다.");
+        analysis.append("주요 플레이 스타일은 '").append(playingStyle).append("'입니다. ");
+        analysis.append("이 요약은 상위 지표(").append(topSummary).append(")와 보완 지표(")
+            .append(lowSummary).append(")를 함께 비교해 산출했습니다. ");
+
+        if (tacticalRating >= positionalRating + 10) {
+            analysis.append("전술 지표가 포지셔널 지표보다 뚜렷하게 높아, 계산과 직접적인 기회 포착에 강점이 있는 편입니다. ");
+        } else if (positionalRating >= tacticalRating + 10) {
+            analysis.append("포지셔널 지표가 전술 지표보다 높아, 장기 계획과 안정적인 구조 운영 쪽 성향이 더 강합니다. ");
         } else {
-            analysis.append("전술과 포지션이 균형잡힌 올라운드 플레이어입니다. 상황에 따라 적절한 플레이 스타일을 선택할 수 있는 유연성을 가지고 있습니다.");
+            analysis.append("전술과 포지셔널 지표가 비슷해, 한쪽에 과하게 치우치지 않는 균형형에 가깝습니다. ");
         }
-        
-        if (endgameRating >= 70) {
-            analysis.append(" 엔드게임에서 특히 강력한 모습을 보이며, 이는 큰 장점입니다.");
+
+        if (aggressionRating >= 70 && riskTolerance >= 60) {
+            analysis.append("공격성과 리스크 감수가 함께 높아 복잡한 국면을 피하지 않는 스타일입니다. ");
+        } else if (aggressionRating < 45 && riskTolerance < 45) {
+            analysis.append("공격성과 리스크 감수가 낮아 안정적인 선택을 우선하는 경향이 있습니다. ");
+        }
+
+        if (consistency < 45) {
+            analysis.append("다만 일관성 지표가 낮아 좋은 구간과 흔들리는 구간의 차이를 줄이는 것이 우선 과제입니다.");
+        } else if (leadConversion >= 70) {
+            analysis.append("우세 변환 지표가 좋아 유리한 포지션을 결과로 연결하는 힘이 장점입니다.");
         } else if (endgameRating < 50) {
-            analysis.append(" 엔드게임 실력 향상이 전체적인 체스 실력 발전에 큰 도움이 될 것입니다.");
+            analysis.append("엔드게임 지표가 낮아 후반 기술을 보강하면 전체 성과가 더 안정될 가능성이 큽니다.");
+        } else {
+            analysis.append("현재 강점을 유지하면서 낮은 지표부터 하나씩 보완하면 가장 효율적으로 성장할 수 있습니다.");
         }
-        
+
         return analysis.toString();
     }
     

@@ -163,6 +163,12 @@ class PGNParser:
             
             opening_match = re.search(r'\[Opening "([^"]+)"\]', pgn_text)
             opening = opening_match.group(1) if opening_match else None
+            if not opening:
+                eco_url_match = re.search(r'\[ECOUrl "([^"]+)"\]', pgn_text)
+                if eco_url_match:
+                    opening_slug = eco_url_match.group(1).rstrip('/').split('/')[-1]
+                    opening_slug = opening_slug.split('...')[0]
+                    opening = opening_slug.replace('-', ' ')
             
             # 시간 정보
             start_time = None

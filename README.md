@@ -4,7 +4,7 @@ Stockfish 엔진과 Apple 디자인을 결합한 현대적인 체스 분석 플�
 
 ## 📁 레포지토리 구조
 
-이 프로젝트는 두 개의 독립적인 레포지토리로 구성되어 있습니다:
+이 프로젝트는 프론트엔드, Spring Boot API, Python 분석 워커를 Docker Compose로 묶어 실행하는 통합 레포지토리입니다.
 
 ### 🎨 [chess-analysis-frontend](./chess-analysis-frontend/)
 **Apple 스타일 프론트엔드 웹 애플리케이션**
@@ -22,47 +22,23 @@ npm run dev
 - 🍎 Apple Design Language 기반 UI/UX
 - 📱 완전 반응형 디자인 (모바일/태블릿/데스크톱)
 - 🌍 한국어/영어 실시간 언어 전환
-- 📊 Chart.js 기반 인터랙티브 분석 차트
-- ⚡ Next.js 15.5.0 + TypeScript
+- ⚡ Next.js + TypeScript
 
 **기술 스택:**
-- Next.js 15.5.0 with TypeScript
+- Next.js with TypeScript
 - Tailwind CSS + Apple Design System
-- Chart.js with React Chart.js 2
 - Lucide React icons
 
 ---
 
-### 🚀 [chess-analysis-backend](./chess-analysis-backend/)
-**Stockfish 엔진 기반 분석 API 서버**
+### 🚀 [chess-analysis-api](./chess-analysis-api/)
+**분석 요청, DB/Redis 연동, 결과 조회를 담당하는 Spring Boot API 서버**
 
-```bash
-# 레포지토리로 이동
-cd chess-analysis-backend
+### ♟️ [chess-analysis-worker](./chess-analysis-worker/)
+**Chess.com 게임 수집, Stockfish 분석, 12차원 프로파일링을 담당하는 Python 워커**
 
-# 가상환경 생성 및 의존성 설치
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# 데이터베이스 초기화 및 서버 실행
-python setup_db.py
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-**주요 특징:**
-- ♛ Stockfish 엔진을 활용한 정밀한 체스 분석
-- 🔗 Chess.com API 연동으로 실시간 게임 데이터 수집
-- 📈 12차원 플레이 스타일 프로파일링
-- ⚡ FastAPI 기반 고성능 비동기 처리
-- 💾 SQLite + Redis 캐싱
-
-**기술 스택:**
-- FastAPI 0.104.1 with Python 3.11+
-- SQLite + SQLAlchemy ORM
-- Redis for caching
-- Stockfish chess engine
-- python-chess library
+### 🗄️ 인프라
+PostgreSQL은 분석 결과 저장, Redis는 분석 작업 큐와 진행 상태 저장에 사용됩니다.
 
 ## 🎯 12차원 체스 스타일 분석
 
@@ -85,40 +61,48 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ### Docker Compose를 사용한 실행 (권장)
 
-```bash
-# 백엔드 디렉토리로 이동
-cd chess-analysis-backend
+현재 통합 개발 환경은 루트 디렉토리의 Docker Compose 구성을 기준으로 합니다.
 
-# 전체 시스템 실행
-docker-compose up -d
+```bash
+# 전체 개발 환경 실행
+./dev.sh start
+
+# 상태 확인
+./dev.sh status
 
 # 로그 확인
-docker-compose logs -f
+./dev.sh logs
+
+# Smoke test
+./dev.sh test
 ```
 
 ### 개별 실행
 
 ```bash
-# 터미널 1: 백엔드 실행
-cd chess-analysis-backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python setup_db.py
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# 터미널 1: DB/Redis 실행
+./local-dev.sh start
 
-# 터미널 2: 프론트엔드 실행
+# 터미널 2: API 실행
+cd chess-analysis-api
+./gradlew bootRun
+
+# 터미널 3: 프론트엔드 실행
 cd chess-analysis-frontend
 npm install
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+npm run dev
+
+# 터미널 4: Worker 실행
+cd chess-analysis-worker
+pip install -r requirements.txt
+python -m worker.main
 ```
 
 ## 🌐 서비스 접속
 
 - **프론트엔드**: http://localhost:3000 (또는 3005)
-- **백엔드 API**: http://localhost:8000
-- **API 문서**: http://localhost:8000/docs
-- **헬스체크**: http://localhost:8000/health
+- **백엔드 API**: http://localhost:8080/api/v1
+- **헬스체크**: http://localhost:8080/api/v1/actuator/health
 
 ## 📊 사용 방법
 
@@ -145,17 +129,21 @@ sudo apt-get install stockfish
 
 ### 환경 변수 설정
 
-**Frontend (.env.local):**
+**Frontend (.env.local, 선택):**
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-**Backend (.env):**
+**Worker (.env, 로컬 실행 시):**
 ```env
-DATABASE_URL=sqlite:///./chess_analysis.db
-REDIS_URL=redis://localhost:6379
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=chess_analysis
+DB_USER=chess_user
+DB_PASSWORD=chess_password
+REDIS_HOST=localhost
+REDIS_PORT=6379
 STOCKFISH_PATH=/opt/homebrew/bin/stockfish
-DEBUG=False
 ```
 
 ## 🎨 UI/UX 특징
@@ -171,13 +159,6 @@ DEBUG=False
 - **모바일 퍼스트** 접근
 - **터치 친화적** 44px+ 터치 타겟
 - **적응형 레이아웃** 모든 화면 크기 지원
-
-## 🔗 GitHub 레포지토리
-
-각 컴포넌트를 독립적인 GitHub 레포지토리로 관리하여 개발 효율성을 높였습니다:
-
-- **Frontend Repository**: `https://github.com/your-username/chess-analysis-frontend`
-- **Backend Repository**: `https://github.com/your-username/chess-analysis-backend`
 
 ## 🤝 기여 방법
 
@@ -196,7 +177,7 @@ MIT License - 자세한 내용은 각 레포지토리의 LICENSE 파일을 참�
 - **Stockfish** - 강력한 오픈소스 체스 엔진
 - **Chess.com** - 게임 데이터 API 제공
 - **Apple** - 아름다운 디자인 언어 영감
-- **Next.js & FastAPI** - 현대적인 웹 개발 프레임워크
+- **Next.js & Spring Boot** - 현대적인 웹 개발 프레임워크
 
 ---
 

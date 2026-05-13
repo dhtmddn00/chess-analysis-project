@@ -773,8 +773,7 @@ class PlayerProfiler:
     ) -> Tuple[float, List[Evidence]]:
         """포지셔널 지향성 점수 계산"""
         
-        # 간단한 휴리스틱 기반 계산
-        positional_moves = []
+        positional_scores = []
         evidence = []
         
         for game, analysis in zip(parsed_games, game_analyses):
@@ -784,13 +783,24 @@ class PlayerProfiler:
                 move for move in analysis.move_analyses
                 if (move.ply % 2 == 0) == is_white
             ]
+
+            if not player_moves:
+                continue
             
-            # 포지셔널 수 탐지 (비전술적이면서 좋은 수)
-            pos_count = 0
+            quiet_good = 0
+            forcing_moves = 0
+            cp_losses = []
+
             for move in player_moves:
-                if (not move.is_check and not move.is_capture and
-                    move.quality in [MoveQuality.BEST, MoveQuality.GOOD]):
-                    pos_count += 1
+                is_forcing = move.is_check or move.is_capture or move.is_promotion
+                if is_forcing:
+                    forcing_moves += 1
+
+                if move.centipawn_loss is not None:
+                    cp_losses.append(move.centipawn_loss)
+
+                if (not is_forcing and move.quality in [MoveQuality.BEST, MoveQuality.GOOD]):
+                    quiet_good += 1
                     
                     if len(evidence) < 3:
                         evidence.append(Evidence(
@@ -802,11 +812,21 @@ class PlayerProfiler:
                             context={'quality': move.quality.value}
                         ))
             
-            if player_moves:
-                positional_moves.append(pos_count / len(player_moves))
+            quiet_good_rate = quiet_good / len(player_moves)
+            forcing_rate = forcing_moves / len(player_moves)
+            avg_cp_loss = statistics.mean(cp_losses) if cp_losses else 80
+
+            quiet_score = min(100, quiet_good_rate * 100)
+            restraint_score = max(0, 100 - (forcing_rate * 120))
+            accuracy_score = max(0, 100 - avg_cp_loss)
+            game_score = (
+                quiet_score * 0.45 +
+                restraint_score * 0.25 +
+                accuracy_score * 0.30
+            )
+            positional_scores.append(game_score)
         
-        avg_positional_rate = statistics.mean(positional_moves) if positional_moves else 0
-        score = min(100, avg_positional_rate * 150)
+        score = statistics.mean(positional_scores) if positional_scores else 50
         
         return score, evidence
     

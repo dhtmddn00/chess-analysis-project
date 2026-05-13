@@ -97,7 +97,7 @@ export function useAnalysis(): UseAnalysisResult {
   const [isCreating, setIsCreating] = useState(false);
   
   // Poll job status when we have a jobId and job is not done
-  const shouldPoll = jobId && true; // will be refined based on status
+  const shouldPoll = jobId !== null; // will be refined based on status
   const { data: status, error, mutate } = useSWR<AnalysisJobStatus>(
     shouldPoll ? `/api/v1/analysis/${jobId}/status` : null,
     fetcher,
@@ -120,6 +120,7 @@ export function useAnalysis(): UseAnalysisResult {
       errorRetryInterval: 2000,
     }
   );
+  const statusData = status ?? null;
 
   const createJob = useCallback(async (request: CreateAnalysisRequest): Promise<string> => {
     setIsCreating(true);
@@ -175,20 +176,20 @@ export function useAnalysis(): UseAnalysisResult {
   }, [mutate]);
 
   // Computed values
-  const isQueued = status?.status === 'pending';
-  const isRunning = status?.status === 'in_progress'; 
-  const isDone = status?.status === 'completed';
-  const isFailed = status?.status === 'failed';
+  const isQueued = statusData?.status === 'pending';
+  const isRunning = statusData?.status === 'in_progress';
+  const isDone = statusData?.status === 'completed';
+  const isFailed = statusData?.status === 'failed';
   const isPolling = shouldPoll && !isDone && !isFailed && !error;
 
-  const progress = status?.progress || 0;
+  const progress = statusData?.progress || 0;
   const etaRemaining = null; // Not implemented in current backend
 
   // Partial readiness flags
-  const tacticsReady = status?.partials?.tactics?.ready || false;
-  const swingMomentsReady = status?.partials?.swing_moments?.ready || false;
-  const endgameReady = status?.partials?.endgame?.ready || false;
-  const timeMgmtReady = status?.partials?.time_mgmt?.ready || false;
+  const tacticsReady = statusData?.partials?.tactics?.ready || false;
+  const swingMomentsReady = statusData?.partials?.swing_moments?.ready || false;
+  const endgameReady = statusData?.partials?.endgame?.ready || false;
+  const timeMgmtReady = statusData?.partials?.time_mgmt?.ready || false;
 
   return {
     // Job creation
@@ -196,7 +197,7 @@ export function useAnalysis(): UseAnalysisResult {
     
     // Current job status
     jobId,
-    status,
+    status: statusData,
     isPolling,
     
     // Computed states  
@@ -216,9 +217,9 @@ export function useAnalysis(): UseAnalysisResult {
     timeMgmtReady,
     
     // Final results
-    summary: status?.summary,
-    profile: status?.profile,
-    plan: status?.plan,
+    summary: statusData?.summary,
+    profile: statusData?.profile,
+    plan: statusData?.plan,
     
     // Actions
     cancelJob,

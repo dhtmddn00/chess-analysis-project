@@ -26,7 +26,7 @@ ENV STOCKFISH_PATH=/usr/games/stockfish
 
 # 헬스체크 설정 (Redis 연결 확인)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import redis; r=redis.Redis(host='${REDIS_HOST:-redis}', port=int('${REDIS_PORT:-6379}')); r.ping()" || exit 1
+    CMD python -c "import os, redis; r=redis.Redis(host=os.getenv('REDIS_HOST', 'redis'), port=int(os.getenv('REDIS_PORT', '6379')), password=os.getenv('REDIS_PASSWORD') or None, ssl=os.getenv('REDIS_SSL', 'false').lower() == 'true'); r.ping()" || exit 1
 
 # 워커 실행
 CMD ["python", "-m", "worker.main"]

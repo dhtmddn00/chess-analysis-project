@@ -331,7 +331,8 @@ export function useTranslation() {
   }, []);
   
   const t = (key: keyof typeof translations.ko, params?: Record<string, string>) => {
-    let text = translations[language][key] || key;
+    const currentTranslations = translations[language] as Partial<Record<keyof typeof translations.ko, string>>;
+    let text = currentTranslations[key] ?? translations.ko[key] ?? key;
     
     // 파라미터 치환
     if (params) {

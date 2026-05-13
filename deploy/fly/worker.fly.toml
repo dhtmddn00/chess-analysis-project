@@ -1,0 +1,17 @@
+app = "chess-analysis-worker"
+primary_region = "nrt"
+
+[env]
+  REDIS_SSL = "true"
+  DB_SSL = "true"
+  STOCKFISH_DEPTH_QUICK = "10"
+  STOCKFISH_DEPTH_DEEP = "14"
+  STOCKFISH_THREADS = "1"
+  STOCKFISH_MEMORY = "128"
+  WORKER_ID = "fly-worker-1"
+  LOG_LEVEL = "INFO"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

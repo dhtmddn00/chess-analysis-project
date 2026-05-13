@@ -46,6 +46,8 @@ class ChessAnalysisWorker:
             self.redis_client = redis.Redis(
                 host=os.getenv('REDIS_HOST', 'localhost'),
                 port=int(os.getenv('REDIS_PORT', '6379')),
+                password=os.getenv('REDIS_PASSWORD') or None,
+                ssl=os.getenv('REDIS_SSL', 'false').lower() == 'true',
                 decode_responses=True
             )
             logger.info("Connected to Redis")
@@ -56,7 +58,8 @@ class ChessAnalysisWorker:
                 port=int(os.getenv('DB_PORT', '5432')),
                 database=os.getenv('DB_NAME', 'chess_analysis'),
                 user=os.getenv('DB_USER', 'chess_user'),
-                password=os.getenv('DB_PASSWORD', 'chess_password')
+                password=os.getenv('DB_PASSWORD', 'chess_password'),
+                ssl=os.getenv('DB_SSL', 'false').lower() == 'true'
             )
             await self.db_client.connect()
             logger.info("Connected to PostgreSQL")

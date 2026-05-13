@@ -7,12 +7,13 @@ from loguru import logger
 class DatabaseClient:
     """Async PostgreSQL database client for the worker"""
     
-    def __init__(self, host: str, port: int, database: str, user: str, password: str):
+    def __init__(self, host: str, port: int, database: str, user: str, password: str, ssl: bool = False):
         self.host = host
         self.port = port
         self.database = database
         self.user = user
         self.password = password
+        self.ssl = ssl
         self.pool = None
         
     async def connect(self):
@@ -24,6 +25,7 @@ class DatabaseClient:
                 database=self.database,
                 user=self.user,
                 password=self.password,
+                ssl="require" if self.ssl else None,
                 min_size=1,
                 max_size=10
             )

@@ -111,6 +111,7 @@ NEXT_PUBLIC_API_URL=
 ```
 
 The frontend calls `/api/v1/...`, and `next.config.js` rewrites that path to `INTERNAL_API_URL`.
+Do not include `/api/v1` in `INTERNAL_API_URL`; the rewrite adds that path automatically.
 
 ## 4. GitHub Actions secrets
 

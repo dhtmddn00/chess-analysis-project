@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const normalizeApiBaseUrl = (value: string) => value
+  .replace(/\/api\/v1\/?$/, '')
+  .replace(/\/$/, '');
+
+const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL || '');
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,

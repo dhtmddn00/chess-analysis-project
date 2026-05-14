@@ -1,227 +1,243 @@
 'use client';
 
-import { useState } from 'react';
-import { useTranslation } from '../hooks/useTranslation';
-import ChessAnalysisForm from '../components/ChessAnalysisForm';
-import AnalysisProgress from '../components/AnalysisProgress';
-import { Analysis } from '@/lib/api';
+import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowRight,
+  BarChart3,
+  Gauge,
+  GitBranch,
+  Search,
+  ShieldCheck,
+  Swords,
+} from 'lucide-react';
+
+const featureRows = [
+  {
+    icon: Gauge,
+    title: '성과 지표',
+    description: '정확도, 평균 손실, 실수 패턴을 한 화면에서 확인합니다.',
+  },
+  {
+    icon: GitBranch,
+    title: '오프닝 레퍼토리',
+    description: '백/흑으로 자주 쓰는 오프닝과 최근 게임 내 비율을 분리해 보여줍니다.',
+  },
+  {
+    icon: BarChart3,
+    title: '12차원 스타일',
+    description: '공격성, 포지셔널, 엔드게임, 시간관리까지 플레이 성향을 수치화합니다.',
+  },
+  {
+    icon: ShieldCheck,
+    title: '비용 보호 베타',
+    description: 'Redis 기반 일일 제한과 대기열 제한으로 공개 테스트 비용을 통제합니다.',
+  },
+];
+
+const boardPieces = [
+  '♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜',
+  '♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟',
+  '', '', '', '', '', '', '', '',
+  '', '', '', '♙', '', '', '', '',
+  '', '', '', '', '♘', '', '', '',
+  '', '', '', '', '', '', '', '',
+  '♙', '♙', '♙', '', '♙', '♙', '♙', '♙',
+  '♖', '', '♗', '♕', '♔', '♗', '♘', '♖',
+];
 
 export default function Home() {
-  const { t, toggleLanguage, language } = useTranslation();
-  const [currentView, setCurrentView] = useState<'home' | 'form' | 'progress'>('home');
-  const [currentAnalysis, setCurrentAnalysis] = useState<{
-    id: string;
-    username: string;
-    gameCount: number;
-  } | null>(null);
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [gameCount, setGameCount] = useState(10);
+  const [priority, setPriority] = useState<'fast' | 'precise'>('fast');
 
-  const handleAnalysisStarted = (analysis: Analysis) => {
-    setCurrentAnalysis({
-      id: analysis.id,
-      username: analysis.username,
-      gameCount: analysis.gameCount
-    });
-    setCurrentView('progress');
-  };
-
-  const handleShowProgress = (analysisId: string, username: string, gameCount: number) => {
-    setCurrentAnalysis({ id: analysisId, username, gameCount });
-    setCurrentView('progress');
-  };
-
-  const handleBackToHome = () => {
-    setCurrentView('home');
-    setCurrentAnalysis(null);
-  };
-
-  const handleStartNewAnalysis = () => {
-    setCurrentView('form');
+  const startAnalysis = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (username.trim()) {
+      params.set('username', username.trim());
+    }
+    params.set('n', String(gameCount));
+    params.set('priority', priority);
+    router.push(`/analyze?${params.toString()}`);
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-gray-200 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="w-8 h-8 bg-gradient-to-br from-amber-600 to-amber-800 rounded-lg flex items-center justify-center mr-3 shadow-md">
-                <svg className="w-5 h-5 text-amber-100" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L13.5 6H16L14 8H10L8 6H10.5L12 2ZM5 20V18H19V20H5ZM6 16V14H18V16H6ZM7 12V10H17V12H7ZM8.5 8V6H15.5V8H8.5Z"/>
-                </svg>
-              </div>
-              <span className="text-xl font-semibold text-gray-900">{t('chess.analysis')}</span>
+    <main className="chess-toss min-h-screen bg-gray-50">
+      <header className="border-b border-zinc-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="flex items-center gap-3 text-left"
+            aria-label="Chess Analysis home"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-xl text-white">
+              ♘
+            </span>
+            <span>
+              <span className="block text-base font-bold text-zinc-950">Chess Analysis</span>
+              <span className="block text-xs font-medium text-zinc-500">Stockfish profile lab</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/analyze')}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+          >
+            <Search className="h-4 w-4" />
+            분석 화면
+          </button>
+        </div>
+      </header>
+
+      <section className="chess-hero">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8 lg:py-16">
+          <div className="flex flex-col justify-center">
+            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
+              <Swords className="h-3.5 w-3.5" />
+              Chess.com recent-game analysis
             </div>
-            <div className="flex items-center space-x-4">
-              {currentView !== 'home' && (
-                <button 
-                  onClick={handleBackToHome}
-                  className="apple-button-secondary apple-fade-in"
+
+            <h1
+              className="max-w-4xl text-4xl font-black leading-tight tracking-normal text-zinc-950 sm:text-5xl lg:text-5xl xl:text-6xl"
+              style={{ wordBreak: 'keep-all' }}
+            >
+              최근 게임을 읽고
+              <br />
+              체스 스타일을 숫자로 정리합니다
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg">
+              Stockfish 분석 결과를 성과 지표, 오프닝 레퍼토리, 12차원 스타일 프로파일로 압축해 보여줍니다.
+              지금은 Chess.com 사용자 분석에 집중한 공개 베타입니다.
+            </p>
+
+            <form onSubmit={startAnalysis} className="mt-8 max-w-2xl rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
+              <div className="grid gap-3 lg:grid-cols-[1fr_120px_126px_auto]">
+                <label className="sr-only" htmlFor="home-username">
+                  Chess.com username
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    id="home-username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="Chess.com username"
+                    className="h-11 w-full rounded-lg border border-zinc-300 bg-zinc-50 pl-9 pr-3 text-sm font-medium text-zinc-950 outline-none focus:border-black focus:bg-white"
+                  />
+                </div>
+
+                <select
+                  value={gameCount}
+                  onChange={(event) => setGameCount(Number(event.target.value))}
+                  className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
+                  aria-label="분석 게임 수"
                 >
-                  <span className="mr-2">←</span>홈으로
+                  <option value={5}>5 games</option>
+                  <option value={10}>10 games</option>
+                  <option value={20}>20 games</option>
+                </select>
+
+                <select
+                  value={priority}
+                  onChange={(event) => setPriority(event.target.value as 'fast' | 'precise')}
+                  className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
+                  aria-label="분석 모드"
+                >
+                  <option value="fast">Fast</option>
+                  <option value="precise">Precise</option>
+                </select>
+
+                <button
+                  type="submit"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-bold text-white hover:bg-zinc-800"
+                >
+                  시작
+                  <ArrowRight className="h-4 w-4" />
                 </button>
-              )}
-              <button 
-                onClick={toggleLanguage}
-                className="apple-button-secondary apple-fade-in" 
-                title={t('switch.language')}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                </svg>
-                <span className="font-semibold">{t('language')}</span>
-              </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="relative hidden lg:block">
+            <div className="absolute -right-4 -top-4 text-8xl font-black text-black/[0.035]">♕</div>
+            <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase text-zinc-400">Live board sample</p>
+                  <h2 className="mt-1 text-lg font-black text-zinc-950">Position map</h2>
+                </div>
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-600">depth 10</span>
+              </div>
+              <div className="grid aspect-square grid-cols-8 overflow-hidden rounded-lg border border-zinc-300">
+                {boardPieces.map((piece, index) => {
+                  const isDark = (Math.floor(index / 8) + index) % 2 === 1;
+                  return (
+                    <div
+                      key={`${piece}-${index}`}
+                      className={`flex items-center justify-center text-3xl ${
+                        isDark ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-950'
+                      }`}
+                    >
+                      {piece}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg bg-zinc-50 p-3">
+                  <p className="text-xs font-semibold text-zinc-500">Accuracy</p>
+                  <p className="mt-1 text-xl font-black text-zinc-950">82%</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 p-3">
+                  <p className="text-xs font-semibold text-zinc-500">ACPL</p>
+                  <p className="mt-1 text-xl font-black text-zinc-950">38</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 p-3">
+                  <p className="text-xs font-semibold text-zinc-500">Style</p>
+                  <p className="mt-1 text-xl font-black text-zinc-950">♞</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </nav>
+      </section>
 
-      {/* Main Content */}
-      <div className="pt-16">
-        {currentView === 'home' && (
-          <>
-            {/* Hero Section */}
-            <section className="pt-16 pb-20 px-4">
-              <div className="max-w-4xl mx-auto text-center">
-                <div className="mb-8">
-                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-slate-800 via-slate-600 to-slate-400 rounded-3xl flex items-center justify-center shadow-xl border-2 border-amber-400">
-                    <div className="relative">
-                      <svg className="w-12 h-12 text-amber-100" fill="currentColor" viewBox="0 0 24 24">
-                        <rect x="4" y="4" width="16" height="16" fill="currentColor" opacity="0.2"/>
-                        <rect x="4" y="4" width="4" height="4" fill="currentColor"/>
-                        <rect x="12" y="4" width="4" height="4" fill="currentColor"/>
-                        <rect x="8" y="8" width="4" height="4" fill="currentColor"/>
-                        <rect x="16" y="8" width="4" height="4" fill="currentColor"/>
-                        <rect x="4" y="12" width="4" height="4" fill="currentColor"/>
-                        <rect x="12" y="12" width="4" height="4" fill="currentColor"/>
-                        <rect x="8" y="16" width="4" height="4" fill="currentColor"/>
-                        <rect x="16" y="16" width="4" height="4" fill="currentColor"/>
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-2xl text-amber-200">♔</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <h1 
-                  className="text-5xl font-bold bg-gradient-to-r from-slate-800 to-amber-600 bg-clip-text text-transparent mb-6"
-                  dangerouslySetInnerHTML={{ __html: t('hero.title') }}
-                />
-                <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-                  {t('hero.subtitle')}
-                </p>
-                <div className="flex flex-col sm:flex-row justify-center gap-4">
-                  <button 
-                    onClick={() => window.location.href = '/analyze'}
-                    className="px-8 py-4 bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-xl font-semibold hover:from-slate-800 hover:to-slate-900 transition-all shadow-lg transform hover:scale-105"
-                  >
-                    <span className="text-lg mr-2">♟️➜♕</span>
-                    분석 시작하기
-                  </button>
-                  <button 
-                    onClick={() => alert('자세한 기능 설명이 곧 추가될 예정입니다!')}
-                    className="px-8 py-4 bg-white border-2 border-amber-500 text-slate-700 rounded-xl font-semibold hover:bg-amber-50 transition-colors shadow-lg transform hover:scale-105"
-                  >
-                    <span className="text-lg mr-2">♞</span>
-                    자세히 알아보기
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {/* Features Section */}
-            <section className="py-20 bg-gradient-to-br from-slate-50 to-amber-50">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center mb-16">
-                  <h2 className="text-4xl font-bold text-slate-800 mb-4">
-                    ♗ 체스 분석의 새로운 차원 ♗
-                  </h2>
-                  <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                    프로 선수들이 사용하는 최첨단 분석 도구로 당신의 게임을 완전히 해부합니다
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-slate-200 hover:border-amber-400 transition-all">
-                    <div className="w-16 h-16 bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <span className="text-3xl">🤖</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-3">♜ Stockfish 엔진</h3>
-                    <p className="text-gray-600">세계 챔피언도 인정한 최강 체스 AI가 모든 포지션을 정밀 분석합니다</p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-slate-200 hover:border-amber-400 transition-all">
-                    <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <span className="text-3xl">📊</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-3">♝ 플레이 스타일 분석</h3>
-                    <p className="text-gray-600">공격형? 수비형? 포지션형? 당신만의 체스 DNA를 발견하세요</p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-slate-200 hover:border-amber-400 transition-all">
-                    <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <span className="text-3xl">🎯</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-3">♞ 실수 패턴 발견</h3>
-                    <p className="text-gray-600">블런더, 미스, 부정확한 수를 찾아내고 개선 방안을 제시합니다</p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-slate-200 hover:border-amber-400 transition-all">
-                    <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <span className="text-3xl">📈</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-3">♛ 실시간 진행 상황</h3>
-                    <p className="text-gray-600">분석 과정을 실시간으로 확인하고 예상 시간을 제공합니다</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {currentView === 'form' && (
-          <div className="pt-8 pb-20 px-4">
-            <div className="max-w-2xl mx-auto">
-              <div className="mb-6">
-                <button
-                  onClick={handleBackToHome}
-                  className="inline-flex items-center px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors"
-                >
-                  <span className="mr-2">←</span>뒤로 가기
-                </button>
-              </div>
-              <ChessAnalysisForm 
-                onAnalysisStarted={handleAnalysisStarted}
-                onShowProgress={handleShowProgress}
-              />
-            </div>
+      <section className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-end justify-between gap-6">
+          <div>
+            <p className="text-sm font-bold text-zinc-500">Analysis surface</p>
+            <h2 className="mt-2 text-2xl font-black text-zinc-950">첫 화면에서 바로 이어지는 분석 흐름</h2>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={() => router.push('/analyze')}
+            className="hidden h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-bold text-zinc-900 hover:bg-zinc-50 sm:inline-flex"
+          >
+            전체 분석 화면 열기
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
 
-        {currentView === 'progress' && currentAnalysis && (
-          <div className="pt-8 pb-20 px-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="mb-6">
-                <button
-                  onClick={handleBackToHome}
-                  className="inline-flex items-center px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors"
-                >
-                  <span className="mr-2">←</span>새 분석하기
-                </button>
-              </div>
-              <AnalysisProgress
-                analysisId={currentAnalysis.id}
-                username={currentAnalysis.username}
-                gameCount={currentAnalysis.gameCount}
-                onComplete={() => {
-                  // Automatically navigate to results page when analysis is completed
-                  window.location.href = `/analysis/${currentAnalysis.id}`;
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {featureRows.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <article key={feature.title} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+                <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-black text-zinc-950">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-zinc-600">{feature.description}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </main>
   );
 }

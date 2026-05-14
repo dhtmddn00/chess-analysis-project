@@ -166,6 +166,26 @@ export default function UnifiedAnalyzePage() {
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get('username');
+    const n = Number(params.get('n'));
+    const priority = params.get('priority');
+
+    if (!username && !Number.isFinite(n) && priority !== 'fast' && priority !== 'precise') {
+      return;
+    }
+
+    setSearchForm((previous) => ({
+      ...previous,
+      username: username ?? previous.username,
+      n: Number.isFinite(n) && n > 0 ? n : previous.n,
+      priority: priority === 'precise' ? 'precise' : priority === 'fast' ? 'fast' : previous.priority,
+    }));
+  }, []);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchForm.username.trim()) return;

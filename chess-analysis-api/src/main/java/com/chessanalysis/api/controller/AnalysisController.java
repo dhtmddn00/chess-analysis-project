@@ -20,7 +20,6 @@ import java.util.UUID;
 @RequestMapping("/analysis")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3005"})
 public class AnalysisController {
     
     private final AnalysisService analysisService;

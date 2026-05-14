@@ -14,7 +14,6 @@ import java.util.Map;
 @RequestMapping("/player")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3005"})
 public class PlayerController {
     
     private final PlayerSummaryService playerSummaryService;

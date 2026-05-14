@@ -16,7 +16,7 @@ This project is wired for the following production shape:
 Create a PostgreSQL database and apply the schema:
 
 ```bash
-psql "$NEON_DATABASE_URL" -f init-db.sql
+psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -f init-db.sql
 ```
 
 Keep these values for Fly secrets:
@@ -120,6 +120,7 @@ Add these repository secrets:
 FLY_API_TOKEN
 FLY_API_APP=chess-analysis-api-prod
 FLY_WORKER_APP=chess-analysis-worker-prod
+NEON_DATABASE_URL=postgresql://<neon-user>:<neon-password>@<neon-host>/<neon-db>?sslmode=require
 VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
@@ -141,6 +142,7 @@ On pushes to `main`, `.github/workflows/deploy.yml` runs:
 
 - CI workflow
 - Docker image build and push to GHCR
+- Neon schema migration with `init-db.sql`
 - Fly deploy for API
 - Fly deploy for worker
 - Vercel production deploy

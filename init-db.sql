@@ -310,9 +310,3 @@ INSERT INTO cohort_data (rating_range, time_control, platform, sample_size) VALU
 ('1800-2000', 'bullet', 'chess.com', 500),
 ('2000-2200', 'bullet', 'chess.com', 500)
 ON CONFLICT (rating_range, time_control, platform) DO NOTHING;
-
--- Insert sample data for testing
-INSERT INTO analyses (id, username, platform, game_count, status, progress, current_step, created_at, updated_at) 
-VALUES 
-    ('550e8400-e29b-41d4-a716-446655440000', 'testuser', 'chess.com', 10, 'COMPLETED', 100, 'Analysis completed', NOW() - INTERVAL '1 day', NOW())
-ON CONFLICT (id) DO NOTHING;

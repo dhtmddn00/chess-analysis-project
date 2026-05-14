@@ -129,6 +129,7 @@ VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 PROD_API_URL=https://chess-analysis-api-prod.fly.dev/api/v1
 PROD_FRONTEND_URL=https://chess-analysis-gg.vercel.app
+SMOKE_CHESS_USERNAME=oswooooo
 ```
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions and is used to push Docker images to GitHub Container Registry.

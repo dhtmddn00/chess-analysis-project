@@ -318,6 +318,9 @@ class ChessAnalysisWorker:
         """Store analysis results in database"""
         try:
             logger.info(f"Storing analysis results for {len(analyses)} games in analysis {analysis_id}")
+            await self.update_analysis_status(
+                analysis_id, 'IN_PROGRESS', 81, 'Storing analysis results'
+            )
             
             for i, analysis in enumerate(analyses):
                 logger.debug(f"Processing analysis {i}: {type(analysis)} - {analysis}")
@@ -337,10 +340,10 @@ class ChessAnalysisWorker:
                 
                 # Calculate basic stats from move analyses
                 total_moves = len(move_analyses)
-                total_blunders = sum(1 for m in move_analyses if m.centipawn_loss > 300)
-                total_mistakes = sum(1 for m in move_analyses if 100 <= m.centipawn_loss <= 300) 
-                total_inaccuracies = sum(1 for m in move_analyses if 50 <= m.centipawn_loss < 100)
-                avg_cpl = sum(m.centipawn_loss for m in move_analyses) / total_moves if total_moves else 0
+                total_blunders = sum(1 for m in move_analyses if self._move_value(m, 'centipawn_loss', 0) > 300)
+                total_mistakes = sum(1 for m in move_analyses if 100 <= self._move_value(m, 'centipawn_loss', 0) <= 300)
+                total_inaccuracies = sum(1 for m in move_analyses if 50 <= self._move_value(m, 'centipawn_loss', 0) < 100)
+                avg_cpl = sum(self._move_value(m, 'centipawn_loss', 0) for m in move_analyses) / total_moves if total_moves else 0
                 
                 # Store game analysis summary
                 summary_query = """
@@ -408,51 +411,103 @@ class ChessAnalysisWorker:
                     logger.error(f"Failed to store game {i} summary for analysis {analysis_id}: {e}")
                     continue
                 
-                # Store detailed move-by-move analysis
-                if hasattr(analysis, 'move_analyses') and analysis.move_analyses:
-                    for move_num, move_analysis in enumerate(analysis.move_analyses):
-                        move_query = """
-                            INSERT INTO move_analyses (analysis_id, game_index, move_number,
-                                                     move_notation, evaluation_before, evaluation_after,
-                                                     best_move, classification, centipawn_loss,
-                                                     tactical_motifs, is_check, is_capture, is_castling,
-                                                     is_promotion, time_spent, move_uci, best_move_uci,
-                                                     best_evaluation)
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-                        """
-                        
-                        await self.db_client.execute(move_query, [
-                            analysis_id,
-                            i,
-                            move_num,
-                            move_analysis.move_san,
-                            move_analysis.eval_before,
-                            move_analysis.eval_after,
-                            move_analysis.best_move_san,
-                            move_analysis.quality.value,
-                            move_analysis.centipawn_loss,
-                            move_analysis.tactical_motifs or [],
-                            move_analysis.is_check,
-                            move_analysis.is_capture,
-                            move_analysis.is_castling,
-                            move_analysis.is_promotion,
-                            move_analysis.time_spent,
-                            move_analysis.move_uci,
-                            move_analysis.best_move_uci,
-                            move_analysis.best_eval
-                        ])
-                        
-                        # Store tactical opportunities for this move
-                        if move_analysis.tactical_opportunities:
-                            await self._store_tactical_opportunities(
-                                analysis_id, i, move_num, move_analysis.tactical_opportunities
-                            )
+                await self._store_move_analyses_bulk(analysis_id, game_index, move_analyses)
+                store_progress = 81 + int(((i + 1) / max(len(analyses), 1)) * 4)
+                await self.update_analysis_status(
+                    analysis_id,
+                    'IN_PROGRESS',
+                    min(store_progress, 84),
+                    f'Storing analysis results ({i + 1}/{len(analyses)})'
+                )
                         
             logger.info(f"Stored analysis results for {len(analyses)} games in analysis {analysis_id}")
             
         except Exception as e:
             logger.error(f"Failed to store analysis results for {analysis_id}: {e}")
             raise
+
+    async def _store_move_analyses_bulk(self, analysis_id: str, game_index: int, move_analyses: list):
+        """Store move-by-move analysis with batched inserts to avoid long 80% stalls."""
+        if not move_analyses:
+            return
+
+        move_query = """
+            INSERT INTO move_analyses (analysis_id, game_index, move_number,
+                                     move_notation, evaluation_before, evaluation_after,
+                                     best_move, classification, centipawn_loss,
+                                     tactical_motifs, is_check, is_capture, is_castling,
+                                     is_promotion, time_spent, move_uci, best_move_uci,
+                                     best_evaluation)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        """
+        move_rows = []
+        tactical_rows = []
+
+        for move_num, move_analysis in enumerate(move_analyses):
+            move_rows.append([
+                analysis_id,
+                game_index,
+                move_num,
+                self._move_value(move_analysis, 'move_san', ''),
+                self._move_value(move_analysis, 'eval_before', 0),
+                self._move_value(move_analysis, 'eval_after', 0),
+                self._move_value(move_analysis, 'best_move_san', ''),
+                self._move_quality(move_analysis),
+                self._move_value(move_analysis, 'centipawn_loss', 0),
+                self._move_value(move_analysis, 'tactical_motifs', []) or [],
+                self._move_value(move_analysis, 'is_check', False),
+                self._move_value(move_analysis, 'is_capture', False),
+                self._move_value(move_analysis, 'is_castling', False),
+                self._move_value(move_analysis, 'is_promotion', False),
+                self._move_value(move_analysis, 'time_spent', 0),
+                self._move_value(move_analysis, 'move_uci', None),
+                self._move_value(move_analysis, 'best_move_uci', None),
+                self._move_value(move_analysis, 'best_eval', None)
+            ])
+
+            for opportunity in self._move_value(move_analysis, 'tactical_opportunities', []) or []:
+                tactical_rows.append([
+                    analysis_id,
+                    game_index,
+                    move_num,
+                    opportunity.get('pattern', 'unknown'),
+                    opportunity.get('target_squares', []),
+                    opportunity.get('piece_type', 'pawn'),
+                    opportunity.get('value_gain', 0),
+                    opportunity.get('difficulty', 1),
+                    opportunity.get('description', ''),
+                    opportunity.get('move_sequence', [])
+                ])
+
+        await self.db_client.execute(
+            "DELETE FROM move_analyses WHERE analysis_id = $1 AND game_index = $2",
+            [analysis_id, game_index]
+        )
+        await self.db_client.execute(
+            "DELETE FROM tactical_opportunities WHERE analysis_id = $1 AND game_index = $2",
+            [analysis_id, game_index]
+        )
+        await self.db_client.executemany(move_query, move_rows)
+
+        if tactical_rows:
+            tactical_query = """
+                INSERT INTO tactical_opportunities (
+                    analysis_id, game_index, move_number, pattern_type,
+                    target_squares, piece_type, value_gain, difficulty,
+                    description, move_sequence
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            """
+            await self.db_client.executemany(tactical_query, tactical_rows)
+
+    def _move_value(self, move_analysis, key: str, default=None):
+        if isinstance(move_analysis, dict):
+            return move_analysis.get(key, default)
+        return getattr(move_analysis, key, default)
+
+    def _move_quality(self, move_analysis) -> str:
+        quality = self._move_value(move_analysis, 'quality', 'good')
+        return getattr(quality, 'value', quality) or 'good'
     
     async def store_progressive_results(self, analysis_id: str, results: dict):
         """Store progressive analysis results in database"""

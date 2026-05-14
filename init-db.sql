@@ -290,6 +290,20 @@ CREATE TABLE IF NOT EXISTS pgn_analysis_cache (
     hit_count INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS site_view_totals (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    total_views BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT site_view_totals_singleton CHECK (id = 1)
+);
+
+CREATE TABLE IF NOT EXISTS site_visit_days (
+    visit_date DATE NOT NULL,
+    visitor_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (visit_date, visitor_hash)
+);
+
 CREATE INDEX IF NOT EXISTS idx_player_metadata_username_platform ON player_metadata(username, platform);
 CREATE INDEX IF NOT EXISTS idx_tactical_opportunities_analysis_game ON tactical_opportunities(analysis_id, game_index);
 CREATE INDEX IF NOT EXISTS idx_tactical_opportunities_pattern ON tactical_opportunities(pattern_type);
@@ -297,6 +311,7 @@ CREATE INDEX IF NOT EXISTS idx_cohort_data_rating_tc ON cohort_data(rating_range
 CREATE INDEX IF NOT EXISTS idx_training_recommendations_analysis_id ON training_recommendations(analysis_id);
 CREATE INDEX IF NOT EXISTS idx_training_recommendations_priority ON training_recommendations(priority DESC);
 CREATE INDEX IF NOT EXISTS idx_pgn_analysis_cache_last_accessed ON pgn_analysis_cache(last_accessed DESC);
+CREATE INDEX IF NOT EXISTS idx_site_visit_days_created_at ON site_visit_days(created_at DESC);
 
 INSERT INTO cohort_data (rating_range, time_control, platform, sample_size) VALUES
 ('800-1000', 'blitz', 'chess.com', 1000),

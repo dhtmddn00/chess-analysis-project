@@ -48,6 +48,14 @@ class DatabaseClient:
                 return await connection.execute(query, *params)
             else:
                 return await connection.execute(query)
+
+    async def executemany(self, query: str, rows: List[List[Any]]) -> None:
+        """Execute one prepared statement for many rows."""
+        if not rows:
+            return
+
+        async with self.pool.acquire() as connection:
+            await connection.executemany(query, rows)
                 
     async def fetch_one(self, query: str, params: List[Any] = None) -> Optional[Dict[str, Any]]:
         """Fetch a single row"""

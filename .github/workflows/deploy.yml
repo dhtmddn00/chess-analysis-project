@@ -65,6 +65,7 @@ jobs:
           --config deploy/fly/api.fly.toml
           --app "${{ secrets.FLY_API_APP }}"
           --remote-only
+          --yes
 
   deploy-worker:
     name: Deploy worker to Fly.io
@@ -81,6 +82,7 @@ jobs:
           --config deploy/fly/worker.fly.toml
           --app "${{ secrets.FLY_WORKER_APP }}"
           --remote-only
+          --yes
 
   deploy-frontend:
     name: Deploy frontend to Vercel

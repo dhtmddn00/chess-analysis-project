@@ -54,3 +54,5 @@ docker-compose.override.yml
 # Other
 .claude/
 engines/
+.vercel
+.env*.local

@@ -6,6 +6,8 @@ Two-pass analysis system for fast initial results + deep precise analysis
 import time
 import asyncio
 import json
+import hashlib
+import io
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -13,6 +15,7 @@ from enum import Enum
 from loguru import logger
 import chess
 import chess.engine
+import chess.pgn
 
 from ..models.database import DatabaseClient
 from ..models.analysis_types import GameAnalysis
@@ -50,8 +53,11 @@ class PositionTag:
 class ProgressiveAnalyzer:
     """Two-pass progressive analysis system"""
     
-    def __init__(self, engine_pool_size: int = 2):
+    def __init__(self, engine_pool_size: int = 2, db_client: Optional[DatabaseClient] = None):
         self.engine_pool_size = engine_pool_size
+        self.db_client = db_client
+        self.cache_enabled = db_client is not None
+        self._cache_table_available = True
         self.engines: List[StockfishEngine] = []
         self.profiler = PlayerProfiler()
         self.tactical_detector = SimpleTacticalDetector()
@@ -60,26 +66,47 @@ class ProgressiveAnalyzer:
         self.priority_configs = {
             'fast': {
                 'shallow': {
-                    'depth': 10,
-                    'movetime': 0.3,  # 300ms per position
-                    'multipv': 1
+                    'depth': 8,
+                    'movetime': 0.05,
+                    'multipv': 1,
+                    'deep_trigger_cp': 70,
+                    'opening_skip_ply': 20
                 },
                 'deep': {
                     'depth': 14,
-                    'movetime': 0.8,  # 800ms per position
-                    'multipv': 2
+                    'movetime': 0.35,
+                    'multipv': 1,
+                    'position_limit': 0
+                }
+            },
+            'balanced': {
+                'shallow': {
+                    'depth': 10,
+                    'movetime': 0.07,
+                    'multipv': 1,
+                    'deep_trigger_cp': 50,
+                    'opening_skip_ply': 16
+                },
+                'deep': {
+                    'depth': 16,
+                    'movetime': 0.6,
+                    'multipv': 1,
+                    'position_limit': 8
                 }
             },
             'precise': {
                 'shallow': {
-                    'depth': 12,
-                    'movetime': 0.5,  # 500ms per position
-                    'multipv': 1
+                    'depth': 10,
+                    'movetime': 0.10,
+                    'multipv': 1,
+                    'deep_trigger_cp': 35,
+                    'opening_skip_ply': 10
                 },
                 'deep': {
-                    'depth': 20,
-                    'movetime': 2.0,  # 2s per position
-                    'multipv': 3
+                    'depth': 18,
+                    'movetime': 1.2,
+                    'multipv': 2,
+                    'position_limit': 14
                 }
             }
         }
@@ -149,6 +176,7 @@ class ProgressiveAnalyzer:
             
             phase1_duration = time.time() - phase1_start
             results['timing']['shallow_pass'] = phase1_duration
+            results['cache'] = shallow_results.get('cache_stats', {})
             results['phase'] = AnalysisPhase.SHALLOW.value
             
             # Generate initial tactical and swing moment insights
@@ -240,6 +268,12 @@ class ProgressiveAnalyzer:
         
         tagged_positions: List[PositionTag] = []
         game_summaries = []
+        cache_stats = {
+            'hits': 0,
+            'misses': 0,
+            'stores': 0,
+            'enabled': self.cache_enabled
+        }
         
         for game_idx, game_data in enumerate(games):
             try:
@@ -251,12 +285,24 @@ class ProgressiveAnalyzer:
                     pgn = game_data.get('pgn', '')
                     if not pgn:
                         continue
-                    game = chess.pgn.read_game(chess.pgn.StringIO(pgn))
+                    game = chess.pgn.read_game(io.StringIO(pgn))
                 else:
                     continue
                 
                 if not game:
                     continue
+
+                pgn_hash = self._pgn_hash_for_game(game)
+                cached_summary = await self._load_cached_game_summary(pgn_hash, self.shallow_config['depth'])
+                if cached_summary:
+                    cached_summary['game_index'] = game_idx
+                    game_summaries.append(cached_summary)
+                    cache_stats['hits'] += 1
+                    if progress_callback and game_idx % 2 == 0:
+                        progress = 0.1 + (game_idx / len(games)) * 0.3
+                        await progress_callback(progress, {'phase': 'shallow_scan', 'cache': 'hit'})
+                    continue
+                cache_stats['misses'] += 1
                 
                 # Initialize board with correct setup for Chess960
                 board = game.board()
@@ -273,16 +319,25 @@ class ProgressiveAnalyzer:
                 # Analyze each position quickly
                 for ply, move in enumerate(game.mainline_moves()):
                     engine = self._get_available_engine()
+                    if engine is None:
+                        raise RuntimeError("No Stockfish engine available")
+
+                    board_before = board.copy()
                     
                     # Quick analysis using the StockfishEngine's analyze_position method
                     eval_before = await engine.analyze_position(
-                        board,
+                        board_before,
                         depth=self.shallow_config['depth'],
-                        time_limit=self.shallow_config['movetime'] / 1000.0  # Convert ms to seconds
+                        time_limit=self.shallow_config['movetime']
                     )
                     
                     # Get move notation before making the move
-                    move_san = board.san(move)
+                    move_san = board_before.san(move)
+                    move_uci = move.uci()
+                    is_check = board_before.gives_check(move)
+                    is_capture = board_before.is_capture(move)
+                    is_castling = board_before.is_castling(move)
+                    is_promotion = move.promotion is not None
                     
                     # Make the move
                     board.push(move)
@@ -290,36 +345,42 @@ class ProgressiveAnalyzer:
                     # Quick post-move analysis
                     eval_after = await engine.analyze_position(
                         board,
-                        depth=10,
-                        time_limit=0.2
+                        depth=self.shallow_config['depth'],
+                        time_limit=self.shallow_config['movetime']
                     )
                     
-                    # eval_after is already the score from analyze_position
-                    
-                    # Calculate centipawn loss - handle None values
-                    cp_before = 0
-                    cp_after = 0
-                    
-                    if eval_before and hasattr(eval_before, 'white'):
-                        try:
-                            cp_before = eval_before.white().score() or 0
-                        except:
-                            cp_before = 0
-                    
-                    if eval_after and hasattr(eval_after, 'white'):
-                        try:
-                            cp_after = eval_after.white().score() or 0
-                        except:
-                            cp_after = 0
-                    
-                    cp_loss = abs(cp_after - cp_before) if cp_before and cp_after else 0
+                    cp_before = self._score_to_cp(engine, eval_before)
+                    cp_after = self._score_to_cp(engine, eval_after)
+                    cp_loss = self._side_to_move_loss(cp_before, cp_after, board_before.turn)
+                    best_eval = None
+                    best_move_san = None
+                    best_move_uci = None
+
+                    if self._should_refine_move(ply, cp_loss, is_check, is_capture, is_promotion):
+                        best_eval, best_move_san, best_move_uci = await self._analyze_best_move(
+                            engine,
+                            board_before
+                        )
+                        if best_eval is not None:
+                            cp_loss = self._side_to_move_loss(best_eval, cp_after, board_before.turn)
+                    cp_loss = max(0, int(cp_loss or 0))
                     
                     move_analysis = {
                         'ply': ply,
                         'move_san': move_san,
-                        'eval_before': cp_before,
-                        'eval_after': cp_after,
-                        'centipawn_loss': cp_loss
+                        'move_uci': move_uci,
+                        'eval_before': cp_before if cp_before is not None else 0,
+                        'eval_after': cp_after if cp_after is not None else 0,
+                        'best_eval': best_eval,
+                        'best_move_san': best_move_san,
+                        'best_move_uci': best_move_uci,
+                        'quality': self._quality_from_cp_loss(cp_loss),
+                        'centipawn_loss': cp_loss,
+                        'win_probability_loss': self._win_probability_loss(cp_before, cp_after, board_before.turn),
+                        'is_check': is_check,
+                        'is_capture': is_capture,
+                        'is_castling': is_castling,
+                        'is_promotion': is_promotion
                     }
                     move_analyses.append(move_analysis)
                     
@@ -329,10 +390,13 @@ class ProgressiveAnalyzer:
                         cp_loss, move, board
                     )
                 
-                game_summaries.append({
+                game_summary = {
                     'game_index': game_idx,
                     'move_analyses': move_analyses
-                })
+                }
+                game_summaries.append(game_summary)
+                if await self._store_cached_game_summary(pgn_hash, self.shallow_config['depth'], game_summary):
+                    cache_stats['stores'] += 1
                 
                 # Progress update
                 if progress_callback and game_idx % 2 == 0:
@@ -348,8 +412,174 @@ class ProgressiveAnalyzer:
         
         return {
             'game_summaries': game_summaries,
-            'tagged_positions': tagged_positions
+            'tagged_positions': tagged_positions,
+            'cache_stats': cache_stats
         }
+
+    def _pgn_hash_for_game(self, game: chess.pgn.Game) -> str:
+        """Create a stable hash from the start position and mainline moves."""
+        try:
+            start_fen = game.board().fen()
+            variant = game.headers.get("Variant", "standard")
+            moves = " ".join(move.uci() for move in game.mainline_moves())
+            payload = f"{variant}|{start_fen}|{moves}"
+        except Exception:
+            payload = str(game)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    async def _load_cached_game_summary(self, pgn_hash: str, min_depth: int) -> Optional[Dict[str, Any]]:
+        if not self.cache_enabled or not self._cache_table_available:
+            return None
+
+        try:
+            row = await self.db_client.fetch_one(
+                """
+                UPDATE pgn_analysis_cache
+                SET last_accessed = NOW(),
+                    hit_count = hit_count + 1
+                WHERE pgn_hash = $1 AND analysis_depth >= $2
+                RETURNING move_evaluations
+                """,
+                [pgn_hash, int(min_depth)]
+            )
+            if not row:
+                return None
+
+            cached = row.get('move_evaluations')
+            if isinstance(cached, str):
+                cached = json.loads(cached)
+            if isinstance(cached, dict):
+                return cached.copy()
+        except Exception as e:
+            self._cache_table_available = False
+            logger.warning(f"PGN cache unavailable; continuing without cache: {e}")
+        return None
+
+    async def _store_cached_game_summary(self, pgn_hash: str, depth: int, summary: Dict[str, Any]) -> bool:
+        if not self.cache_enabled or not self._cache_table_available or not summary.get('move_analyses'):
+            return False
+
+        try:
+            cache_payload = {
+                'move_analyses': summary.get('move_analyses', [])
+            }
+            await self.db_client.execute(
+                """
+                INSERT INTO pgn_analysis_cache (pgn_hash, analysis_depth, analysis_mode, move_evaluations)
+                VALUES ($1, $2, $3, $4::jsonb)
+                ON CONFLICT (pgn_hash) DO UPDATE SET
+                    analysis_depth = GREATEST(pgn_analysis_cache.analysis_depth, EXCLUDED.analysis_depth),
+                    analysis_mode = EXCLUDED.analysis_mode,
+                    move_evaluations = CASE
+                        WHEN pgn_analysis_cache.analysis_depth <= EXCLUDED.analysis_depth
+                        THEN EXCLUDED.move_evaluations
+                        ELSE pgn_analysis_cache.move_evaluations
+                    END,
+                    last_accessed = NOW()
+                """,
+                [pgn_hash, int(depth), 'progressive', json.dumps(cache_payload)]
+            )
+            return True
+        except Exception as e:
+            self._cache_table_available = False
+            logger.warning(f"Failed to store PGN cache; continuing without cache: {e}")
+            return False
+
+    def _score_to_cp(self, engine: StockfishEngine, score: Optional[chess.engine.PovScore]) -> Optional[int]:
+        try:
+            return engine.score_to_centipawn(score)
+        except Exception:
+            return None
+
+    def _side_to_move_loss(
+        self,
+        reference_eval: Optional[int],
+        actual_eval: Optional[int],
+        moving_turn: chess.Color
+    ) -> int:
+        if reference_eval is None or actual_eval is None:
+            return 0
+        if moving_turn == chess.WHITE:
+            return max(0, reference_eval - actual_eval)
+        return max(0, actual_eval - reference_eval)
+
+    def _quality_from_cp_loss(self, cp_loss: int) -> str:
+        if cp_loss < 20:
+            return 'best'
+        if cp_loss < 50:
+            return 'good'
+        if cp_loss < 100:
+            return 'inaccuracy'
+        if cp_loss < 300:
+            return 'mistake'
+        return 'blunder'
+
+    def _should_refine_move(
+        self,
+        ply: int,
+        cp_loss: int,
+        is_check: bool,
+        is_capture: bool,
+        is_promotion: bool
+    ) -> bool:
+        opening_skip = int(self.shallow_config.get('opening_skip_ply', 0))
+        trigger = int(self.shallow_config.get('deep_trigger_cp', 60))
+
+        if is_promotion:
+            return True
+        if ply >= opening_skip and cp_loss >= trigger:
+            return True
+        if ply >= opening_skip and (is_check or is_capture) and cp_loss >= max(25, trigger // 2):
+            return True
+        return False
+
+    async def _analyze_best_move(
+        self,
+        engine: StockfishEngine,
+        board: chess.Board
+    ) -> Tuple[Optional[int], Optional[str], Optional[str]]:
+        try:
+            info = await engine.engine.analyse(
+                board,
+                limit=chess.engine.Limit(
+                    depth=self.deep_config['depth'],
+                    time=self.deep_config['movetime']
+                ),
+                multipv=1
+            )
+            if isinstance(info, list):
+                info = info[0] if info else {}
+            pv = info.get('pv', []) if isinstance(info, dict) else []
+            best_move = pv[0] if pv else None
+            best_eval = self._score_to_cp(engine, info.get('score') if isinstance(info, dict) else None)
+            if not best_move:
+                return best_eval, None, None
+            return best_eval, board.san(best_move), best_move.uci()
+        except Exception as e:
+            logger.debug(f"Best move refinement skipped: {e}")
+            return None, None, None
+
+    def _win_probability(self, eval_cp: Optional[int]) -> Optional[float]:
+        if eval_cp is None:
+            return None
+        bounded_cp = max(-1000, min(1000, eval_cp))
+        return 1.0 / (1.0 + pow(10.0, -bounded_cp / 400.0))
+
+    def _win_probability_loss(
+        self,
+        reference_eval: Optional[int],
+        actual_eval: Optional[int],
+        moving_turn: chess.Color
+    ) -> float:
+        reference_probability = self._win_probability(reference_eval)
+        actual_probability = self._win_probability(actual_eval)
+        if reference_probability is None or actual_probability is None:
+            return 0.0
+        if moving_turn == chess.WHITE:
+            loss = reference_probability - actual_probability
+        else:
+            loss = actual_probability - reference_probability
+        return round(max(0.0, loss) * 100.0, 2)
     
     async def _deep_analysis_pass(
         self,
@@ -363,6 +593,11 @@ class ProgressiveAnalyzer:
         
         # Sort by priority
         tagged_positions.sort(key=lambda x: x.priority)
+        position_limit = int(self.deep_config.get('position_limit', len(tagged_positions)))
+        if position_limit <= 0:
+            logger.info("Standalone deep pass skipped; important moves were refined inline")
+            return {'deep_analyses': [], 'skipped': True}
+        tagged_positions = tagged_positions[:position_limit]
         
         deep_analyses = []
         
@@ -376,7 +611,7 @@ class ProgressiveAnalyzer:
                     board,
                     limit=chess.engine.Limit(
                         depth=self.deep_config['depth'],
-                        time=self.deep_config['movetime'] / 1000.0  # Convert ms to seconds
+                        time=self.deep_config['movetime']
                     ),
                     multipv=self.deep_config['multipv']
                 )
@@ -412,7 +647,7 @@ class ProgressiveAnalyzer:
         """Tag positions that need deeper analysis"""
         
         # Large centipawn loss (potential blunders/tactics)
-        if cp_loss > 100:
+        if cp_loss >= max(100, int(self.shallow_config.get('deep_trigger_cp', 60))):
             tagged_positions.append(PositionTag(
                 fen=fen,
                 ply=ply,
@@ -494,10 +729,10 @@ class ProgressiveAnalyzer:
                     move_san = move_data.get('move_san', '')
                     
                     # Detect tactical moves from SAN notation
-                    is_capture = 'x' in move_san
-                    is_check = move_san.endswith('+') or move_san.endswith('#')
-                    is_promotion = '=' in move_san
-                    is_castling = move_san in ['O-O', 'O-O-O']
+                    is_capture = move_data.get('is_capture', 'x' in move_san)
+                    is_check = move_data.get('is_check', move_san.endswith('+') or move_san.endswith('#'))
+                    is_promotion = move_data.get('is_promotion', '=' in move_san)
+                    is_castling = move_data.get('is_castling', move_san in ['O-O', 'O-O-O'])
                     
                     move_analysis = MoveAnalysis(
                         ply=move_data.get('ply', 0),

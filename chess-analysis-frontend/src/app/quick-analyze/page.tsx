@@ -12,7 +12,7 @@ export default function QuickAnalyzePage() {
     platform: 'chess.com',
     username: '',
     n: 10,
-    priority: 'fast' as 'fast' | 'precise',
+    priority: 'fast' as 'fast' | 'balanced' | 'precise',
   });
   
   const [hasSearched, setHasSearched] = useState(false);
@@ -142,10 +142,11 @@ export default function QuickAnalyzePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">분석 모드</label>
                 <select
                   value={searchForm.priority}
-                  onChange={(e) => setSearchForm({...searchForm, priority: e.target.value as 'fast' | 'precise'})}
+                  onChange={(e) => setSearchForm({...searchForm, priority: e.target.value as 'fast' | 'balanced' | 'precise'})}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="fast">빠르게</option>
+                  <option value="balanced">균형</option>
                   <option value="precise">정밀하게</option>
                 </select>
               </div>

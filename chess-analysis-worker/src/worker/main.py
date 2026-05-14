@@ -68,7 +68,7 @@ class ChessAnalysisWorker:
             self.engine = StockfishEngine()
             self.chess_api = ChessComAPI()
             self.profiler = PlayerProfiler(self.db_client)
-            self.analyzer = ProgressiveAnalyzer(engine_pool_size=2)
+            self.analyzer = ProgressiveAnalyzer(engine_pool_size=2, db_client=self.db_client)
             await self.analyzer.initialize()
             
             logger.info("Chess Analysis Worker initialized successfully")
@@ -137,7 +137,7 @@ class ChessAnalysisWorker:
                     f'Progressive analysis: {progress*100:.1f}% complete', partials
                 )
             
-            # Get priority from job_data (fast vs precise)
+            # Get priority from job_data (fast, balanced, precise)
             priority = job_data.get('priority', 'precise')
             logger.info(f"Using priority mode: {priority}")
             

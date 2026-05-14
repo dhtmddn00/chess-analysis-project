@@ -22,6 +22,6 @@ public class AnalysisRequestDto {
     @Pattern(regexp = "all|rapid|blitz|bullet", message = "Time control must be all, rapid, blitz, or bullet")
     private String timeControl = "all";
     
-    @Pattern(regexp = "fast|precise", message = "Priority must be fast or precise")
+    @Pattern(regexp = "fast|balanced|precise", message = "Priority must be fast, balanced, or precise")
     private String priority = "fast";
 }

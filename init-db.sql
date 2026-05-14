@@ -280,12 +280,23 @@ CREATE TABLE IF NOT EXISTS training_recommendations (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pgn_analysis_cache (
+    pgn_hash VARCHAR(64) PRIMARY KEY,
+    analysis_depth INTEGER NOT NULL DEFAULT 0,
+    analysis_mode VARCHAR(20) NOT NULL DEFAULT 'progressive',
+    move_evaluations JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_accessed TIMESTAMP DEFAULT NOW(),
+    hit_count INTEGER DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_player_metadata_username_platform ON player_metadata(username, platform);
 CREATE INDEX IF NOT EXISTS idx_tactical_opportunities_analysis_game ON tactical_opportunities(analysis_id, game_index);
 CREATE INDEX IF NOT EXISTS idx_tactical_opportunities_pattern ON tactical_opportunities(pattern_type);
 CREATE INDEX IF NOT EXISTS idx_cohort_data_rating_tc ON cohort_data(rating_range, time_control);
 CREATE INDEX IF NOT EXISTS idx_training_recommendations_analysis_id ON training_recommendations(analysis_id);
 CREATE INDEX IF NOT EXISTS idx_training_recommendations_priority ON training_recommendations(priority DESC);
+CREATE INDEX IF NOT EXISTS idx_pgn_analysis_cache_last_accessed ON pgn_analysis_cache(last_accessed DESC);
 
 INSERT INTO cohort_data (rating_range, time_control, platform, sample_size) VALUES
 ('800-1000', 'blitz', 'chess.com', 1000),

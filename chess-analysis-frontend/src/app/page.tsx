@@ -50,7 +50,7 @@ export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [gameCount, setGameCount] = useState(10);
-  const [priority, setPriority] = useState<'fast' | 'precise'>('fast');
+  const [priority, setPriority] = useState<'fast' | 'balanced' | 'precise'>('fast');
 
   const startAnalysis = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -144,11 +144,12 @@ export default function Home() {
 
                 <select
                   value={priority}
-                  onChange={(event) => setPriority(event.target.value as 'fast' | 'precise')}
+                  onChange={(event) => setPriority(event.target.value as 'fast' | 'balanced' | 'precise')}
                   className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
                   aria-label="분석 모드"
                 >
                   <option value="fast">Fast</option>
+                  <option value="balanced">Balanced</option>
                   <option value="precise">Precise</option>
                 </select>
 

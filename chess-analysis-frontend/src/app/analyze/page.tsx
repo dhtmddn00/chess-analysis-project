@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen } from 'lucide-react';
+import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, Users, ShieldCheck } from 'lucide-react';
+import { sendGAEvent } from '@next/third-parties/google';
 import { usePlayerSummary } from '../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../hooks/useAnalysis';
 
@@ -87,6 +88,7 @@ interface AnalysisResult {
     swindleResistance: number;
     strengths: string;
     weaknesses: string;
+    summaryData?: string;
     metadata: string;
     tacticalStats: string;
     dimensionExplanations?: {
@@ -99,6 +101,50 @@ interface AnalysisResult {
       overallStyleAnalysis?: string;
     };
   };
+
+  comparativeInsights?: {
+    ratingBand?: string;
+    disclaimer?: string;
+    narrative?: string;
+    sampleReliability?: {
+      label: string;
+      message: string;
+      games: number;
+    };
+    performancePercentiles?: {
+      accuracy?: PercentileMetric;
+      centipawnLoss?: PercentileMetric;
+      tactical?: PercentileMetric;
+      consistency?: PercentileMetric;
+      leadConversion?: PercentileMetric;
+    };
+    gmMatch?: {
+      name: string;
+      similarity: number;
+      styleLabel: string;
+      reason: string;
+    };
+    opponentProfile?: {
+      averagePlayerRating?: number;
+      averageOpponentRating?: number;
+      gamesWithRating?: number;
+      headline?: string;
+      buckets?: Record<'stronger' | 'similar' | 'weaker', OpponentBucket>;
+    };
+  };
+
+  decisiveMoments?: Array<{
+    gameIndex: number;
+    moveNumber: number;
+    sideLabel: string;
+    move: string;
+    bestMove?: string;
+    classificationLabel: string;
+    centipawnLoss: number;
+    impactLabel: string;
+    opening?: string;
+    explanation: string;
+  }>;
   
   tacticalOverview?: {
     totalOpportunities: number;
@@ -132,12 +178,28 @@ interface AnalysisResult {
   };
 }
 
+interface PercentileMetric {
+  label: string;
+  value: number;
+  unit: string;
+  betterThanPercent: number;
+  topPercent: number;
+  topPercentLabel: string;
+  basis: string;
+}
+
+interface OpponentBucket {
+  label: string;
+  games: number;
+  scoreRate: number;
+}
+
 export default function UnifiedAnalyzePage() {
   const [searchForm, setSearchForm] = useState({
     platform: 'chess.com',
     username: '',
     n: 10,
-    priority: 'fast' as 'fast' | 'precise',
+    priority: 'fast' as 'fast' | 'balanced' | 'precise',
     timeControl: 'all' as 'all' | 'rapid' | 'blitz' | 'bullet',
   });
   
@@ -166,6 +228,15 @@ export default function UnifiedAnalyzePage() {
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
 
+  const trackEvent = (eventName: string, payload: Record<string, string | number | boolean>) => {
+    if (!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID) return;
+    try {
+      sendGAEvent('event', eventName, payload);
+    } catch {
+      // Analytics must never interfere with the analysis workflow.
+    }
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -174,7 +245,7 @@ export default function UnifiedAnalyzePage() {
     const n = Number(params.get('n'));
     const priority = params.get('priority');
 
-    if (!username && !Number.isFinite(n) && priority !== 'fast' && priority !== 'precise') {
+    if (!username && !Number.isFinite(n) && priority !== 'fast' && priority !== 'balanced' && priority !== 'precise') {
       return;
     }
 
@@ -182,7 +253,7 @@ export default function UnifiedAnalyzePage() {
       ...previous,
       username: username ?? previous.username,
       n: Number.isFinite(n) && n > 0 ? n : previous.n,
-      priority: priority === 'precise' ? 'precise' : priority === 'fast' ? 'fast' : previous.priority,
+      priority: priority === 'precise' ? 'precise' : priority === 'balanced' ? 'balanced' : priority === 'fast' ? 'fast' : previous.priority,
     }));
   }, []);
 
@@ -194,6 +265,12 @@ export default function UnifiedAnalyzePage() {
     setAnalysisStarted(false);
     setAnalysisError(null);
     setDetailedResult(null);
+    trackEvent('player_search', {
+      platform: searchForm.platform,
+      game_count: searchForm.n,
+      priority: searchForm.priority,
+      time_control: searchForm.timeControl,
+    });
   };
 
   const handleStartAnalysis = async () => {
@@ -209,6 +286,12 @@ export default function UnifiedAnalyzePage() {
         timeControl: searchForm.timeControl,
       });
       setAnalysisStarted(true);
+      trackEvent('analysis_started', {
+        platform: searchForm.platform,
+        game_count: searchForm.n,
+        priority: searchForm.priority,
+        time_control: searchForm.timeControl,
+      });
     } catch (error) {
       console.error('Failed to start analysis:', error);
       setAnalysisError(error instanceof Error ? error.message : '상세 분석을 시작할 수 없습니다.');
@@ -259,6 +342,17 @@ export default function UnifiedAnalyzePage() {
     if (!sentences || sentences.length === 0) return analysis;
     return sentences.slice(0, 2).join(' ').trim();
   };
+
+  const comparisonMetrics = detailedResult?.comparativeInsights?.performancePercentiles
+    ? [
+        detailedResult.comparativeInsights.performancePercentiles.accuracy,
+        detailedResult.comparativeInsights.performancePercentiles.centipawnLoss,
+        detailedResult.comparativeInsights.performancePercentiles.tactical,
+        detailedResult.comparativeInsights.performancePercentiles.consistency,
+      ].filter((metric): metric is PercentileMetric => Boolean(metric))
+    : [];
+
+  const opponentBuckets = detailedResult?.comparativeInsights?.opponentProfile?.buckets;
 
   return (
     <div className="chess-toss min-h-screen bg-gray-50">
@@ -350,10 +444,11 @@ export default function UnifiedAnalyzePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">분석 모드</label>
                 <select
                   value={searchForm.priority}
-                  onChange={(e) => setSearchForm({...searchForm, priority: e.target.value as 'fast' | 'precise'})}
+                  onChange={(e) => setSearchForm({...searchForm, priority: e.target.value as 'fast' | 'balanced' | 'precise'})}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="fast">빠르게</option>
+                  <option value="balanced">균형</option>
                   <option value="precise">정밀하게</option>
                 </select>
               </div>
@@ -685,6 +780,126 @@ export default function UnifiedAnalyzePage() {
                       <div className="text-xs text-gray-600">부정확</div>
                     </div>
                   </div>
+
+                  {detailedResult.comparativeInsights && (
+                    <div className="mb-6 rounded-xl border border-zinc-300 bg-zinc-950 p-5 text-white shadow-sm">
+                      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-3 py-1 text-xs font-bold text-zinc-950">
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            같은 레이팅대 비교
+                          </div>
+                          <h5 className="text-2xl font-black text-white">내 플레이는 어느 정도인가?</h5>
+                          <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-zinc-100">
+                            {detailedResult.comparativeInsights.narrative}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-white/20 bg-white px-4 py-3 text-sm text-zinc-950">
+                          <div className="text-zinc-500">레이팅 밴드</div>
+                          <div className="text-lg font-black">{detailedResult.comparativeInsights.ratingBand || '분석 중'}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        {comparisonMetrics.map((metric) => (
+                          <div key={metric.label} className="rounded-lg border border-white/10 bg-white p-4 text-zinc-950">
+                            <div className="text-xs font-semibold text-zinc-500">{metric.label}</div>
+                            <div className="mt-2 text-2xl font-bold">{metric.topPercentLabel}</div>
+                            <div className="mt-1 text-xs text-zinc-500">
+                              {metric.value}{metric.unit} · {metric.basis}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
+                          <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
+                            <Trophy className="h-4 w-4" />
+                            닮은 체스 거장
+                          </div>
+                          <div className="text-2xl font-black">{detailedResult.comparativeInsights.gmMatch?.name || '분석 중'}</div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-700">
+                            {detailedResult.comparativeInsights.gmMatch?.styleLabel} · 유사도 {detailedResult.comparativeInsights.gmMatch?.similarity || 0}%
+                          </div>
+                          <p className="mt-3 text-sm font-medium leading-6 text-zinc-700">
+                            {detailedResult.comparativeInsights.gmMatch?.reason}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
+                          <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
+                            <Users className="h-4 w-4" />
+                            상대 유형별 성과
+                          </div>
+                          <p className="mb-3 text-sm font-medium leading-6 text-zinc-700">
+                            {detailedResult.comparativeInsights.opponentProfile?.headline}
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(['stronger', 'similar', 'weaker'] as const).map((bucketKey) => {
+                              const bucket = opponentBuckets?.[bucketKey];
+                              return (
+                                <div key={bucketKey} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-950">
+                                  <div className="text-xs text-zinc-500">{bucket?.label || '-'}</div>
+                                  <div className="text-lg font-bold">{(bucket?.scoreRate ?? 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-zinc-500">{bucket?.games || 0}판</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {detailedResult.comparativeInsights.sampleReliability && (
+                        <div className="mt-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-zinc-800">
+                          표본 신뢰도 {detailedResult.comparativeInsights.sampleReliability.label}: {detailedResult.comparativeInsights.sampleReliability.message}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailedResult.decisiveMoments && detailedResult.decisiveMoments.length > 0 && (
+                    <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
+                      <div className="mb-4 flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-zinc-800" />
+                        <h5 className="font-semibold text-gray-900">승부를 흔든 결정적 순간</h5>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {detailedResult.decisiveMoments.slice(0, 4).map((moment) => (
+                          <div
+                            key={`${moment.gameIndex}-${moment.moveNumber}-${moment.move}`}
+                            className="rounded-lg border border-zinc-200 bg-zinc-50 p-4"
+                          >
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <div className="text-sm font-bold text-zinc-950">
+                                {moment.gameIndex + 1}번째 게임 · {moment.moveNumber}수 {moment.sideLabel}
+                              </div>
+                              <div className="rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-bold text-white">
+                                {moment.centipawnLoss}cp
+                              </div>
+                            </div>
+
+                            <div className="text-lg font-black text-zinc-950">
+                              {moment.move}
+                              {moment.bestMove && (
+                                <span className="ml-2 text-sm font-semibold text-zinc-500">
+                                  대신 {moment.bestMove}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-2 text-sm font-semibold text-zinc-700">
+                              {moment.impactLabel} · {moment.classificationLabel}
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-zinc-600">
+                              {moment.explanation}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Opening Repertoire */}
                   {detailedResult.openingStats && (

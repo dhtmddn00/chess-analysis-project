@@ -337,6 +337,7 @@ public class AnalysisService {
                     // Add JSON data (simplified - in production would use proper JSON parsing)
                     profile.put("strengths", strengthsJson != null ? strengthsJson : "[]");
                     profile.put("weaknesses", weaknessesJson != null ? weaknessesJson : "[]");
+                    profile.put("summaryData", summaryDataJson != null ? summaryDataJson : "{}");
                     profile.put("metadata", metadataJson != null ? metadataJson : "{}");
                     profile.put("tacticalStats", tacticalStatsJson != null ? tacticalStatsJson : "{}");
                     
@@ -407,6 +408,7 @@ public class AnalysisService {
                     profile.put("swindleResistance", 0.0);
                     profile.put("strengths", "[\"상세 분석 준비 중\"]");
                     profile.put("weaknesses", "[\"분석 완료 후 제공\"]");
+                    profile.put("summaryData", "{}");
                     profile.put("metadata", "{}");
                     profile.put("tacticalStats", "{\"message\": \"분석 진행 중\"}");
                     result.put("styleProfile", profile);
@@ -428,6 +430,15 @@ public class AnalysisService {
                     playerMeta.put("ratingsData", metadataResult.getString("ratings_data"));
                     result.put("playerMetadata", playerMeta);
                 }
+
+                result.put("comparativeInsights", buildComparativeInsights(
+                    connection,
+                    analysisId,
+                    analysisResult.getString("username"),
+                    result,
+                    profile
+                ));
+                result.put("decisiveMoments", getDecisiveMoments(connection, analysisId));
                 
                 // Get tactical opportunities summary from style_profiles_worker.tactical_stats
                 var tacticalSummary = new java.util.ArrayList<Map<String, Object>>();
@@ -645,6 +656,584 @@ public class AnalysisService {
         return games;
     }
 
+    private List<Map<String, Object>> getDecisiveMoments(java.sql.Connection connection, UUID analysisId) throws Exception {
+        List<Map<String, Object>> moments = new ArrayList<>();
+        var stmt = connection.prepareStatement(
+            "SELECT m.game_index, m.move_number, m.move_notation, m.best_move, " +
+            "m.classification, m.centipawn_loss, m.evaluation_before, m.evaluation_after, " +
+            "g.white_player, g.black_player, g.opening, g.result " +
+            "FROM move_analyses m " +
+            "LEFT JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
+            "WHERE m.analysis_id = ? AND m.centipawn_loss >= 50 " +
+            "ORDER BY m.centipawn_loss DESC, m.game_index ASC, m.move_number ASC LIMIT 6"
+        );
+        stmt.setObject(1, analysisId);
+        var rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            int ply = rs.getInt("move_number");
+            int moveNumber = (ply / 2) + 1;
+            boolean whiteMove = ply % 2 == 0;
+            int loss = rs.getInt("centipawn_loss");
+            String classification = classificationFromLoss(loss, rs.getString("classification"));
+
+            Map<String, Object> moment = new LinkedHashMap<>();
+            moment.put("gameIndex", rs.getInt("game_index"));
+            moment.put("moveNumber", moveNumber);
+            moment.put("ply", ply);
+            moment.put("side", whiteMove ? "white" : "black");
+            moment.put("sideLabel", whiteMove ? "백" : "흑");
+            moment.put("move", rs.getString("move_notation"));
+            moment.put("bestMove", rs.getString("best_move"));
+            moment.put("classification", classification);
+            moment.put("classificationLabel", classificationLabel(classification));
+            moment.put("centipawnLoss", loss);
+            moment.put("impactLabel", impactLabel(loss));
+            moment.put("opening", normalizeOpeningName(rs.getString("opening"), null));
+            moment.put("gameResult", rs.getString("result"));
+            moment.put("explanation", decisiveMomentExplanation(
+                moveNumber,
+                whiteMove ? "백" : "흑",
+                rs.getString("move_notation"),
+                rs.getString("best_move"),
+                classification,
+                loss
+            ));
+            moments.add(moment);
+        }
+
+        return moments;
+    }
+
+    private String decisiveMomentExplanation(
+        int moveNumber,
+        String sideLabel,
+        String move,
+        String bestMove,
+        String classification,
+        int centipawnLoss
+    ) {
+        StringBuilder explanation = new StringBuilder();
+        explanation.append(moveNumber).append("수 ").append(sideLabel)
+            .append("의 ").append(move == null ? "해당 수" : move)
+            .append("에서 평가가 크게 흔들렸습니다. ");
+        if (bestMove != null && !bestMove.isBlank()) {
+            explanation.append("엔진은 ").append(bestMove).append(" 쪽을 더 선호했습니다. ");
+        }
+        explanation.append("손실 규모는 약 ").append(centipawnLoss).append("cp로, ")
+            .append(classificationLabel(classification)).append("에 해당합니다.");
+        return explanation.toString();
+    }
+
+    private String normalizeClassification(String classification) {
+        if (classification == null || classification.isBlank()) {
+            return "inaccuracy";
+        }
+        return classification.toLowerCase(Locale.ROOT).trim();
+    }
+
+    private String classificationFromLoss(int centipawnLoss, String storedClassification) {
+        if (centipawnLoss >= 300) {
+            return "blunder";
+        }
+        if (centipawnLoss >= 100) {
+            return "mistake";
+        }
+        if (centipawnLoss >= 50) {
+            return "inaccuracy";
+        }
+        return normalizeClassification(storedClassification);
+    }
+
+    private String classificationLabel(String classification) {
+        return switch (normalizeClassification(classification)) {
+            case "blunder" -> "블런더";
+            case "mistake" -> "실수";
+            case "inaccuracy" -> "부정확";
+            case "best" -> "최선수";
+            default -> "개선 후보";
+        };
+    }
+
+    private String impactLabel(int centipawnLoss) {
+        if (centipawnLoss >= 300) {
+            return "승부를 크게 흔든 수";
+        }
+        if (centipawnLoss >= 150) {
+            return "주도권을 넘긴 수";
+        }
+        if (centipawnLoss >= 80) {
+            return "흐름이 꺾인 수";
+        }
+        return "개선하면 좋은 수";
+    }
+
+    private Map<String, Object> buildComparativeInsights(
+        java.sql.Connection connection,
+        UUID analysisId,
+        String username,
+        Map<String, Object> result,
+        Map<String, Object> profile
+    ) {
+        Map<String, Object> insights = new LinkedHashMap<>();
+        try {
+            Map<String, Object> opponentProfile = buildOpponentProfile(connection, analysisId, username);
+            int rating = getInt(opponentProfile.get("averagePlayerRating"), 0);
+            int profileRating = extractProfileAverageRating(profile);
+            if (rating <= 0 && profileRating > 0) {
+                rating = profileRating;
+                opponentProfile.put("averagePlayerRating", profileRating);
+            }
+
+            int totalGames = getInt(result.get("totalGames"), 0);
+            String ratingBand = rating > 0 ? getRatingBand(rating) : "레이팅 데이터 부족";
+            Map<String, Object> sampleReliability = buildSampleReliability(totalGames);
+            Map<String, Object> performancePercentiles = buildPerformancePercentiles(result, profile, rating);
+            Map<String, Object> gmMatch = findGrandmasterMatch(profile);
+
+            insights.put("ratingBand", ratingBand);
+            insights.put("sampleReliability", sampleReliability);
+            insights.put("performancePercentiles", performancePercentiles);
+            insights.put("gmMatch", gmMatch);
+            insights.put("opponentProfile", opponentProfile);
+            insights.put("narrative", buildComparativeNarrative(
+                username,
+                totalGames,
+                sampleReliability,
+                performancePercentiles,
+                gmMatch,
+                opponentProfile
+            ));
+            insights.put("disclaimer", "동일 레이팅대 비교는 현재 저장된 게임과 경험적 기준을 섞은 추정치입니다. 분석 게임 수가 늘수록 안정됩니다.");
+        } catch (Exception e) {
+            log.warn("Failed to build comparative insights for {}: {}", analysisId, e.getMessage());
+            insights.put("ratingBand", "비교 데이터 준비 중");
+            insights.put("sampleReliability", buildSampleReliability(getInt(result.get("totalGames"), 0)));
+            insights.put("performancePercentiles", Map.of());
+            insights.put("gmMatch", Map.of("name", "분석 준비 중", "similarity", 0, "reason", "스타일 데이터가 충분하지 않습니다."));
+            insights.put("opponentProfile", Map.of("headline", "상대 분석 데이터가 충분하지 않습니다."));
+            insights.put("narrative", "비교 인사이트를 만들기 위한 데이터가 아직 충분하지 않습니다.");
+        }
+        return insights;
+    }
+
+    private Map<String, Object> buildPerformancePercentiles(
+        Map<String, Object> result,
+        Map<String, Object> profile,
+        int rating
+    ) {
+        Map<String, Object> percentiles = new LinkedHashMap<>();
+        double accuracy = getDouble(result.get("averageAccuracy"), 0.0);
+        double acpl = getDouble(result.get("averageCentipawnLoss"), 0.0);
+        double tactical = getDouble(profile.get("tacticalRating"), 0.0);
+        double consistency = getDouble(profile.get("consistency"), 0.0);
+        double leadConversion = getDouble(profile.get("leadConversion"), 0.0);
+
+        percentiles.put("accuracy", estimatedPercentile(
+            "평균 정확도",
+            accuracy,
+            expectedAccuracy(rating),
+            7.5,
+            true,
+            "%"
+        ));
+        percentiles.put("centipawnLoss", estimatedPercentile(
+            "평균 CPL",
+            acpl,
+            expectedCentipawnLoss(rating),
+            22.0,
+            false,
+            ""
+        ));
+        percentiles.put("tactical", stylePercentile("전술 감각", tactical));
+        percentiles.put("consistency", stylePercentile("일관성", consistency));
+        percentiles.put("leadConversion", stylePercentile("우세 변환력", leadConversion));
+        return percentiles;
+    }
+
+    private Map<String, Object> estimatedPercentile(
+        String label,
+        double value,
+        double mean,
+        double standardDeviation,
+        boolean higherIsBetter,
+        String unit
+    ) {
+        double safeStd = Math.max(1.0, standardDeviation);
+        double z = (value - mean) / safeStd;
+        if (!higherIsBetter) {
+            z = -z;
+        }
+        int betterThan = clampPercent((int) Math.round(100.0 / (1.0 + Math.exp(-1.35 * z))));
+        int topPercent = Math.max(1, 100 - betterThan);
+
+        Map<String, Object> metric = new LinkedHashMap<>();
+        metric.put("label", label);
+        metric.put("value", Math.round(value * 10.0) / 10.0);
+        metric.put("unit", unit);
+        metric.put("betterThanPercent", betterThan);
+        metric.put("topPercent", topPercent);
+        metric.put("topPercentLabel", "상위 " + topPercent + "% 추정");
+        metric.put("basis", "동일 레이팅대 예상 평균 " + Math.round(mean * 10.0) / 10.0 + unit + " 기준");
+        return metric;
+    }
+
+    private Map<String, Object> stylePercentile(String label, double score) {
+        int betterThan = clampPercent((int) Math.round(score));
+        int topPercent = Math.max(1, 100 - betterThan);
+        Map<String, Object> metric = new LinkedHashMap<>();
+        metric.put("label", label);
+        metric.put("value", Math.round(score * 10.0) / 10.0);
+        metric.put("unit", "점");
+        metric.put("betterThanPercent", betterThan);
+        metric.put("topPercent", topPercent);
+        metric.put("topPercentLabel", "상위 " + topPercent + "% 추정");
+        metric.put("basis", "0-100 스타일 점수를 백분위처럼 해석한 임시 지표");
+        return metric;
+    }
+
+    private Map<String, Object> buildSampleReliability(int totalGames) {
+        Map<String, Object> reliability = new LinkedHashMap<>();
+        if (totalGames >= 30) {
+            reliability.put("label", "높음");
+            reliability.put("message", "30판 이상이라 스타일과 실수 패턴을 꽤 안정적으로 볼 수 있습니다.");
+        } else if (totalGames >= 15) {
+            reliability.put("label", "보통");
+            reliability.put("message", "대략적인 성향은 읽을 수 있지만, 30판 이상이면 비교 지표가 더 안정됩니다.");
+        } else {
+            reliability.put("label", "낮음");
+            reliability.put("message", "표본이 작아 최근 컨디션의 영향이 큽니다. 재미로 보되 큰 방향만 참고하세요.");
+        }
+        reliability.put("games", totalGames);
+        return reliability;
+    }
+
+    private Map<String, Object> buildOpponentProfile(
+        java.sql.Connection connection,
+        UUID analysisId,
+        String username
+    ) throws Exception {
+        OpponentBucket stronger = new OpponentBucket("강한 상대");
+        OpponentBucket similar = new OpponentBucket("비슷한 상대");
+        OpponentBucket weaker = new OpponentBucket("낮은 상대");
+        int playerRatingTotal = 0;
+        int opponentRatingTotal = 0;
+        int gamesWithRating = 0;
+
+        var stmt = connection.prepareStatement(
+            "SELECT white_player, black_player, result, pgn FROM games_worker WHERE analysis_id = ?");
+        stmt.setObject(1, analysisId);
+        var rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            String whitePlayer = rs.getString("white_player");
+            String blackPlayer = rs.getString("black_player");
+            boolean isWhite = whitePlayer != null && whitePlayer.equalsIgnoreCase(username);
+            boolean isBlack = blackPlayer != null && blackPlayer.equalsIgnoreCase(username);
+            if (!isWhite && !isBlack) {
+                continue;
+            }
+
+            String pgn = rs.getString("pgn");
+            int playerRating = parsePgnRating(pgn, isWhite ? "WhiteElo" : "BlackElo");
+            int opponentRating = parsePgnRating(pgn, isWhite ? "BlackElo" : "WhiteElo");
+            if (playerRating <= 0 || opponentRating <= 0) {
+                continue;
+            }
+
+            double score = scoreForPlayer(rs.getString("result"), isWhite);
+            int diff = opponentRating - playerRating;
+            if (diff >= 100) {
+                stronger.record(score);
+            } else if (diff <= -100) {
+                weaker.record(score);
+            } else {
+                similar.record(score);
+            }
+
+            playerRatingTotal += playerRating;
+            opponentRatingTotal += opponentRating;
+            gamesWithRating++;
+        }
+
+        Map<String, Object> buckets = new LinkedHashMap<>();
+        buckets.put("stronger", stronger.toMap());
+        buckets.put("similar", similar.toMap());
+        buckets.put("weaker", weaker.toMap());
+
+        Map<String, Object> profile = new LinkedHashMap<>();
+        int averagePlayerRating = gamesWithRating > 0 ? Math.round((float) playerRatingTotal / gamesWithRating) : 0;
+        int averageOpponentRating = gamesWithRating > 0 ? Math.round((float) opponentRatingTotal / gamesWithRating) : 0;
+        profile.put("averagePlayerRating", averagePlayerRating);
+        profile.put("averageOpponentRating", averageOpponentRating);
+        profile.put("gamesWithRating", gamesWithRating);
+        profile.put("buckets", buckets);
+        profile.put("headline", opponentHeadline(stronger, similar, weaker, gamesWithRating));
+        return profile;
+    }
+
+    private Map<String, Object> findGrandmasterMatch(Map<String, Object> profile) {
+        Map<String, Double> player = new LinkedHashMap<>();
+        player.put("tactical", getDouble(profile.get("tacticalRating"), 0.0));
+        player.put("positional", getDouble(profile.get("positionalRating"), 0.0));
+        player.put("endgame", getDouble(profile.get("endgameRating"), 0.0));
+        player.put("time", getDouble(profile.get("timeManagementRating"), 0.0));
+        player.put("aggression", getDouble(profile.get("aggressionRating"), 0.0));
+        player.put("risk", getDouble(profile.get("riskTolerance"), 0.0));
+        player.put("consistency", getDouble(profile.get("consistency"), 0.0));
+        player.put("opening", getDouble(profile.get("openingVariety"), 0.0));
+        player.put("conversion", getDouble(profile.get("leadConversion"), 0.0));
+
+        GrandmasterArchetype best = null;
+        double bestSimilarity = -1.0;
+        for (GrandmasterArchetype archetype : grandmasterArchetypes()) {
+            double similarity = cosineSimilarity(player, archetype.vector);
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                best = archetype;
+            }
+        }
+
+        Map<String, Object> match = new LinkedHashMap<>();
+        if (best == null || bestSimilarity <= 0.0) {
+            match.put("name", "분석 준비 중");
+            match.put("similarity", 0);
+            match.put("styleLabel", "데이터 부족");
+            match.put("reason", "스타일 데이터가 충분하지 않습니다.");
+            return match;
+        }
+
+        match.put("name", best.name);
+        match.put("similarity", clampPercent((int) Math.round(bestSimilarity * 100.0)));
+        match.put("styleLabel", best.styleLabel);
+        match.put("reason", topStyleReason(player, best));
+        return match;
+    }
+
+    private String buildComparativeNarrative(
+        String username,
+        int totalGames,
+        Map<String, Object> reliability,
+        Map<String, Object> percentiles,
+        Map<String, Object> gmMatch,
+        Map<String, Object> opponentProfile
+    ) {
+        Map<String, Object> accuracy = asMap(percentiles.get("accuracy"));
+        Map<String, Object> cpl = asMap(percentiles.get("centipawnLoss"));
+        String accuracyRank = String.valueOf(accuracy.getOrDefault("topPercentLabel", "비교 준비 중"));
+        String cplRank = String.valueOf(cpl.getOrDefault("topPercentLabel", "비교 준비 중"));
+        String gmName = String.valueOf(gmMatch.getOrDefault("name", "분석 준비 중"));
+        String opponentHeadline = String.valueOf(opponentProfile.getOrDefault("headline", "상대 분석 데이터가 충분하지 않습니다."));
+        String reliabilityLabel = String.valueOf(reliability.getOrDefault("label", "낮음"));
+
+        return String.format(
+            "%s님의 최근 %d판은 표본 신뢰도 %s입니다. 정확도는 %s, CPL 관점은 %s로 추정되며, 스타일 결은 %s 쪽에 가깝습니다. %s",
+            username,
+            totalGames,
+            reliabilityLabel,
+            accuracyRank,
+            cplRank,
+            gmName,
+            opponentHeadline
+        );
+    }
+
+    private double expectedAccuracy(int rating) {
+        if (rating <= 0) return 72.0;
+        if (rating < 1000) return 62.0;
+        if (rating < 1200) return 68.0;
+        if (rating < 1400) return 73.0;
+        if (rating < 1600) return 78.0;
+        if (rating < 1800) return 82.0;
+        if (rating < 2000) return 86.0;
+        return 90.0;
+    }
+
+    private double expectedCentipawnLoss(int rating) {
+        if (rating <= 0) return 80.0;
+        if (rating < 1000) return 125.0;
+        if (rating < 1200) return 105.0;
+        if (rating < 1400) return 88.0;
+        if (rating < 1600) return 70.0;
+        if (rating < 1800) return 58.0;
+        if (rating < 2000) return 47.0;
+        return 36.0;
+    }
+
+    private String getRatingBand(int rating) {
+        if (rating < 1000) return "1000 이하";
+        if (rating < 1200) return "1000-1200";
+        if (rating < 1400) return "1200-1400";
+        if (rating < 1600) return "1400-1600";
+        if (rating < 1800) return "1600-1800";
+        if (rating < 2000) return "1800-2000";
+        if (rating < 2200) return "2000-2200";
+        return "2200 이상";
+    }
+
+    private int parsePgnRating(String pgn, String tagName) {
+        String value = extractPgnTag(pgn, tagName);
+        if (value == null || value.isBlank() || value.equals("?")) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private double scoreForPlayer(String result, boolean isWhite) {
+        if ("1/2-1/2".equals(result)) {
+            return 0.5;
+        }
+        if ("1-0".equals(result)) {
+            return isWhite ? 1.0 : 0.0;
+        }
+        if ("0-1".equals(result)) {
+            return isWhite ? 0.0 : 1.0;
+        }
+        return 0.5;
+    }
+
+    private String opponentHeadline(OpponentBucket stronger, OpponentBucket similar, OpponentBucket weaker, int gamesWithRating) {
+        if (gamesWithRating == 0) {
+            return "PGN에 상대 레이팅이 없어 상대 유형별 성과를 계산하지 못했습니다.";
+        }
+        OpponentBucket best = stronger;
+        if (similar.scoreRate() > best.scoreRate()) {
+            best = similar;
+        }
+        if (weaker.scoreRate() > best.scoreRate()) {
+            best = weaker;
+        }
+        return String.format("%s 상대로 점수율 %.1f%%가 가장 좋았습니다.", best.label, best.scoreRate());
+    }
+
+    private int extractProfileAverageRating(Map<String, Object> profile) {
+        try {
+            Object summaryData = profile.get("summaryData");
+            if (!(summaryData instanceof String json) || json.isBlank()) {
+                return 0;
+            }
+            Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            return (int) Math.round(getDouble(parsed.get("average_rating"), 0.0));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private double cosineSimilarity(Map<String, Double> player, Map<String, Double> target) {
+        double dot = 0.0;
+        double playerNorm = 0.0;
+        double targetNorm = 0.0;
+        for (String key : target.keySet()) {
+            double playerValue = player.getOrDefault(key, 0.0);
+            double targetValue = target.getOrDefault(key, 0.0);
+            dot += playerValue * targetValue;
+            playerNorm += playerValue * playerValue;
+            targetNorm += targetValue * targetValue;
+        }
+        if (playerNorm == 0.0 || targetNorm == 0.0) {
+            return 0.0;
+        }
+        return dot / (Math.sqrt(playerNorm) * Math.sqrt(targetNorm));
+    }
+
+    private String topStyleReason(Map<String, Double> player, GrandmasterArchetype archetype) {
+        String topDimensions = player.entrySet().stream()
+            .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+            .limit(2)
+            .map(entry -> styleDimensionLabel(entry.getKey()))
+            .reduce((a, b) -> a + ", " + b)
+            .orElse("주요 지표");
+        return topDimensions + " 지표가 두드러져 " + archetype.styleLabel + "인 " + archetype.name + "와 비슷한 결을 보입니다.";
+    }
+
+    private String styleDimensionLabel(String key) {
+        return switch (key) {
+            case "tactical" -> "전술";
+            case "positional" -> "포지셔널";
+            case "endgame" -> "엔드게임";
+            case "time" -> "시간 관리";
+            case "aggression" -> "공격성";
+            case "risk" -> "리스크 감수";
+            case "consistency" -> "일관성";
+            case "opening" -> "오프닝 다양성";
+            case "conversion" -> "우세 변환";
+            default -> key;
+        };
+    }
+
+    private List<GrandmasterArchetype> grandmasterArchetypes() {
+        return List.of(
+            new GrandmasterArchetype("Magnus Carlsen", "압박형 올라운더", Map.of(
+                "tactical", 82.0, "positional", 96.0, "endgame", 95.0, "time", 84.0,
+                "aggression", 70.0, "risk", 58.0, "consistency", 96.0, "opening", 70.0, "conversion", 97.0
+            )),
+            new GrandmasterArchetype("Hikaru Nakamura", "전술적 스피드 플레이어", Map.of(
+                "tactical", 94.0, "positional", 78.0, "endgame", 84.0, "time", 98.0,
+                "aggression", 88.0, "risk", 82.0, "consistency", 86.0, "opening", 76.0, "conversion", 86.0
+            )),
+            new GrandmasterArchetype("Mikhail Tal", "복잡도 창출형 공격수", Map.of(
+                "tactical", 98.0, "positional", 70.0, "endgame", 72.0, "time", 78.0,
+                "aggression", 98.0, "risk", 96.0, "consistency", 70.0, "opening", 74.0, "conversion", 80.0
+            )),
+            new GrandmasterArchetype("Anatoly Karpov", "포지셔널 압박형", Map.of(
+                "tactical", 75.0, "positional", 98.0, "endgame", 90.0, "time", 78.0,
+                "aggression", 58.0, "risk", 42.0, "consistency", 94.0, "opening", 72.0, "conversion", 90.0
+            )),
+            new GrandmasterArchetype("Judit Polgar", "직선적인 전술 공격수", Map.of(
+                "tactical", 96.0, "positional", 80.0, "endgame", 82.0, "time", 80.0,
+                "aggression", 94.0, "risk", 86.0, "consistency", 84.0, "opening", 80.0, "conversion", 85.0
+            )),
+            new GrandmasterArchetype("Fabiano Caruana", "준비형 계산 플레이어", Map.of(
+                "tactical", 88.0, "positional", 91.0, "endgame", 86.0, "time", 76.0,
+                "aggression", 74.0, "risk", 62.0, "consistency", 90.0, "opening", 94.0, "conversion", 88.0
+            ))
+        );
+    }
+
+    private int clampPercent(int value) {
+        return Math.max(0, Math.min(99, value));
+    }
+
+    private double getDouble(Object value, double fallback) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Double.parseDouble(text);
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
+    private int getInt(Object value, int fallback) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return Map.of();
+    }
+
     private Map<String, Object> getOpeningStats(java.sql.Connection connection, UUID analysisId, String username) throws Exception {
         Map<String, OpeningCounter> whiteOpenings = new HashMap<>();
         Map<String, OpeningCounter> blackOpenings = new HashMap<>();
@@ -758,6 +1347,45 @@ public class AnalysisService {
 
         private OpeningCounter(String name) {
             this.name = name;
+        }
+    }
+
+    private static class OpponentBucket {
+        private final String label;
+        private int games;
+        private double score;
+
+        private OpponentBucket(String label) {
+            this.label = label;
+        }
+
+        private void record(double gameScore) {
+            this.games++;
+            this.score += gameScore;
+        }
+
+        private double scoreRate() {
+            return games > 0 ? (score / games) * 100.0 : 0.0;
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("label", label);
+            map.put("games", games);
+            map.put("scoreRate", Math.round(scoreRate() * 10.0) / 10.0);
+            return map;
+        }
+    }
+
+    private static class GrandmasterArchetype {
+        private final String name;
+        private final String styleLabel;
+        private final Map<String, Double> vector;
+
+        private GrandmasterArchetype(String name, String styleLabel, Map<String, Double> vector) {
+            this.name = name;
+            this.styleLabel = styleLabel;
+            this.vector = vector;
         }
     }
     

@@ -5,7 +5,7 @@ export interface CreateAnalysisRequest {
   platform: string;
   username: string;
   n?: number;
-  priority?: 'fast' | 'precise';
+  priority?: 'fast' | 'balanced' | 'precise';
   timeControl?: string;
 }
 

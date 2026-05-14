@@ -1,0 +1,35 @@
+app = "chess-analysis-api-prod"
+primary_region = "nrt"
+
+[env]
+  SERVER_PORT = "8080"
+  SPRING_PROFILES_ACTIVE = "prod"
+  REDIS_SSL = "true"
+  SHORTLINK_BASE_URL = "https://chess-analysis-api-prod.fly.dev/s"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
+
+[[http_service.checks]]
+  grace_period = "60s"
+  interval = "30s"
+  method = "GET"
+  path = "/api/v1/actuator/health"
+  port = 8080
+  timeout = "10s"
+  type = "http"

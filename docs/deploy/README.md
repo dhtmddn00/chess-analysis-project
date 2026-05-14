@@ -71,6 +71,7 @@ fly secrets set \
   REDIS_PORT='<upstash-port>' \
   REDIS_PASSWORD='<upstash-password>' \
   REDIS_SSL='true' \
+  RATE_LIMIT_WHITELIST_USERNAMES='oswooooo' \
   SHORTLINK_BASE_URL='https://chess-analysis-api-prod.fly.dev/s' \
   -a chess-analysis-api-prod
 ```
@@ -163,3 +164,4 @@ The API includes Redis-backed rate limits for public beta:
 - queue: reject new requests when Redis queue has 30 or more jobs
 
 Counters reset at midnight in `Asia/Seoul`.
+Set `RATE_LIMIT_WHITELIST_USERNAMES` or `RATE_LIMIT_WHITELIST_IPS` on the API app to bypass the daily username/IP/global counters for operators or testers. The queue saturation guard still applies.

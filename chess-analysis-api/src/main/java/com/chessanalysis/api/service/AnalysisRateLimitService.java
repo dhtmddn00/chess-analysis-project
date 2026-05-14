@@ -3,6 +3,7 @@ package com.chessanalysis.api.service;
 import com.chessanalysis.api.dto.AnalysisRequestDto;
 import com.chessanalysis.api.queue.AnalysisQueueService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,8 +11,11 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +30,12 @@ public class AnalysisRateLimitService {
     private final StringRedisTemplate redisTemplate;
     private final AnalysisQueueService queueService;
 
+    @Value("${chess-analysis.rate-limit.whitelist.usernames:}")
+    private String whitelistUsernames;
+
+    @Value("${chess-analysis.rate-limit.whitelist.ips:}")
+    private String whitelistIps;
+
     public void enforceLimits(AnalysisRequestDto request, String clientIp) {
         long queueSize = queueService.getQueueSize();
         if (queueSize >= MAX_QUEUE_SIZE) {
@@ -36,6 +46,10 @@ public class AnalysisRateLimitService {
                 queueSize,
                 null
             );
+        }
+
+        if (isWhitelisted(request.getUsername(), clientIp)) {
+            return;
         }
 
         String priority = normalizePriority(request.getPriority());
@@ -132,6 +146,21 @@ public class AnalysisRateLimitService {
         return priority == null || priority.isBlank()
             ? "fast"
             : priority.toLowerCase(Locale.ROOT).trim();
+    }
+
+    private boolean isWhitelisted(String username, String clientIp) {
+        return normalizedCsvSet(whitelistUsernames).contains(normalizeToken(username))
+            || normalizedCsvSet(whitelistIps).contains(normalizeToken(clientIp));
+    }
+
+    private Set<String> normalizedCsvSet(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(csv.split(","))
+            .map(this::normalizeToken)
+            .filter(value -> !"unknown".equals(value))
+            .collect(Collectors.toSet());
     }
 
     private String normalizeToken(String value) {

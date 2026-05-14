@@ -62,6 +62,11 @@ chess-analysis:
     api-url: https://api.chess.com/pub
     rate-limit:
       requests-per-minute: 60
+
+  rate-limit:
+    whitelist:
+      usernames: ${RATE_LIMIT_WHITELIST_USERNAMES:}
+      ips: ${RATE_LIMIT_WHITELIST_IPS:}
       
   worker:
     queue-name: chess-analysis-queue

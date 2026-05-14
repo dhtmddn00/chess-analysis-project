@@ -1,4 +1,4 @@
-app = "chess-analysis-worker"
+app = "chess-analysis-worker-prod"
 primary_region = "nrt"
 
 [env]

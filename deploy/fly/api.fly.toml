@@ -1,11 +1,11 @@
-app = "chess-analysis-api"
+app = "chess-analysis-api-prod"
 primary_region = "nrt"
 
 [env]
   SERVER_PORT = "8080"
   SPRING_PROFILES_ACTIVE = "prod"
   REDIS_SSL = "true"
-  SHORTLINK_BASE_URL = "https://chess-analysis-api.fly.dev/s"
+  SHORTLINK_BASE_URL = "https://chess-analysis-api-prod.fly.dev/s"
 
 [http_service]
   internal_port = 8080

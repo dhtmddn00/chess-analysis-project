@@ -149,3 +149,11 @@ jobs:
           CHESS_USERNAME: hikaru
           GAME_COUNT: "5"
         run: ./scripts/smoke-test.sh
+      - name: Smoke test frontend API proxy
+        env:
+          FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL || 'https://chess-analysis-gg.vercel.app' }}
+          CHESS_USERNAME: hikaru
+        run: >
+          curl -fsS
+          "${FRONTEND_URL}/api/v1/player/summary?platform=chess.com&username=${CHESS_USERNAME}"
+          >/dev/null

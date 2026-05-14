@@ -112,6 +112,7 @@ NEXT_PUBLIC_API_URL=
 
 The frontend calls `/api/v1/...`, and `next.config.js` rewrites that path to `INTERNAL_API_URL`.
 Do not include `/api/v1` in `INTERNAL_API_URL`; the rewrite adds that path automatically.
+If `INTERNAL_API_URL` is missing in production, the frontend falls back to `https://chess-analysis-api-prod.fly.dev`.
 
 ## 4. GitHub Actions secrets
 
@@ -126,6 +127,7 @@ VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 PROD_API_URL=https://chess-analysis-api-prod.fly.dev/api/v1
+PROD_FRONTEND_URL=https://chess-analysis-gg.vercel.app
 ```
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions and is used to push Docker images to GitHub Container Registry.
@@ -148,6 +150,7 @@ On pushes to `main`, `.github/workflows/deploy.yml` runs:
 - Fly deploy for worker
 - Vercel production deploy
 - Production smoke test with `scripts/smoke-test.sh`
+- Frontend API proxy smoke test through `/api/v1/player/summary`
 
 ## 6. Cost guardrails
 

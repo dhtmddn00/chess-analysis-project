@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
+const DEFAULT_API_ORIGIN =
+  process.env.NODE_ENV === 'production'
+    ? 'https://chess-analysis-api-prod.fly.dev'
+    : 'http://localhost:8080';
+
 function normalizeApiOrigin(value) {
-  return (value || 'http://localhost:8080')
+  return (value || DEFAULT_API_ORIGIN)
     .replace(/\/api\/v1\/?$/, '')
     .replace(/\/$/, '');
 }

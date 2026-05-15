@@ -14,6 +14,8 @@ export interface AnalysisJobStatus {
   progress: number; // 0 to 100
   currentStep: string;
   errorMessage: string;
+  queuePosition?: number | null;
+  queueSize?: number | null;
   partials?: {
     tactics?: { 
       ready: boolean; 
@@ -144,8 +146,15 @@ export function useAnalysis(): UseAnalysisResult {
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        const rawError = await response.text();
+        let errorData: Record<string, any> = {};
+        try {
+          errorData = rawError ? JSON.parse(rawError) : {};
+        } catch {
+          errorData = {};
+        }
+        const message = errorData.error || errorData.message || errorData.details || rawError || `HTTP ${response.status}`;
+        throw new Error(message);
       }
       
       const data = await response.json();

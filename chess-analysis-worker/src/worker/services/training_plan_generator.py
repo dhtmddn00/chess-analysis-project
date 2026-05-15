@@ -91,6 +91,10 @@ class TrainingPlanGenerator:
         self.db_client = db_client
         self.resource_database = self._initialize_resources()
         self.elo_gain_matrix = self._initialize_elo_gain_matrix()
+
+    def _dimension_value(self, dimension: "StyleDimension") -> str:
+        """Return a stable key for StyleDimension without importing profiler at runtime."""
+        return getattr(dimension, 'value', str(dimension))
     
     async def generate_training_plan(
         self,
@@ -209,7 +213,7 @@ class TrainingPlanGenerator:
         """치명적 약점에 대한 구체적 추천사항 생성"""
         
         dimension_templates = {
-            "StyleDimension".TACTICAL_DEPENDENCY: {
+            'tactical_dependency': {
                 'title': '전술 기본기 긴급 보강',
                 'description': '전술적 감각이 크게 부족합니다. 기본 전술 패턴 학습이 시급합니다.',
                 'specific_focus': ['기본 포크 패턴', '간단한 핀 전술', '백 랭크 메이트 패턴'],
@@ -218,7 +222,7 @@ class TrainingPlanGenerator:
                 'time_investment': 40,
                 'category': TrainingCategory.TACTICAL
             },
-            "StyleDimension".ENDGAME_TECHNIQUE: {
+            'endgame_technique': {
                 'title': '엔드게임 기본 테크닉',
                 'description': '엔드게임 실력이 크게 부족합니다. 기본 엔드게임 학습이 필요합니다.',
                 'specific_focus': ['K+Q vs K', 'K+R vs K', '기본 폰 엔드게임'],
@@ -227,7 +231,7 @@ class TrainingPlanGenerator:
                 'time_investment': 30,
                 'category': TrainingCategory.ENDGAME
             },
-            "StyleDimension".TIME_MANAGEMENT: {
+            'time_management': {
                 'title': '시간 관리 시스템 구축',
                 'description': '시간 관리가 매우 부족합니다. 체계적인 시간 배분 학습이 필요합니다.',
                 'specific_focus': ['오프닝 시간 절약', '중반전 계산 효율화', '시간 압박 대응'],
@@ -238,7 +242,7 @@ class TrainingPlanGenerator:
             }
         }
         
-        template = dimension_templates.get(dimension)
+        template = dimension_templates.get(self._dimension_value(dimension))
         if not template:
             return None
         
@@ -294,21 +298,21 @@ class TrainingPlanGenerator:
         """높은 우선순위 추천사항 생성"""
         
         templates = {
-            "StyleDimension".POSITIONAL_ORIENTATION: {
+            'positional_orientation': {
                 'title': '포지셔널 판단력 향상',
                 'description': '포지션 평가와 계획 수립 능력을 개선해야 합니다.',
                 'focus': ['중앙 지배', '기물 활동성', '폰 구조 이해'],
                 'category': TrainingCategory.POSITIONAL,
                 'elo_gain': 40
             },
-            "StyleDimension".OPENING_VARIETY: {
+            'opening_variety': {
                 'title': '오프닝 레퍼토리 확장',
                 'description': '제한적인 오프닝 지식으로 인한 불리함을 해소해야 합니다.',
                 'focus': ['주요 오프닝 2-3개 마스터', '트랜스포지션 이해', '오프닝 원리'],
                 'category': TrainingCategory.OPENING,
                 'elo_gain': 35
             },
-            "StyleDimension".CONSISTENCY: {
+            'consistency': {
                 'title': '플레이 안정성 확보',
                 'description': '기복이 심한 플레이를 안정화해야 합니다.',
                 'focus': ['루틴 확립', '집중력 훈련', '실수 패턴 분석'],
@@ -317,7 +321,7 @@ class TrainingPlanGenerator:
             }
         }
         
-        template = templates.get(dimension)
+        template = templates.get(self._dimension_value(dimension))
         if not template:
             return None
         
@@ -397,24 +401,25 @@ class TrainingPlanGenerator:
         dimension, level = strength
         
         strength_templates = {
-            "StyleDimension".AGGRESSION: {
+            'aggression': {
                 'title': '공격적 스타일 극대화',
                 'description': '뛰어난 공격 감각을 더욱 발전시켜 결정력을 높입니다.',
                 'focus': ['킹 공격 패턴', '갬빗 활용', '이니셔티브 유지']
             },
-            "StyleDimension".TACTICAL_DEPENDENCY: {
+            'tactical_dependency': {
                 'title': '전술적 우위 확대',
                 'description': '뛰어난 전술 실력을 바탕으로 복잡한 포지션에서 우위를 점합니다.',
                 'focus': ['복합 전술', '깊은 계산', '전술적 직관']
             }
         }
         
-        template = strength_templates.get(dimension)
+        dimension_key = self._dimension_value(dimension)
+        template = strength_templates.get(dimension_key)
         if not template:
             return None
         
         return TrainingRecommendation(
-            category=TrainingCategory.TACTICAL if dimension == "StyleDimension".TACTICAL_DEPENDENCY else TrainingCategory.POSITIONAL,
+            category=TrainingCategory.TACTICAL if dimension_key == 'tactical_dependency' else TrainingCategory.POSITIONAL,
             priority=Priority.MEDIUM,
             title=template['title'],
             description=template['description'],
@@ -543,24 +548,24 @@ class TrainingPlanGenerator:
         """성공 지표 생성"""
         
         metrics = {
-            "StyleDimension".TACTICAL_DEPENDENCY: [
+            'tactical_dependency': [
                 "전술 퍼즐 정확도 85% 달성",
                 "게임당 전술 기회 놓침 2개 이하",
                 "전술적 실수로 인한 패배 50% 감소"
             ],
-            "StyleDimension".ENDGAME_TECHNIQUE: [
+            'endgame_technique': [
                 "기본 엔드게임 100% 정확도",
                 "엔드게임 ACPL 20 이하 달성",
                 "우세한 엔드게임 승률 90% 이상"
             ],
-            "StyleDimension".TIME_MANAGEMENT: [
+            'time_management': [
                 "시간 초과로 인한 패배 제거",
                 "평균 시간 사용 균등화",
                 "중요한 순간 충분한 시간 확보"
             ]
         }
         
-        return metrics.get(dimension, ["해당 영역 백분위 50% 이상 달성"])
+        return metrics.get(self._dimension_value(dimension), ["해당 영역 백분위 50% 이상 달성"])
     
     # 리소스 관련 메서드들
     def _initialize_resources(self) -> Dict[str, Dict[str, List[str]]]:
@@ -608,12 +613,12 @@ class TrainingPlanGenerator:
     def _get_resources_for_dimension(self, dimension: "StyleDimension", level: int) -> List[Dict[str, str]]:
         """차원별 맞춤 자료 제공"""
         resource_map = {
-            "StyleDimension".TACTICAL_DEPENDENCY: 'tactical',
-            "StyleDimension".POSITIONAL_ORIENTATION: 'positional',
-            "StyleDimension".ENDGAME_TECHNIQUE: 'endgame'
+            'tactical_dependency': 'tactical',
+            'positional_orientation': 'positional',
+            'endgame_technique': 'endgame'
         }
         
-        category = resource_map.get(dimension, 'tactical')
+        category = resource_map.get(self._dimension_value(dimension), 'tactical')
         level_name = 'beginner' if level <= 2 else 'intermediate'
         
         return self.resource_database.get(category, {}).get(level_name, [])

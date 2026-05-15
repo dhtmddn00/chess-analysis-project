@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, Users, ShieldCheck } from 'lucide-react';
+import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, ShieldCheck } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
 import { usePlayerSummary } from '../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../hooks/useAnalysis';
@@ -57,11 +57,17 @@ interface AnalysisResult {
       name: string;
       count: number;
       percentage: number;
+      scoreRate?: number;
+      averageCpl?: number;
+      firstIssueMove?: number | null;
     }>;
     black: Array<{
       name: string;
       count: number;
       percentage: number;
+      scoreRate?: number;
+      averageCpl?: number;
+      firstIssueMove?: number | null;
     }>;
   };
   
@@ -141,16 +147,95 @@ interface AnalysisResult {
     bestMove?: string;
     classificationLabel: string;
     centipawnLoss: number;
+    winProbabilityLoss?: number;
     impactLabel: string;
     opening?: string;
     explanation: string;
   }>;
+
+  learningInsights?: {
+    headline?: string;
+    note?: string;
+    cards?: Array<{
+      title: string;
+      value: string;
+      description: string;
+    }>;
+  };
+
+  advancedInsights?: {
+    story?: string;
+    styleAxes?: Array<{
+      label: string;
+      value: number;
+      band: string;
+      description: string;
+    }>;
+    confidenceBands?: Array<{
+      label: string;
+      value: number;
+      margin: number;
+      range: string;
+      basis: string;
+    }>;
+    criticalMoveStats?: {
+      sample?: number;
+      solved?: number;
+      accuracy?: number;
+      label?: string;
+      averageGap?: number;
+    };
+    complexityPreference?: {
+      label?: string;
+      value?: string;
+      description?: string;
+      complexCpl?: number;
+      simpleCpl?: number;
+    };
+    timePatterns?: {
+      message?: string;
+      buckets?: Array<{
+        label: string;
+        games: number;
+        scoreRate: number;
+        averageCpl: number;
+      }>;
+    };
+    openingHoles?: Array<{
+      name: string;
+      sideLabel: string;
+      count: number;
+      scoreRate?: number;
+      averageCpl?: number;
+      firstIssueMove?: number;
+      reason?: string;
+    }>;
+  };
+
+  opponentExploitPlan?: {
+    headline?: string;
+    confidence?: string;
+    disclaimer?: string;
+    weaknesses?: Array<{
+      title: string;
+      value: string;
+      description: string;
+    }>;
+    recommendations?: Array<{
+      title: string;
+      value: string;
+      description: string;
+    }>;
+  };
   
   tacticalOverview?: {
     totalOpportunities: number;
     foundTactics: number;
     missedTactics: number;
     tacticalAccuracy: string;
+    sampleAvailable?: boolean;
+    confidence?: string;
+    message?: string;
   };
   
   tacticalOpportunities?: Array<{
@@ -352,7 +437,7 @@ export default function UnifiedAnalyzePage() {
       ].filter((metric): metric is PercentileMetric => Boolean(metric))
     : [];
 
-  const opponentBuckets = detailedResult?.comparativeInsights?.opponentProfile?.buckets;
+  const learningCards = detailedResult?.learningInsights?.cards || [];
 
   return (
     <div className="chess-toss min-h-screen bg-gray-50">
@@ -829,23 +914,22 @@ export default function UnifiedAnalyzePage() {
 
                         <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
                           <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
-                            <Users className="h-4 w-4" />
-                            상대 유형별 성과
+                            <Target className="h-4 w-4" />
+                            다음 학습 포인트
                           </div>
                           <p className="mb-3 text-sm font-medium leading-6 text-zinc-700">
-                            {detailedResult.comparativeInsights.opponentProfile?.headline}
+                            {detailedResult.learningInsights?.headline || '결정적 순간과 반복되는 실수부터 복기해보세요.'}
                           </p>
-                          <div className="grid grid-cols-3 gap-2">
-                            {(['stronger', 'similar', 'weaker'] as const).map((bucketKey) => {
-                              const bucket = opponentBuckets?.[bucketKey];
-                              return (
-                                <div key={bucketKey} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-950">
-                                  <div className="text-xs text-zinc-500">{bucket?.label || '-'}</div>
-                                  <div className="text-lg font-bold">{(bucket?.scoreRate ?? 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-zinc-500">{bucket?.games || 0}판</div>
+                          <div className="space-y-2">
+                            {learningCards.slice(0, 3).map((card) => (
+                              <div key={`${card.title}-${card.value}`} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-950">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-xs font-bold text-zinc-500">{card.title}</div>
+                                  <div className="text-sm font-black">{card.value}</div>
                                 </div>
-                              );
-                            })}
+                                <div className="mt-1 text-xs leading-5 text-zinc-600">{card.description}</div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -853,6 +937,163 @@ export default function UnifiedAnalyzePage() {
                       {detailedResult.comparativeInsights.sampleReliability && (
                         <div className="mt-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-zinc-800">
                           표본 신뢰도 {detailedResult.comparativeInsights.sampleReliability.label}: {detailedResult.comparativeInsights.sampleReliability.message}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailedResult.advancedInsights && (
+                    <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
+                      <div className="mb-4 flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-zinc-800" />
+                        <h5 className="font-semibold text-gray-900">분석 스토리와 신뢰도</h5>
+                      </div>
+
+                      {detailedResult.advancedInsights.story && (
+                        <p className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium leading-6 text-zinc-700">
+                          {detailedResult.advancedInsights.story}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        {(detailedResult.advancedInsights.styleAxes || []).map((axis) => (
+                          <div key={axis.label} className="rounded-lg border border-zinc-200 bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-xs font-bold text-zinc-500">{axis.label}</div>
+                              <div className="rounded-full bg-zinc-950 px-2 py-0.5 text-[11px] font-bold text-white">{axis.band}</div>
+                            </div>
+                            <div className="mt-2 text-2xl font-black text-zinc-950">{axis.value.toFixed(1)}</div>
+                            <div className="mt-1 h-1.5 rounded-full bg-zinc-200">
+                              <div className="h-1.5 rounded-full bg-zinc-950" style={{ width: `${Math.min(axis.value, 100)}%` }} />
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-zinc-600">{axis.description}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(detailedResult.advancedInsights.confidenceBands || []).length > 0 && (
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                          {(detailedResult.advancedInsights.confidenceBands || []).map((band) => (
+                            <div key={band.label} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                              <div className="text-xs font-bold text-zinc-500">{band.label}</div>
+                              <div className="mt-1 text-lg font-black text-zinc-950">{band.value.toFixed(1)} ± {band.margin}</div>
+                              <div className="mt-1 text-xs text-zinc-600">예상 범위 {band.range}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailedResult.opponentExploitPlan && (
+                    <div className="mb-6 rounded-lg border border-zinc-950 bg-zinc-950 p-4 text-white">
+                      <div className="mb-2 flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5" />
+                        <h5 className="font-semibold">상대로 만났을 때 공략법</h5>
+                      </div>
+                      <p className="mb-4 text-sm font-medium leading-6 text-zinc-200">
+                        {detailedResult.opponentExploitPlan.headline}
+                        {detailedResult.opponentExploitPlan.confidence && (
+                          <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-zinc-950">
+                            신뢰도 {detailedResult.opponentExploitPlan.confidence}
+                          </span>
+                        )}
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">약점 후보</div>
+                          <div className="space-y-2">
+                            {(detailedResult.opponentExploitPlan.weaknesses || []).map((item) => (
+                              <div key={`${item.title}-${item.value}`} className="rounded-lg border border-white/15 bg-white p-3 text-zinc-950">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-sm font-bold">{item.title}</div>
+                                  <div className="text-xs font-black text-zinc-600">{item.value}</div>
+                                </div>
+                                <p className="mt-1 text-xs leading-5 text-zinc-600">{item.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">추천 전략</div>
+                          <div className="space-y-2">
+                            {(detailedResult.opponentExploitPlan.recommendations || []).map((item) => (
+                              <div key={`${item.title}-${item.value}`} className="rounded-lg border border-white/15 bg-zinc-900 p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-sm font-bold text-white">{item.title}</div>
+                                  <div className="text-xs font-black text-zinc-300">{item.value}</div>
+                                </div>
+                                <p className="mt-1 text-xs leading-5 text-zinc-300">{item.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {detailedResult.opponentExploitPlan.disclaimer && (
+                        <div className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs leading-5 text-zinc-300">
+                          {detailedResult.opponentExploitPlan.disclaimer}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailedResult.advancedInsights && (
+                    <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
+                      <div className="mb-4 flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-zinc-800" />
+                        <h5 className="font-semibold text-gray-900">고급 패턴</h5>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        {detailedResult.advancedInsights.criticalMoveStats && (
+                          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                            <div className="text-xs font-bold text-zinc-500">Critical Move Accuracy</div>
+                            <div className="mt-1 text-xl font-black text-zinc-950">
+                              {detailedResult.advancedInsights.criticalMoveStats.sample
+                                ? `${detailedResult.advancedInsights.criticalMoveStats.accuracy?.toFixed(1)}%`
+                                : '표본 부족'}
+                            </div>
+                            <div className="mt-1 text-xs text-zinc-600">
+                              표본 {detailedResult.advancedInsights.criticalMoveStats.sample || 0}개 · {detailedResult.advancedInsights.criticalMoveStats.label}
+                            </div>
+                          </div>
+                        )}
+
+                        {detailedResult.advancedInsights.complexityPreference && (
+                          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                            <div className="text-xs font-bold text-zinc-500">복잡도 대응</div>
+                            <div className="mt-1 text-xl font-black text-zinc-950">{detailedResult.advancedInsights.complexityPreference.label}</div>
+                            <div className="mt-1 text-xs text-zinc-600">{detailedResult.advancedInsights.complexityPreference.value}</div>
+                          </div>
+                        )}
+
+                        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                          <div className="text-xs font-bold text-zinc-500">시간대 패턴</div>
+                          <div className="mt-1 text-sm font-semibold leading-5 text-zinc-700">
+                            {detailedResult.advancedInsights.timePatterns?.message || '시간대 표본 수집 중'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {(detailedResult.advancedInsights.openingHoles || []).length > 0 && (
+                        <div className="mt-4">
+                          <div className="mb-2 text-sm font-bold text-zinc-800">오프닝 hole 후보</div>
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            {(detailedResult.advancedInsights.openingHoles || []).map((opening) => (
+                              <div key={`${opening.sideLabel}-${opening.name}`} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 text-sm font-bold text-zinc-950">{opening.sideLabel} · {opening.name}</div>
+                                  <div className="shrink-0 text-xs font-bold text-zinc-500">{opening.reason}</div>
+                                </div>
+                                <div className="mt-1 text-xs text-zinc-600">
+                                  {opening.count}판 · 점수율 {opening.scoreRate?.toFixed(1) || '0.0'}% · CPL {opening.averageCpl?.toFixed(1) || '0.0'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -876,7 +1117,9 @@ export default function UnifiedAnalyzePage() {
                                 {moment.gameIndex + 1}번째 게임 · {moment.moveNumber}수 {moment.sideLabel}
                               </div>
                               <div className="rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-bold text-white">
-                                {moment.centipawnLoss}cp
+                                {moment.winProbabilityLoss && moment.winProbabilityLoss >= 1
+                                  ? `${moment.winProbabilityLoss}%p`
+                                  : `${moment.centipawnLoss}cp`}
                               </div>
                             </div>
 
@@ -891,6 +1134,9 @@ export default function UnifiedAnalyzePage() {
 
                             <div className="mt-2 text-sm font-semibold text-zinc-700">
                               {moment.impactLabel} · {moment.classificationLabel}
+                              {moment.winProbabilityLoss && moment.winProbabilityLoss >= 1
+                                ? ` · ${moment.centipawnLoss}cp`
+                                : ''}
                             </div>
                             <p className="mt-2 text-sm leading-6 text-zinc-600">
                               {moment.explanation}
@@ -931,6 +1177,11 @@ export default function UnifiedAnalyzePage() {
                                       <div className="shrink-0 text-gray-600">
                                         {opening.count}판 · {opening.percentage.toFixed(1)}%
                                       </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                                      {typeof opening.scoreRate === 'number' && <span>점수율 {opening.scoreRate.toFixed(1)}%</span>}
+                                      {typeof opening.averageCpl === 'number' && opening.averageCpl > 0 && <span>평균 CPL {opening.averageCpl.toFixed(1)}</span>}
+                                      {typeof opening.firstIssueMove === 'number' && <span>첫 흔들림 {opening.firstIssueMove.toFixed(1)}수 전후</span>}
                                     </div>
                                     <div className="h-1.5 w-full rounded-full bg-gray-200">
                                       <div
@@ -1074,6 +1325,12 @@ export default function UnifiedAnalyzePage() {
                       <div className="text-sm text-gray-600">총 전술 기회</div>
                     </div>
                   </div>
+
+                  {detailedResult.tacticalOverview?.message && (
+                    <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700">
+                      {detailedResult.tacticalOverview.message}
+                    </div>
+                  )}
 
                   {detailedResult.tacticalOpportunities && detailedResult.tacticalOpportunities.length > 0 && (
                     <div className="mt-6">

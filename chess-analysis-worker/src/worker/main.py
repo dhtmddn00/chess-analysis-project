@@ -38,6 +38,7 @@ class ChessAnalysisWorker:
         self.analyzer = None
         self.running = False
         self.queue_name = "chess-analysis-queue"
+        self._move_schema_ready = False
         
     async def initialize(self):
         """Initialize all components"""
@@ -204,12 +205,17 @@ class ChessAnalysisWorker:
         except Exception as e:
             logger.error(f"Analysis {analysis_id} failed: {e}", exc_info=True)
             await self.update_analysis_status(
-                analysis_id, 'FAILED', None, f'Analysis failed: {str(e)}'
+                analysis_id,
+                'FAILED',
+                None,
+                f'Analysis failed: {str(e)}',
+                error_message=str(e)
             )
             raise
             
     async def update_analysis_status(self, analysis_id: str, status: str, 
-                                   progress: int = None, current_step: str = None, partials: dict = None):
+                                   progress: int = None, current_step: str = None,
+                                   partials: dict = None, error_message: str = None):
         """Update analysis status in database"""
         try:
             update_query = """
@@ -228,6 +234,11 @@ class ChessAnalysisWorker:
                 param_count += 1
                 update_query += f", current_step = ${param_count}"
                 params.append(current_step)
+
+            if error_message is not None:
+                param_count += 1
+                update_query += f", error_message = ${param_count}"
+                params.append(error_message)
                 
             param_count += 1
             update_query += f" WHERE id = ${param_count}"
@@ -243,6 +254,9 @@ class ChessAnalysisWorker:
                 'currentStep': current_step,
                 'timestamp': asyncio.get_event_loop().time()
             }
+
+            if error_message is not None:
+                progress_data['errorMessage'] = error_message
             
             # Add partials if provided
             if partials:
@@ -303,7 +317,7 @@ class ChessAnalysisWorker:
                     game.info.black_player or 'Unknown', 
                     game.info.result.value if game.info.result else '*',
                     game.info.time_control.value if game.info.time_control else 'Unknown',
-                    game.info.start_time.strftime('%Y-%m-%d') if game.info.start_time else 'Unknown',
+                    (game.info.end_time or game.info.start_time).strftime('%Y-%m-%dT%H:%M:%S') if (game.info.end_time or game.info.start_time) else 'Unknown',
                     game.info.opening or 'Unknown',
                     game.info.result.value if game.info.result else 'Unknown'  # Using result as termination
                 ])
@@ -337,13 +351,14 @@ class ChessAnalysisWorker:
                     continue
                     
                 logger.debug(f"Storing game {game_index} analysis: {len(move_analyses)} moves")
+                metric_move_analyses = self._player_move_analyses(move_analyses, username, games, i)
                 
                 # Calculate basic stats from move analyses
-                total_moves = len(move_analyses)
-                total_blunders = sum(1 for m in move_analyses if self._move_value(m, 'centipawn_loss', 0) > 300)
-                total_mistakes = sum(1 for m in move_analyses if 100 <= self._move_value(m, 'centipawn_loss', 0) <= 300)
-                total_inaccuracies = sum(1 for m in move_analyses if 50 <= self._move_value(m, 'centipawn_loss', 0) < 100)
-                avg_cpl = sum(self._move_value(m, 'centipawn_loss', 0) for m in move_analyses) / total_moves if total_moves else 0
+                total_moves = len(metric_move_analyses)
+                total_blunders = sum(1 for m in metric_move_analyses if self._move_value(m, 'centipawn_loss', 0) > 300)
+                total_mistakes = sum(1 for m in metric_move_analyses if 100 <= self._move_value(m, 'centipawn_loss', 0) <= 300)
+                total_inaccuracies = sum(1 for m in metric_move_analyses if 50 <= self._move_value(m, 'centipawn_loss', 0) < 100)
+                avg_cpl = sum(self._move_value(m, 'centipawn_loss', 0) for m in metric_move_analyses) / total_moves if total_moves else 0
                 
                 # Store game analysis summary
                 summary_query = """
@@ -363,8 +378,12 @@ class ChessAnalysisWorker:
                 """
                 
                 try:
-                    # Calculate accuracy (simplified for now)
-                    accuracy = max(0.0, 100.0 - avg_cpl * 0.5) if avg_cpl else 0.0
+                    wdl_accuracies = [
+                        self._move_value(m, 'move_accuracy', None)
+                        for m in metric_move_analyses
+                        if self._move_value(m, 'move_accuracy', None) is not None
+                    ]
+                    accuracy = sum(wdl_accuracies) / len(wdl_accuracies) if wdl_accuracies else (max(0.0, 100.0 - avg_cpl * 0.5) if avg_cpl else 0.0)
                     best_moves = total_moves - total_blunders - total_mistakes
                     
                     # Extract player rating from games if available
@@ -379,17 +398,15 @@ class ChessAnalysisWorker:
                         except Exception as e:
                             logger.debug(f"Could not extract player rating: {e}")
                     
-                    # Initialize elite config
-                    elite_config = get_elite_config()
-                    rating_band = elite_config.get_rating_band(player_rating)
-                    
-                    # Calculate Elite accuracy using ACPL
-                    average_acpl = avg_cpl  # Use the calculated avg_cpl value
-                    accuracy = elite_config.calculate_elite_accuracy(average_acpl, rating_band)
+                    if not wdl_accuracies:
+                        # Legacy/cached rows may not have WDL accuracy yet.
+                        elite_config = get_elite_config()
+                        rating_band = elite_config.get_rating_band(player_rating)
+                        accuracy = elite_config.calculate_elite_accuracy(avg_cpl, rating_band)
                     
                     # Log elite calculation for debugging
                     if username and any(name.lower() in username.lower() for name in ['hikaru', 'magnus']):
-                        logger.info(f"Elite accuracy for {username} (rating={player_rating}, band={rating_band.value}): {accuracy:.1f}% (ACPL={average_acpl:.1f})")
+                        logger.info(f"Accuracy for {username} (rating={player_rating}): {accuracy:.1f}% (ACPL={avg_cpl:.1f})")
                     
                     # 최선수 개수: blunder/mistake가 아닌 수들
                     best_moves = total_moves - total_blunders - total_mistakes
@@ -430,15 +447,21 @@ class ChessAnalysisWorker:
         """Store move-by-move analysis with batched inserts to avoid long 80% stalls."""
         if not move_analyses:
             return
+        await self._ensure_move_analysis_schema()
 
         move_query = """
             INSERT INTO move_analyses (analysis_id, game_index, move_number,
                                      move_notation, evaluation_before, evaluation_after,
                                      best_move, classification, centipawn_loss,
                                      tactical_motifs, is_check, is_capture, is_castling,
-                                     is_promotion, time_spent, move_uci, best_move_uci,
-                                     best_evaluation)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                                     is_promotion, time_spent, time_left, move_uci,
+                                     best_move_uci, best_evaluation, win_probability_loss,
+                                     move_accuracy, multipv_candidates, played_rank,
+                                     critical_move_gap, is_only_move, legal_move_count,
+                                     mobility_delta, king_safety_delta, pawn_structure_delta,
+                                     analysis_depth, mate_before, mate_after, best_mate)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                    $17, $18, $19, $20, $21, $22::jsonb, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
         """
         move_rows = []
         tactical_rows = []
@@ -460,9 +483,24 @@ class ChessAnalysisWorker:
                 self._move_value(move_analysis, 'is_castling', False),
                 self._move_value(move_analysis, 'is_promotion', False),
                 self._move_value(move_analysis, 'time_spent', 0),
+                self._move_value(move_analysis, 'time_left', None),
                 self._move_value(move_analysis, 'move_uci', None),
                 self._move_value(move_analysis, 'best_move_uci', None),
-                self._move_value(move_analysis, 'best_eval', None)
+                self._move_value(move_analysis, 'best_eval', None),
+                self._move_value(move_analysis, 'win_probability_loss', 0.0),
+                self._move_value(move_analysis, 'move_accuracy', 100.0),
+                json.dumps(self._move_value(move_analysis, 'multipv_candidates', []) or [], ensure_ascii=False),
+                self._move_value(move_analysis, 'played_rank', None),
+                self._move_value(move_analysis, 'critical_move_gap', 0.0),
+                self._move_value(move_analysis, 'is_only_move', False),
+                self._move_value(move_analysis, 'legal_move_count', None),
+                self._move_value(move_analysis, 'mobility_delta', None),
+                self._move_value(move_analysis, 'king_safety_delta', None),
+                self._move_value(move_analysis, 'pawn_structure_delta', None),
+                self._move_value(move_analysis, 'analysis_depth', None),
+                self._move_value(move_analysis, 'mate_before', None),
+                self._move_value(move_analysis, 'mate_after', None),
+                self._move_value(move_analysis, 'best_mate', None)
             ])
 
             for opportunity in self._move_value(move_analysis, 'tactical_opportunities', []) or []:
@@ -500,6 +538,40 @@ class ChessAnalysisWorker:
             """
             await self.db_client.executemany(tactical_query, tactical_rows)
 
+    async def _ensure_move_analysis_schema(self):
+        """Add new optional move-analysis columns on existing databases."""
+        if self._move_schema_ready:
+            return
+
+        await self.db_client.execute("""
+            ALTER TABLE move_analyses
+            ADD COLUMN IF NOT EXISTS tactical_motifs TEXT[],
+            ADD COLUMN IF NOT EXISTS is_check BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS is_capture BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS is_castling BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS is_promotion BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS time_spent DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS time_left DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS move_uci VARCHAR(10),
+            ADD COLUMN IF NOT EXISTS best_move_uci VARCHAR(10),
+            ADD COLUMN IF NOT EXISTS best_evaluation DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS win_probability_loss DOUBLE PRECISION DEFAULT 0.0,
+            ADD COLUMN IF NOT EXISTS move_accuracy DOUBLE PRECISION DEFAULT 100.0,
+            ADD COLUMN IF NOT EXISTS multipv_candidates JSONB DEFAULT '[]'::jsonb,
+            ADD COLUMN IF NOT EXISTS played_rank INTEGER,
+            ADD COLUMN IF NOT EXISTS critical_move_gap DOUBLE PRECISION DEFAULT 0.0,
+            ADD COLUMN IF NOT EXISTS is_only_move BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS legal_move_count INTEGER,
+            ADD COLUMN IF NOT EXISTS mobility_delta INTEGER,
+            ADD COLUMN IF NOT EXISTS king_safety_delta INTEGER,
+            ADD COLUMN IF NOT EXISTS pawn_structure_delta INTEGER,
+            ADD COLUMN IF NOT EXISTS analysis_depth INTEGER,
+            ADD COLUMN IF NOT EXISTS mate_before INTEGER,
+            ADD COLUMN IF NOT EXISTS mate_after INTEGER,
+            ADD COLUMN IF NOT EXISTS best_mate INTEGER
+        """)
+        self._move_schema_ready = True
+
     def _move_value(self, move_analysis, key: str, default=None):
         if isinstance(move_analysis, dict):
             return move_analysis.get(key, default)
@@ -508,6 +580,33 @@ class ChessAnalysisWorker:
     def _move_quality(self, move_analysis) -> str:
         quality = self._move_value(move_analysis, 'quality', 'good')
         return getattr(quality, 'value', quality) or 'good'
+
+    def _player_move_analyses(self, move_analyses: list, username: str = None, games: list = None, game_index: int = 0) -> list:
+        """Return only the requested player's moves for summary metrics."""
+        if not username or not games or game_index >= len(games):
+            return move_analyses
+
+        try:
+            game = games[game_index]
+            is_white = bool(
+                getattr(game.info, 'white_player', None)
+                and game.info.white_player.lower() == username.lower()
+            )
+            is_black = bool(
+                getattr(game.info, 'black_player', None)
+                and game.info.black_player.lower() == username.lower()
+            )
+            if not is_white and not is_black:
+                return move_analyses
+
+            return [
+                move
+                for move in move_analyses
+                if (self._move_value(move, 'ply', 0) % 2 == 0) == is_white
+            ]
+        except Exception as e:
+            logger.debug(f"Could not filter player moves for summary metrics: {e}")
+            return move_analyses
     
     async def store_progressive_results(self, analysis_id: str, results: dict):
         """Store progressive analysis results in database"""

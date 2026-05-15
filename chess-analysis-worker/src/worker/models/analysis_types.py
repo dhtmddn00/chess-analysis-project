@@ -30,10 +30,20 @@ class MoveAnalysis:
     eval_before: Optional[int] = None
     eval_after: Optional[int] = None
     best_eval: Optional[int] = None
+    win_probability_loss: float = 0.0
+    move_accuracy: float = 100.0
+    mate_before: Optional[int] = None
+    mate_after: Optional[int] = None
+    best_mate: Optional[int] = None
     
     # 최선수 정보
     best_move_san: Optional[str] = None
     best_move_uci: Optional[str] = None
+    multipv_candidates: Optional[List[Dict[str, Any]]] = None
+    played_rank: Optional[int] = None
+    critical_move_gap: Optional[float] = None
+    is_only_move: bool = False
+    analysis_depth: Optional[int] = None
     
     # 수의 품질
     quality: MoveQuality = MoveQuality.GOOD
@@ -48,6 +58,12 @@ class MoveAnalysis:
     # 시간 정보
     time_spent: Optional[float] = None  # 초 단위
     time_left: Optional[float] = None   # 남은 시간
+
+    # 포지셔널 휴리스틱
+    legal_move_count: Optional[int] = None
+    mobility_delta: Optional[int] = None
+    king_safety_delta: Optional[int] = None
+    pawn_structure_delta: Optional[int] = None
     
     # 전술 정보
     tactical_opportunities: Optional[List[Dict[str, Any]]] = None  # 전술 기회들

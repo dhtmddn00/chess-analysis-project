@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import javax.sql.DataSource;
@@ -32,18 +33,29 @@ public class AnalysisService {
     private final DataSource dataSource;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+
+    private static final Duration ANALYSIS_CREATE_LOCK_TTL = Duration.ofSeconds(30);
+    private static final Duration PENDING_STALE_AFTER = Duration.ofMinutes(45);
+    private static final Duration IN_PROGRESS_STALE_AFTER = Duration.ofMinutes(30);
     
-    @Transactional
     public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp) {
-        // Check for existing active analysis (within last 5 minutes - reduced window)
-        Optional<Analysis> activeAnalysis = analysisRepository.findActiveAnalysis(
-                request.getUsername(), request.getPlatform(), 
-                LocalDateTime.now().minusMinutes(5));
-                
+        String normalizedUsername = request.getUsername() == null ? "" : request.getUsername().trim();
+        String normalizedPlatform = request.getPlatform() == null ? "chess.com" : request.getPlatform().trim();
+        String lockKey = activeCreationLockKey(normalizedPlatform, normalizedUsername);
+
+        Boolean lockAcquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", ANALYSIS_CREATE_LOCK_TTL);
+        if (!Boolean.TRUE.equals(lockAcquired)) {
+            Optional<Analysis> activeWhileLocked = findReusableActiveAnalysis(normalizedUsername, normalizedPlatform);
+            if (activeWhileLocked.isPresent()) {
+                return AnalysisResponseDto.fromEntity(activeWhileLocked.get());
+            }
+            throw new IllegalStateException("같은 사용자 분석 요청을 처리 중입니다. 잠시 후 다시 시도해주세요.");
+        }
+
+        Optional<Analysis> activeAnalysis = findReusableActiveAnalysis(normalizedUsername, normalizedPlatform);
         if (activeAnalysis.isPresent()) {
-            // Return the existing analysis instead of throwing an error
             Analysis existing = activeAnalysis.get();
-            log.info("Returning existing active analysis {} for user: {}", existing.getId(), request.getUsername());
+            log.info("Returning existing active analysis {} for user: {}", existing.getId(), normalizedUsername);
             return AnalysisResponseDto.fromEntity(existing);
         }
 
@@ -51,35 +63,85 @@ public class AnalysisService {
         
         // Create new analysis
         Analysis analysis = Analysis.builder()
-                .username(request.getUsername())
-                .platform(request.getPlatform())
+                .username(normalizedUsername)
+                .platform(normalizedPlatform)
                 .gameCount(request.getGameCount())
                 .status(Analysis.AnalysisStatus.PENDING)
                 .progress(0)
                 .currentStep("Queued for processing")
                 .build();
                 
-        analysis = analysisRepository.save(analysis);
-        log.info("Created analysis with ID: {} for user: {}", analysis.getId(), request.getUsername());
+        analysis = analysisRepository.saveAndFlush(analysis);
+        log.info("Created analysis with ID: {} for user: {}", analysis.getId(), normalizedUsername);
         
         // Generate short link
         String shortLink = shortLinkService.generateShortLink(analysis.getId());
         analysis.setShortLink(shortLink);
-        analysis = analysisRepository.save(analysis);
+        analysis = analysisRepository.saveAndFlush(analysis);
         
         // Enqueue for processing
         AnalysisJobDto job = AnalysisJobDto.create(
                 analysis.getId(),
-                request.getUsername(),
-                request.getPlatform(),
+                normalizedUsername,
+                normalizedPlatform,
                 request.getGameCount(),
                 request.getTimeControl(),
                 request.getPriority()
         );
         
-        queueService.enqueueAnalysisJob(job);
+        try {
+            queueService.enqueueAnalysisJob(job);
+        } catch (Exception e) {
+            analysis.setStatus(Analysis.AnalysisStatus.FAILED);
+            analysis.setCurrentStep("Failed to enqueue analysis job");
+            analysis.setErrorMessage("분석 작업을 대기열에 넣지 못했습니다. 잠시 후 다시 시도해주세요.");
+            analysisRepository.saveAndFlush(analysis);
+            throw e;
+        }
         
         return AnalysisResponseDto.fromEntity(analysis);
+    }
+
+    private Optional<Analysis> findReusableActiveAnalysis(String username, String platform) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Analysis> activeAnalyses = analysisRepository.findActiveAnalysesForUser(username, platform);
+        for (Analysis active : activeAnalyses) {
+            if (isStaleAnalysis(active, now)) {
+                markAnalysisAsStale(active);
+                continue;
+            }
+
+            return Optional.of(active);
+        }
+        return Optional.empty();
+    }
+
+    private boolean isStaleAnalysis(Analysis analysis, LocalDateTime now) {
+        LocalDateTime referenceTime = analysis.getUpdatedAt() != null ? analysis.getUpdatedAt() : analysis.getCreatedAt();
+        if (referenceTime == null) {
+            return false;
+        }
+
+        boolean stalePending = analysis.getStatus() == Analysis.AnalysisStatus.PENDING
+                && referenceTime.isBefore(now.minus(PENDING_STALE_AFTER));
+        boolean staleInProgress = analysis.getStatus() == Analysis.AnalysisStatus.IN_PROGRESS
+                && referenceTime.isBefore(now.minus(IN_PROGRESS_STALE_AFTER));
+        return stalePending || staleInProgress;
+    }
+
+    private void markAnalysisAsStale(Analysis analysis) {
+        analysis.setStatus(Analysis.AnalysisStatus.FAILED);
+        analysis.setCurrentStep("Previous analysis timed out");
+        analysis.setErrorMessage("분석 작업이 비정상적으로 오래 멈춰 자동 종료되었습니다. 새 분석을 다시 시작해주세요.");
+        analysisRepository.saveAndFlush(analysis);
+        log.warn("Marked stale analysis {} as FAILED", analysis.getId());
+    }
+
+    private String activeCreationLockKey(String platform, String username) {
+        String normalizedPlatform = platform == null ? "unknown" : platform.toLowerCase(Locale.ROOT).trim();
+        String normalizedUsername = username == null ? "unknown" : username.toLowerCase(Locale.ROOT).trim();
+        return "analysis:create-lock:" + normalizedPlatform.replaceAll("[^a-z0-9._:-]", "_")
+                + ":" + normalizedUsername.replaceAll("[^a-z0-9._:-]", "_");
     }
     
     @Transactional(readOnly = true)
@@ -145,7 +207,7 @@ public class AnalysisService {
         return analysisRepository.countActiveAnalyses();
     }
     
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> getAnalysisStatus(UUID analysisId) {
         // First get basic analysis from database
         Optional<Analysis> analysisOpt = analysisRepository.findById(analysisId);
@@ -154,6 +216,9 @@ public class AnalysisService {
         }
         
         Analysis analysis = analysisOpt.get();
+        if (isStaleAnalysis(analysis, LocalDateTime.now())) {
+            markAnalysisAsStale(analysis);
+        }
         
         // Create base status map
         Map<String, Object> status = new HashMap<>();
@@ -162,6 +227,18 @@ public class AnalysisService {
         status.put("progress", analysis.getProgress() != null ? analysis.getProgress() : 0);
         status.put("currentStep", analysis.getCurrentStep() != null ? analysis.getCurrentStep() : "");
         status.put("errorMessage", analysis.getErrorMessage() != null ? analysis.getErrorMessage() : "");
+
+        if (analysis.getStatus() == Analysis.AnalysisStatus.PENDING) {
+            Long queuePosition = queueService.getQueuePosition(analysisId);
+            Long queueSize = queueService.getQueueSize();
+            status.put("queuePosition", queuePosition);
+            status.put("queueSize", queueSize);
+            if (queuePosition != null) {
+                status.put("currentStep", "대기열 " + queuePosition + "번째입니다. 현재 대기 작업: " + queueSize + "개");
+            } else if (queueSize != null && queueSize > 0) {
+                status.put("currentStep", "작업자 배정을 기다리고 있습니다. 현재 대기 작업: " + queueSize + "개");
+            }
+        }
         
         // Try to get real-time progress from Redis
         try {
@@ -186,6 +263,9 @@ public class AnalysisService {
                 }
                 if (progressData.containsKey("partials")) {
                     status.put("partials", progressData.get("partials"));
+                }
+                if (progressData.containsKey("errorMessage")) {
+                    status.put("errorMessage", progressData.get("errorMessage"));
                 }
                 
                 log.debug("Retrieved real-time progress for analysis {}: {}%", 
@@ -294,7 +374,8 @@ public class AnalysisService {
                     result.put("explanations", explanations);
                 }
 
-                result.put("openingStats", getOpeningStats(connection, analysisId, analysisResult.getString("username")));
+                Map<String, Object> openingStats = getOpeningStats(connection, analysisId, analysisResult.getString("username"));
+                result.put("openingStats", openingStats);
                 
                 // Get enhanced style profile with all data
                 var styleStmt = connection.prepareStatement(
@@ -431,152 +512,90 @@ public class AnalysisService {
                     result.put("playerMetadata", playerMeta);
                 }
 
-                result.put("comparativeInsights", buildComparativeInsights(
+                Map<String, Object> comparativeInsights = buildComparativeInsights(
                     connection,
                     analysisId,
                     analysisResult.getString("username"),
                     result,
                     profile
-                ));
+                );
+                result.put("comparativeInsights", comparativeInsights);
                 result.put("decisiveMoments", getDecisiveMoments(connection, analysisId));
+                result.put("learningInsights", buildLearningInsights(
+                    connection,
+                    analysisId,
+                    analysisResult.getString("username"),
+                    result,
+                    profile,
+                    openingStats
+                ));
+                result.put("advancedInsights", buildAdvancedInsights(
+                    connection,
+                    analysisId,
+                    analysisResult.getString("username"),
+                    result,
+                    profile,
+                    openingStats
+                ));
+                result.put("opponentExploitPlan", buildOpponentExploitPlan(
+                    connection,
+                    analysisId,
+                    analysisResult.getString("username"),
+                    result,
+                    profile,
+                    openingStats
+                ));
                 
                 // Get tactical opportunities summary from style_profiles_worker.tactical_stats
                 var tacticalSummary = new java.util.ArrayList<Map<String, Object>>();
                 int totalTacticalCount = 0;
                 
-                // Extract tactical data from JSON field we already have (updated for found/missed structure)
-                if (tacticalStatsJson != null && !tacticalStatsJson.isEmpty() && !tacticalStatsJson.equals("{}")) {
-                    try {
-                        // Parse new tactical stats structure
-                        int foundTactics = 0;
-                        int missedTactics = 0;
-                        double tacticalAccuracy = 0.0;
-                        
-                        if (tacticalStatsJson.contains("\"total_tactical_opportunities\":")) {
-                            String totalStr = tacticalStatsJson.split("\"total_tactical_opportunities\":\\s*")[1].split("[,}]")[0];
-                            totalTacticalCount = Integer.parseInt(totalStr.trim());
-                        }
-                        
-                        if (tacticalStatsJson.contains("\"found_tactics\":")) {
-                            String foundStr = tacticalStatsJson.split("\"found_tactics\":\\s*")[1].split("[,}]")[0];
-                            foundTactics = Integer.parseInt(foundStr.trim());
-                        }
-                        
-                        if (tacticalStatsJson.contains("\"missed_tactics\":")) {
-                            String missedStr = tacticalStatsJson.split("\"missed_tactics\":\\s*")[1].split("[,}]")[0];
-                            missedTactics = Integer.parseInt(missedStr.trim());
-                        }
-                        
-                        if (tacticalStatsJson.contains("\"tactical_accuracy\":")) {
-                            String accuracyStr = tacticalStatsJson.split("\"tactical_accuracy\":\\s*")[1].split("[,}]")[0];
-                            tacticalAccuracy = Double.parseDouble(accuracyStr.trim());
-                        }
-                        
-                        // Extract patterns_found data (tactics successfully found)
-                        if (tacticalStatsJson.contains("\"patterns_found\":")) {
-                            String patternsSection = tacticalStatsJson.split("\"patterns_found\":\\s*\\{")[1].split("\\}")[0];
-                            String[] patterns = patternsSection.split(",");
-                            
-                            for (String patternData : patterns) {
-                                String[] parts = patternData.split(":");
-                                if (parts.length == 2) {
-                                    String patternName = parts[0].trim().replaceAll("\"", "");
-                                    int count = Integer.parseInt(parts[1].trim());
-                                    
-                                    Map<String, Object> pattern = new HashMap<>();
-                                    pattern.put("pattern", patternName);
-                                    pattern.put("found", count);
-                                    pattern.put("missed", 0); // Will be updated below if missed data exists
-                                    pattern.put("accuracy", count > 0 ? "100%" : "0%");
-                                    pattern.put("averageValue", getEstimatedValue(patternName));
-                                    pattern.put("averageDifficulty", getEstimatedDifficulty(patternName));
-                                    pattern.put("description", getTacticalPatternDescription(patternName));
-                                    tacticalSummary.add(pattern);
-                                }
-                            }
-                        }
-                        
-                        // Extract patterns_missed data (tactics that were available but missed)
-                        if (tacticalStatsJson.contains("\"patterns_missed\":")) {
-                            String missedSection = tacticalStatsJson.split("\"patterns_missed\":\\s*\\{")[1].split("\\}")[0];
-                            String[] patterns = missedSection.split(",");
-                            
-                            for (String patternData : patterns) {
-                                String[] parts = patternData.split(":");
-                                if (parts.length == 2) {
-                                    String patternName = parts[0].trim().replaceAll("\"", "");
-                                    int missedCount = Integer.parseInt(parts[1].trim());
-                                    
-                                    // Find existing pattern or create new one
-                                    boolean foundExisting = false;
-                                    for (Map<String, Object> existing : tacticalSummary) {
-                                        if (existing.get("pattern").equals(patternName)) {
-                                            existing.put("missed", missedCount);
-                                            int found = (Integer) existing.get("found");
-                                            double accuracy = found > 0 ? (double)found / (found + missedCount) : 0.0;
-                                            existing.put("accuracy", String.format("%.1f%%", accuracy * 100));
-                                            foundExisting = true;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (!foundExisting) {
-                                        Map<String, Object> pattern = new HashMap<>();
-                                        pattern.put("pattern", patternName);
-                                        pattern.put("found", 0);
-                                        pattern.put("missed", missedCount);
-                                        pattern.put("accuracy", "0%");
-                                        pattern.put("averageValue", getEstimatedValue(patternName));
-                                        pattern.put("averageDifficulty", getEstimatedDifficulty(patternName));
-                                        pattern.put("description", getTacticalPatternDescription(patternName));
-                                        tacticalSummary.add(pattern);
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Add overall tactical statistics
-                        Map<String, Object> overallStats = new HashMap<>();
-                        overallStats.put("totalOpportunities", totalTacticalCount);
-                        overallStats.put("foundTactics", foundTactics);
-                        overallStats.put("missedTactics", missedTactics);
-                        overallStats.put("tacticalAccuracy", String.format("%.1f%%", tacticalAccuracy * 100));
-                        result.put("tacticalOverview", overallStats);
-                        
-                        // Sort by total activity (found + missed) descending
-                        tacticalSummary.sort((a, b) -> {
-                            int totalA = (Integer)a.get("found") + (Integer)a.get("missed");
-                            int totalB = (Integer)b.get("found") + (Integer)b.get("missed");
-                            return Integer.compare(totalB, totalA);
-                        });
-                        
-                    } catch (Exception e) {
-                        System.err.println("Error parsing tactical stats JSON: " + e.getMessage());
-                    }
+                Map<String, Object> tacticalStats = parseJsonMap(tacticalStatsJson);
+                int foundTactics = getInt(tacticalStats.get("found_tactics"), 0);
+                int missedTactics = getInt(tacticalStats.get("missed_tactics"), 0);
+                totalTacticalCount = getInt(tacticalStats.get("total_tactical_opportunities"), foundTactics + missedTactics);
+                double tacticalAccuracy = getDouble(tacticalStats.get("tactical_accuracy"), 0.0);
+                String sampleConfidence = String.valueOf(tacticalStats.getOrDefault("sample_confidence", "none"));
+
+                Map<String, Object> patternsFound = asMap(tacticalStats.get("patterns_found"));
+                Map<String, Object> patternsMissed = asMap(tacticalStats.get("patterns_missed"));
+                Set<String> patternNames = new TreeSet<>();
+                patternNames.addAll(patternsFound.keySet());
+                patternNames.addAll(patternsMissed.keySet());
+
+                for (String patternName : patternNames) {
+                    int found = getInt(patternsFound.get(patternName), 0);
+                    int missed = getInt(patternsMissed.get(patternName), 0);
+                    int totalPattern = found + missed;
+                    Map<String, Object> pattern = new HashMap<>();
+                    pattern.put("pattern", patternName);
+                    pattern.put("found", found);
+                    pattern.put("missed", missed);
+                    pattern.put("accuracy", totalPattern > 0 ? String.format("%.1f%%", (found * 100.0) / totalPattern) : "표본 부족");
+                    pattern.put("averageValue", getEstimatedValue(patternName));
+                    pattern.put("averageDifficulty", getEstimatedDifficulty(patternName));
+                    pattern.put("description", getTacticalPatternDescription(patternName));
+                    tacticalSummary.add(pattern);
                 }
-                
-                // Provide default tactical data if empty
-                if (tacticalSummary.isEmpty()) {
-                    Map<String, Object> defaultPattern = new HashMap<>();
-                    defaultPattern.put("pattern", "분석 중");
-                    defaultPattern.put("found", 0);
-                    defaultPattern.put("missed", 0);
-                    defaultPattern.put("accuracy", "0%");
-                    defaultPattern.put("averageValue", 0);
-                    defaultPattern.put("averageDifficulty", 0.0);
-                    defaultPattern.put("description", "게임 분석을 통해 전술 기회를 찾고 있습니다.");
-                    tacticalSummary.add(defaultPattern);
-                    
-                    // Also add default overview if not present
-                    if (!result.containsKey("tacticalOverview")) {
-                        Map<String, Object> defaultOverview = new HashMap<>();
-                        defaultOverview.put("totalOpportunities", 0);
-                        defaultOverview.put("foundTactics", 0);
-                        defaultOverview.put("missedTactics", 0);
-                        defaultOverview.put("tacticalAccuracy", "0%");
-                        result.put("tacticalOverview", defaultOverview);
-                    }
-                }
+
+                tacticalSummary.sort((a, b) -> {
+                    int totalA = getInt(a.get("found"), 0) + getInt(a.get("missed"), 0);
+                    int totalB = getInt(b.get("found"), 0) + getInt(b.get("missed"), 0);
+                    return Integer.compare(totalB, totalA);
+                });
+
+                boolean tacticalSampleAvailable = totalTacticalCount > 0;
+                Map<String, Object> overallStats = new HashMap<>();
+                overallStats.put("totalOpportunities", totalTacticalCount);
+                overallStats.put("foundTactics", foundTactics);
+                overallStats.put("missedTactics", missedTactics);
+                overallStats.put("tacticalAccuracy", tacticalSampleAvailable ? String.format("%.1f%%", tacticalAccuracy * 100) : "표본 부족");
+                overallStats.put("sampleAvailable", tacticalSampleAvailable);
+                overallStats.put("confidence", sampleConfidence);
+                overallStats.put("message", tacticalSampleAvailable
+                    ? ("heuristic".equals(sampleConfidence) ? "빠른 분석 모드의 강제수/중요수 기반 추정치입니다." : "엔진 분석에서 감지한 전술 표본 기준입니다.")
+                    : "이번 표본에서는 전술 기회가 충분히 잡히지 않아 정확도를 단정하지 않습니다.");
+                result.put("tacticalOverview", overallStats);
                 result.put("tacticalOpportunities", tacticalSummary);
                 
                 // 전술 기회 종합 분석 추가
@@ -658,14 +677,18 @@ public class AnalysisService {
 
     private List<Map<String, Object>> getDecisiveMoments(java.sql.Connection connection, UUID analysisId) throws Exception {
         List<Map<String, Object>> moments = new ArrayList<>();
+        String winLossExpr = columnExists(connection, "move_analyses", "win_probability_loss")
+            ? "COALESCE(m.win_probability_loss, 0)"
+            : "0.0";
         var stmt = connection.prepareStatement(
             "SELECT m.game_index, m.move_number, m.move_notation, m.best_move, " +
-            "m.classification, m.centipawn_loss, m.evaluation_before, m.evaluation_after, " +
+            "m.classification, m.centipawn_loss, " + winLossExpr + " AS win_probability_loss, " +
+            "m.evaluation_before, m.evaluation_after, " +
             "g.white_player, g.black_player, g.opening, g.result " +
             "FROM move_analyses m " +
             "LEFT JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
-            "WHERE m.analysis_id = ? AND m.centipawn_loss >= 50 " +
-            "ORDER BY m.centipawn_loss DESC, m.game_index ASC, m.move_number ASC LIMIT 6"
+            "WHERE m.analysis_id = ? AND (m.centipawn_loss >= 50 OR " + winLossExpr + " >= 3.0) " +
+            "ORDER BY " + winLossExpr + " DESC, m.centipawn_loss DESC, m.game_index ASC, m.move_number ASC LIMIT 6"
         );
         stmt.setObject(1, analysisId);
         var rs = stmt.executeQuery();
@@ -675,6 +698,7 @@ public class AnalysisService {
             int moveNumber = (ply / 2) + 1;
             boolean whiteMove = ply % 2 == 0;
             int loss = rs.getInt("centipawn_loss");
+            double winProbabilityLoss = Math.round(rs.getDouble("win_probability_loss") * 10.0) / 10.0;
             String classification = classificationFromLoss(loss, rs.getString("classification"));
 
             Map<String, Object> moment = new LinkedHashMap<>();
@@ -688,6 +712,7 @@ public class AnalysisService {
             moment.put("classification", classification);
             moment.put("classificationLabel", classificationLabel(classification));
             moment.put("centipawnLoss", loss);
+            moment.put("winProbabilityLoss", winProbabilityLoss);
             moment.put("impactLabel", impactLabel(loss));
             moment.put("opening", normalizeOpeningName(rs.getString("opening"), null));
             moment.put("gameResult", rs.getString("result"));
@@ -697,7 +722,8 @@ public class AnalysisService {
                 rs.getString("move_notation"),
                 rs.getString("best_move"),
                 classification,
-                loss
+                loss,
+                winProbabilityLoss
             ));
             moments.add(moment);
         }
@@ -711,7 +737,8 @@ public class AnalysisService {
         String move,
         String bestMove,
         String classification,
-        int centipawnLoss
+        int centipawnLoss,
+        double winProbabilityLoss
     ) {
         StringBuilder explanation = new StringBuilder();
         explanation.append(moveNumber).append("수 ").append(sideLabel)
@@ -722,6 +749,9 @@ public class AnalysisService {
         }
         explanation.append("손실 규모는 약 ").append(centipawnLoss).append("cp로, ")
             .append(classificationLabel(classification)).append("에 해당합니다.");
+        if (winProbabilityLoss >= 1.0) {
+            explanation.append(" 승률 관점 손실은 약 ").append(winProbabilityLoss).append("%p로 추정됩니다.");
+        }
         return explanation.toString();
     }
 
@@ -851,6 +881,708 @@ public class AnalysisService {
         return percentiles;
     }
 
+    private Map<String, Object> buildLearningInsights(
+        java.sql.Connection connection,
+        UUID analysisId,
+        String username,
+        Map<String, Object> result,
+        Map<String, Object> profile,
+        Map<String, Object> openingStats
+    ) {
+        Map<String, Object> insights = new LinkedHashMap<>();
+        List<Map<String, Object>> cards = new ArrayList<>();
+
+        Map<String, Object> weakestOpening = findWeakestOpening(openingStats);
+        if (!weakestOpening.isEmpty()) {
+            cards.add(Map.of(
+                "title", "오프닝 보강 후보",
+                "value", weakestOpening.getOrDefault("name", "오프닝 미분류"),
+                "description", String.format(
+                    "점수율 %.1f%%, 평균 CPL %.1f입니다. 자주 나오는데 성과가 낮은 라인부터 복기하면 효율이 좋습니다.",
+                    getDouble(weakestOpening.get("scoreRate"), 0.0),
+                    getDouble(weakestOpening.get("averageCpl"), 0.0)
+                )
+            ));
+        }
+
+        Map<String, Object> criticalMove = buildCriticalMoveInsight(connection, analysisId, username);
+        if (!criticalMove.isEmpty()) {
+            cards.add(criticalMove);
+        }
+
+        Map<String, Object> timePressure = buildTimePressureInsight(connection, analysisId, username);
+        if (!timePressure.isEmpty()) {
+            cards.add(timePressure);
+        }
+
+        Map<String, Object> tilt = buildTiltInsight(connection, analysisId, username);
+        if (!tilt.isEmpty()) {
+            cards.add(tilt);
+        }
+
+        double consistency = getDouble(profile.get("consistency"), 0.0);
+        if (consistency < 45) {
+            cards.add(Map.of(
+                "title", "일관성 개선",
+                "value", Math.round(consistency) + "점",
+                "description", "게임별 흔들림이 커 보입니다. 큰 실수 직전 포지션과 패배 직후 다음 판을 먼저 복기하세요."
+            ));
+        }
+
+        double avgCpl = getDouble(result.get("averageCentipawnLoss"), 0.0);
+        if (avgCpl >= 80) {
+            cards.add(Map.of(
+                "title", "큰 손실 줄이기",
+                "value", Math.round(avgCpl * 10.0) / 10.0 + " CPL",
+                "description", "평균 손실이 높은 편입니다. 매 수마다 체크, 캡처, 직접 위협을 한 번씩 확인하는 루틴이 효과적입니다."
+            ));
+        }
+
+        if (cards.isEmpty()) {
+            cards.add(Map.of(
+                "title", "결정적 순간 복기",
+                "value", "최근 게임",
+                "description", "승부를 흔든 수를 2~3개만 골라 왜 그 수를 뒀는지 복기하면 다음 게임 개선폭이 큽니다."
+            ));
+        }
+
+        insights.put("cards", cards.stream().limit(3).toList());
+        insights.put("headline", buildLearningHeadline(cards, getInt(result.get("totalGames"), 0)));
+        insights.put("note", "체스닷컴은 대체로 비슷한 레이팅의 상대를 매칭하므로, 상대 유형보다 내 반복 패턴과 오프닝 구멍을 우선 보여줍니다.");
+        return insights;
+    }
+
+    private Map<String, Object> buildAdvancedInsights(
+        java.sql.Connection connection,
+        UUID analysisId,
+        String username,
+        Map<String, Object> result,
+        Map<String, Object> profile,
+        Map<String, Object> openingStats
+    ) {
+        Map<String, Object> insights = new LinkedHashMap<>();
+        Map<String, Object> criticalMoveStats = buildCriticalMoveStats(connection, analysisId, username);
+        Map<String, Object> complexity = buildComplexityInsight(connection, analysisId, username);
+        Map<String, Object> timePatterns = buildTimePatterns(connection, analysisId, username);
+        List<Map<String, Object>> openingHoles = buildOpeningHoles(openingStats);
+
+        insights.put("story", buildPlayerStory(username, result, profile, criticalMoveStats, timePatterns, openingHoles));
+        insights.put("styleAxes", buildStyleAxes(profile));
+        insights.put("confidenceBands", buildConfidenceBands(result, profile));
+        insights.put("criticalMoveStats", criticalMoveStats);
+        insights.put("complexityPreference", complexity);
+        insights.put("timePatterns", timePatterns);
+        insights.put("openingHoles", openingHoles);
+        return insights;
+    }
+
+    private Map<String, Object> buildOpponentExploitPlan(
+        java.sql.Connection connection,
+        UUID analysisId,
+        String username,
+        Map<String, Object> result,
+        Map<String, Object> profile,
+        Map<String, Object> openingStats
+    ) {
+        List<Map<String, Object>> weaknesses = new ArrayList<>();
+        List<Map<String, Object>> recommendations = new ArrayList<>();
+        List<Map<String, Object>> openingHoles = buildOpeningHoles(openingStats);
+        Map<String, Object> criticalMoveStats = buildCriticalMoveStats(connection, analysisId, username);
+        Map<String, Object> timePressure = buildTimePressureInsight(connection, analysisId, username);
+        Map<String, Object> complexity = buildComplexityInsight(connection, analysisId, username);
+
+        double consistency = getDouble(profile.get("consistency"), 50.0);
+        double leadConversion = getDouble(profile.get("leadConversion"), 50.0);
+        double endgame = getDouble(profile.get("endgameRating"), 50.0);
+        double blunderTendency = getDouble(profile.get("blunderTendency"), 50.0);
+        double criticalAccuracy = getDouble(criticalMoveStats.get("accuracy"), 0.0);
+
+        if (consistency < 45.0 || blunderTendency > 55.0) {
+            weaknesses.add(insightCard(
+                "기복과 큰 실수",
+                Math.round(consistency) + "점",
+                "일관성이 낮고 큰 손실 수가 나오는 편입니다. 단번에 끝내려 하기보다 계속 문제를 내는 포지션이 유리합니다."
+            ));
+            recommendations.add(insightCard(
+                "복잡한 선택지 유지",
+                "효율 높음",
+                "퀸을 너무 빨리 교환하지 말고, 체크/캡처/위협이 동시에 있는 국면을 유지하세요. 실수 유도 기대값이 커집니다."
+            ));
+        }
+
+        if (criticalAccuracy > 0 && criticalAccuracy < 65.0) {
+            weaknesses.add(insightCard(
+                "중요수 대응",
+                criticalAccuracy + "%",
+                "only-move 또는 최선수 격차가 큰 표본에서 안정성이 낮습니다."
+            ));
+            recommendations.add(insightCard(
+                "강제수 후보 만들기",
+                "전술 압박",
+                "직접 메이트 위협, 핀, 디스커버드 어택처럼 답이 하나로 좁혀지는 문제를 계속 던지는 쪽이 좋습니다."
+            ));
+        }
+
+        if (!timePressure.isEmpty() && String.valueOf(timePressure.getOrDefault("title", "")).contains("약점")) {
+            weaknesses.add(timePressure);
+            recommendations.add(insightCard(
+                "시간 압박 유도",
+                "후반 승부",
+                "초반에는 안전하게 빠르게 두고, 중반 이후 계산이 필요한 선택지를 남겨 상대 시간이 10초 이하로 내려가게 만드는 전략이 유리합니다."
+            ));
+        }
+
+        if (leadConversion < 45.0) {
+            weaknesses.add(insightCard(
+                "우세 유지",
+                Math.round(leadConversion) + "점",
+                "유리한 포지션을 깔끔하게 마무리하는 지표가 낮습니다."
+            ));
+            recommendations.add(insightCard(
+                "방어 자원 남기기",
+                "역전 기대",
+                "불리해져도 즉시 포기하지 말고 체크 가능성, 영구 체크, 폰 레이스를 남기면 상대가 우세를 놓칠 확률이 있습니다."
+            ));
+        }
+
+        if (endgame < 45.0) {
+            weaknesses.add(insightCard(
+                "엔드게임",
+                Math.round(endgame) + "점",
+                "엔드게임 지표가 낮아 단순한 전환 뒤에도 흔들릴 수 있습니다."
+            ));
+            recommendations.add(insightCard(
+                "엔드게임 전환",
+                "장기전",
+                "물질이 같거나 약간 유리하다면 엔드게임으로 끌고 가세요. 특히 룩 엔드게임과 폰 엔드게임에서 실수 기대값이 커집니다."
+            ));
+        }
+
+        if (!openingHoles.isEmpty()) {
+            Map<String, Object> hole = openingHoles.get(0);
+            weaknesses.add(insightCard(
+                "오프닝 hole",
+                String.valueOf(hole.getOrDefault("name", "약한 라인")),
+                String.format(
+                    "%s에서 점수율 %.1f%%, 평균 CPL %.1f입니다.",
+                    hole.getOrDefault("sideLabel", "해당 색"),
+                    getDouble(hole.get("scoreRate"), 0.0),
+                    getDouble(hole.get("averageCpl"), 0.0)
+                )
+            ));
+            recommendations.add(insightCard(
+                "라인 유도",
+                String.valueOf(hole.getOrDefault("sideLabel", "오프닝")),
+                "상대가 이 구조로 들어오면 초반부터 익숙한 계획을 강요하세요. 첫 흔들림 시점 전후의 전술을 준비하면 효율이 좋습니다."
+            ));
+        }
+
+        if (!complexity.isEmpty() && String.valueOf(complexity.getOrDefault("label", "")).contains("복잡")) {
+            recommendations.add(insightCard(
+                "복잡도 조절",
+                String.valueOf(complexity.getOrDefault("value", "관찰")),
+                String.valueOf(complexity.getOrDefault("description", "상대가 복잡한 포지션에서 흔들리는지 확인하며 운영하세요."))
+            ));
+        }
+
+        if (recommendations.isEmpty()) {
+            recommendations.add(insightCard(
+                "기본 공략",
+                "실수 억제",
+                "특정 약점 표본이 부족합니다. 무리한 공격보다 블런더를 줄이고, 상대가 먼저 구조적 약점을 만들 때까지 기다리는 쪽이 안정적입니다."
+            ));
+        }
+
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("headline", username + "님을 상대로는 반복 약점을 강요하는 운영이 가장 유리합니다.");
+        plan.put("weaknesses", weaknesses.stream().limit(5).toList());
+        plan.put("recommendations", recommendations.stream().limit(5).toList());
+        plan.put("confidence", confidenceLabel(getInt(result.get("totalGames"), 0)));
+        plan.put("disclaimer", "이 공략은 최근 분석 표본 기반의 통계적 추천입니다. 실제 한 판에서는 오프닝 선택과 시간 상황에 따라 달라질 수 있습니다.");
+        return plan;
+    }
+
+    private Map<String, Object> insightCard(String title, String value, String description) {
+        Map<String, Object> card = new LinkedHashMap<>();
+        card.put("title", title);
+        card.put("value", value);
+        card.put("description", description);
+        return card;
+    }
+
+    private Map<String, Object> buildCriticalMoveStats(java.sql.Connection connection, UUID analysisId, String username) {
+        if (!columnExists(connection, "move_analyses", "critical_move_gap") ||
+            !columnExists(connection, "move_analyses", "played_rank")) {
+            return Map.of("sample", 0, "accuracy", 0.0, "message", "중요수 표본은 새 분석부터 집계됩니다.");
+        }
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT COUNT(*) AS sample, " +
+                "SUM(CASE WHEN (m.played_rank = 1 OR m.centipawn_loss < 80) THEN 1 ELSE 0 END) AS solved, " +
+                "AVG(m.critical_move_gap) AS average_gap, " +
+                "AVG(m.win_probability_loss) AS average_win_loss " +
+                "FROM move_analyses m " +
+                "JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
+                "WHERE m.analysis_id = ? AND (m.is_only_move = TRUE OR m.critical_move_gap >= 80) " +
+                "AND ((LOWER(g.white_player) = LOWER(?) AND MOD(m.move_number, 2) = 0) " +
+                "  OR (LOWER(g.black_player) = LOWER(?) AND MOD(m.move_number, 2) = 1))"
+            );
+            stmt.setObject(1, analysisId);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
+            var rs = stmt.executeQuery();
+            if (!rs.next()) {
+                return Map.of("sample", 0, "accuracy", 0.0);
+            }
+            int sample = rs.getInt("sample");
+            int solved = rs.getInt("solved");
+            double accuracy = sample > 0 ? Math.round((solved * 1000.0) / sample) / 10.0 : 0.0;
+            Map<String, Object> stats = new LinkedHashMap<>();
+            stats.put("sample", sample);
+            stats.put("solved", solved);
+            stats.put("accuracy", accuracy);
+            stats.put("averageGap", Math.round(rs.getDouble("average_gap") * 10.0) / 10.0);
+            stats.put("averageWinProbabilityLoss", Math.round(rs.getDouble("average_win_loss") * 10.0) / 10.0);
+            stats.put("label", sample < 3 ? "표본 부족" : (accuracy >= 70 ? "강함" : "보강 필요"));
+            return stats;
+        } catch (Exception e) {
+            log.warn("Failed to build critical move stats for {}: {}", analysisId, e.getMessage());
+            return Map.of("sample", 0, "accuracy", 0.0);
+        }
+    }
+
+    private Map<String, Object> buildComplexityInsight(java.sql.Connection connection, UUID analysisId, String username) {
+        if (!columnExists(connection, "move_analyses", "legal_move_count")) {
+            return Map.of();
+        }
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT AVG(m.legal_move_count) AS average_legal_moves, " +
+                "AVG(CASE WHEN m.legal_move_count >= 30 THEN m.centipawn_loss END) AS complex_cpl, " +
+                "AVG(CASE WHEN m.legal_move_count < 30 THEN m.centipawn_loss END) AS simple_cpl, " +
+                "COUNT(CASE WHEN m.legal_move_count >= 30 THEN 1 END) AS complex_sample " +
+                "FROM move_analyses m " +
+                "JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
+                "WHERE m.analysis_id = ? AND m.legal_move_count IS NOT NULL " +
+                "AND ((LOWER(g.white_player) = LOWER(?) AND MOD(m.move_number, 2) = 0) " +
+                "  OR (LOWER(g.black_player) = LOWER(?) AND MOD(m.move_number, 2) = 1))"
+            );
+            stmt.setObject(1, analysisId);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
+            var rs = stmt.executeQuery();
+            if (!rs.next()) {
+                return Map.of();
+            }
+
+            double complexCpl = getDouble(rs.getObject("complex_cpl"), 0.0);
+            double simpleCpl = getDouble(rs.getObject("simple_cpl"), 0.0);
+            int complexSample = rs.getInt("complex_sample");
+            double delta = complexCpl - simpleCpl;
+            Map<String, Object> insight = new LinkedHashMap<>();
+            insight.put("averageLegalMoves", Math.round(rs.getDouble("average_legal_moves") * 10.0) / 10.0);
+            insight.put("complexSample", complexSample);
+            insight.put("complexCpl", Math.round(complexCpl * 10.0) / 10.0);
+            insight.put("simpleCpl", Math.round(simpleCpl * 10.0) / 10.0);
+            insight.put("label", delta > 15 ? "복잡한 포지션 취약" : (delta < -10 ? "복잡한 포지션 강점" : "복잡도 영향 보통"));
+            insight.put("value", delta > 0 ? "+" + Math.round(delta * 10.0) / 10.0 + " CPL" : Math.round(delta * 10.0) / 10.0 + " CPL");
+            insight.put("description", delta > 15
+                ? "선택지가 많은 포지션에서 평균 손실이 커집니다."
+                : "복잡한 포지션과 단순한 포지션의 손실 차이가 크지 않습니다.");
+            return insight;
+        } catch (Exception e) {
+            log.warn("Failed to build complexity insight for {}: {}", analysisId, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> buildTimePatterns(java.sql.Connection connection, UUID analysisId, String username) {
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT g.date_played, g.white_player, g.black_player, g.result, COALESCE(ga.average_centipawn_loss, 0) AS cpl " +
+                "FROM games_worker g " +
+                "LEFT JOIN game_analyses ga ON ga.analysis_id = g.analysis_id AND ga.game_index = g.game_index " +
+                "WHERE g.analysis_id = ? ORDER BY g.game_index"
+            );
+            stmt.setObject(1, analysisId);
+            var rs = stmt.executeQuery();
+            Map<String, StatBucket> buckets = new LinkedHashMap<>();
+            buckets.put("morning", new StatBucket("아침"));
+            buckets.put("afternoon", new StatBucket("오후"));
+            buckets.put("evening", new StatBucket("저녁"));
+            buckets.put("night", new StatBucket("밤/새벽"));
+
+            while (rs.next()) {
+                String whitePlayer = rs.getString("white_player");
+                String blackPlayer = rs.getString("black_player");
+                boolean isWhite = whitePlayer != null && whitePlayer.equalsIgnoreCase(username);
+                boolean isBlack = blackPlayer != null && blackPlayer.equalsIgnoreCase(username);
+                if (!isWhite && !isBlack) continue;
+
+                LocalDateTime playedAt = parsePlayedAt(rs.getString("date_played"));
+                if (playedAt == null) continue;
+                String bucketKey = timeBucket(playedAt.getHour());
+                buckets.get(bucketKey).record(scoreForPlayer(rs.getString("result"), isWhite), rs.getDouble("cpl"));
+            }
+
+            List<Map<String, Object>> rows = buckets.values().stream()
+                .filter(bucket -> bucket.games > 0)
+                .map(StatBucket::toMap)
+                .toList();
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("buckets", rows);
+            result.put("best", rows.stream().max(Comparator.comparingDouble(row -> getDouble(row.get("scoreRate"), 0.0))).orElse(Map.of()));
+            result.put("worst", rows.stream().min(Comparator.comparingDouble(row -> getDouble(row.get("scoreRate"), 100.0))).orElse(Map.of()));
+            result.put("message", rows.size() < 2 ? "시간대 표본이 아직 부족합니다." : "시간대별 승률과 CPL 차이를 바탕으로 컨디션 패턴을 추정합니다.");
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to build time patterns for {}: {}", analysisId, e.getMessage());
+            return Map.of("message", "시간대 패턴을 계산할 수 없습니다.");
+        }
+    }
+
+    private LocalDateTime parsePlayedAt(String value) {
+        if (value == null || value.isBlank() || value.equalsIgnoreCase("Unknown")) {
+            return null;
+        }
+        try {
+            if (value.length() == 10) {
+                return LocalDateTime.parse(value + "T12:00:00");
+            }
+            return LocalDateTime.parse(value);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String timeBucket(int hour) {
+        if (hour >= 6 && hour < 12) return "morning";
+        if (hour >= 12 && hour < 18) return "afternoon";
+        if (hour >= 18 && hour < 24) return "evening";
+        return "night";
+    }
+
+    private List<Map<String, Object>> buildOpeningHoles(Map<String, Object> openingStats) {
+        List<Map<String, Object>> holes = new ArrayList<>();
+        collectOpeningHoles(holes, "백", openingStats.getOrDefault("whiteAll", openingStats.get("white")));
+        collectOpeningHoles(holes, "흑", openingStats.getOrDefault("blackAll", openingStats.get("black")));
+        return holes.stream()
+            .sorted((a, b) -> {
+                int scoreCompare = Double.compare(getDouble(a.get("scoreRate"), 100.0), getDouble(b.get("scoreRate"), 100.0));
+                if (scoreCompare != 0) return scoreCompare;
+                return Double.compare(getDouble(b.get("averageCpl"), 0.0), getDouble(a.get("averageCpl"), 0.0));
+            })
+            .limit(4)
+            .toList();
+    }
+
+    private void collectOpeningHoles(List<Map<String, Object>> holes, String sideLabel, Object rowsObject) {
+        for (Map<String, Object> row : openingRows(rowsObject)) {
+            double scoreRate = getDouble(row.get("scoreRate"), 50.0);
+            double cpl = getDouble(row.get("averageCpl"), 0.0);
+            double firstIssue = getDouble(row.get("firstIssueMove"), 99.0);
+            int count = getInt(row.get("count"), 0);
+            if (count <= 0) continue;
+            if (scoreRate <= 45.0 || cpl >= 75.0 || firstIssue <= 14.0) {
+                Map<String, Object> hole = new LinkedHashMap<>(row);
+                hole.put("sideLabel", sideLabel);
+                hole.put("reason", firstIssue <= 14.0 ? "초반 흔들림" : (scoreRate <= 45.0 ? "낮은 점수율" : "높은 CPL"));
+                holes.add(hole);
+            }
+        }
+    }
+
+    private String buildPlayerStory(
+        String username,
+        Map<String, Object> result,
+        Map<String, Object> profile,
+        Map<String, Object> criticalMoveStats,
+        Map<String, Object> timePatterns,
+        List<Map<String, Object>> openingHoles
+    ) {
+        String style = String.valueOf(profile.getOrDefault("playingStyle", "균형형 플레이어"));
+        double cpl = getDouble(result.get("averageCentipawnLoss"), 0.0);
+        double accuracy = getDouble(result.get("averageAccuracy"), 0.0);
+        String criticalLabel = String.valueOf(criticalMoveStats.getOrDefault("label", "표본 부족"));
+        String holeText = openingHoles.isEmpty()
+            ? "뚜렷한 오프닝 hole은 아직 표본이 부족합니다"
+            : "가장 먼저 볼 오프닝 hole은 " + openingHoles.get(0).getOrDefault("name", "해당 라인") + "입니다";
+        return String.format(
+            "%s님의 최근 표본은 %s 성향입니다. 평균 정확도 %.1f%%, 평균 CPL %.1f로 큰 방향은 잡혀 있으며, 결정적 수 대응은 %s입니다. %s. 다음 개선은 결정적 순간 복기와 반복 오프닝 구조 보강이 효율적입니다.",
+            username,
+            style,
+            accuracy,
+            cpl,
+            criticalLabel,
+            holeText
+        );
+    }
+
+    private List<Map<String, Object>> buildStyleAxes(Map<String, Object> profile) {
+        double aggression = getDouble(profile.get("aggressionRating"), 50.0);
+        double tactical = getDouble(profile.get("tacticalRating"), 50.0);
+        double risk = getDouble(profile.get("riskTolerance"), 50.0);
+        double positional = getDouble(profile.get("positionalRating"), 50.0);
+        double consistency = getDouble(profile.get("consistency"), 50.0);
+        double opening = getDouble(profile.get("openingVariety"), 50.0);
+        double endgame = getDouble(profile.get("endgameRating"), 50.0);
+        double conversion = getDouble(profile.get("leadConversion"), 50.0);
+        double time = getDouble(profile.get("timeManagementRating"), 50.0);
+
+        return List.of(
+            axis("주도권 축", (aggression + tactical + risk) / 3.0, "전술, 공격성, 리스크 감수 성향을 합친 축"),
+            axis("견고함 축", (positional + consistency + (100.0 - risk)) / 3.0, "포지션 이해와 안정성을 합친 축"),
+            axis("준비도 축", opening, "오프닝 다양성과 준비 폭을 보는 축"),
+            axis("마무리 축", (endgame + conversion + time) / 3.0, "엔드게임, 우세 변환, 시간 관리를 합친 축")
+        );
+    }
+
+    private Map<String, Object> axis(String label, double value, String description) {
+        Map<String, Object> axis = new LinkedHashMap<>();
+        axis.put("label", label);
+        axis.put("value", Math.round(value * 10.0) / 10.0);
+        axis.put("description", description);
+        axis.put("band", value >= 70 ? "강점" : (value <= 40 ? "보강" : "보통"));
+        return axis;
+    }
+
+    private List<Map<String, Object>> buildConfidenceBands(Map<String, Object> result, Map<String, Object> profile) {
+        int games = getInt(result.get("totalGames"), 0);
+        int margin = games >= 30 ? 5 : (games >= 15 ? 9 : 15);
+        return List.of(
+            confidenceBand("정확도", getDouble(result.get("averageAccuracy"), 0.0), margin, "분석 게임 수 " + games + "판 기준"),
+            confidenceBand("전술 감각", getDouble(profile.get("tacticalRating"), 0.0), margin + 3, "전술 표본 수에 민감"),
+            confidenceBand("엔드게임", getDouble(profile.get("endgameRating"), 0.0), margin + 8, "엔드게임 도달 표본에 민감"),
+            confidenceBand("일관성", getDouble(profile.get("consistency"), 0.0), margin + 4, "게임별 CPL 분산 기반")
+        );
+    }
+
+    private Map<String, Object> confidenceBand(String label, double value, int margin, String basis) {
+        Map<String, Object> band = new LinkedHashMap<>();
+        band.put("label", label);
+        band.put("value", Math.round(value * 10.0) / 10.0);
+        band.put("margin", margin);
+        band.put("range", Math.max(0, Math.round(value - margin)) + " - " + Math.min(100, Math.round(value + margin)));
+        band.put("basis", basis);
+        return band;
+    }
+
+    private String confidenceLabel(int totalGames) {
+        if (totalGames >= 30) return "높음";
+        if (totalGames >= 15) return "보통";
+        return "낮음";
+    }
+
+    private Map<String, Object> buildCriticalMoveInsight(java.sql.Connection connection, UUID analysisId, String username) {
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT COUNT(*) AS total, " +
+                "SUM(CASE WHEN m.centipawn_loss < 80 THEN 1 ELSE 0 END) AS solved, " +
+                "AVG(m.centipawn_loss) AS average_cpl " +
+                "FROM move_analyses m " +
+                "JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
+                "WHERE m.analysis_id = ? AND m.best_move IS NOT NULL AND m.best_move <> '' " +
+                "AND ((LOWER(g.white_player) = LOWER(?) AND MOD(m.move_number, 2) = 0) " +
+                "  OR (LOWER(g.black_player) = LOWER(?) AND MOD(m.move_number, 2) = 1))"
+            );
+            stmt.setObject(1, analysisId);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
+            var rs = stmt.executeQuery();
+            if (!rs.next()) {
+                return Map.of();
+            }
+
+            int total = rs.getInt("total");
+            if (total < 3) {
+                return Map.of();
+            }
+
+            int solved = rs.getInt("solved");
+            double accuracy = Math.round((solved * 1000.0) / total) / 10.0;
+            double averageCpl = Math.round(rs.getDouble("average_cpl") * 10.0) / 10.0;
+            String title = accuracy >= 70.0 ? "중요수 대응" : "중요수 보강";
+            String description = accuracy >= 70.0
+                ? String.format("엔진이 최선수를 확인한 중요 표본 %d개 중 %d개를 안정적으로 처리했습니다. 평균 손실은 %.1fcp입니다.", total, solved, averageCpl)
+                : String.format("엔진이 최선수를 확인한 중요 표본 %d개 중 %d개만 안정권이었습니다. 큰 전술/강제수 후보에서 한 번 더 멈추는 루틴이 좋습니다.", total, solved);
+
+            return Map.of(
+                "title", title,
+                "value", solved + "/" + total,
+                "description", description
+            );
+        } catch (Exception e) {
+            log.warn("Failed to build critical move insight for {}: {}", analysisId, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> buildTimePressureInsight(java.sql.Connection connection, UUID analysisId, String username) {
+        if (!columnExists(connection, "move_analyses", "time_left")) {
+            return Map.of();
+        }
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT " +
+                "SUM(CASE WHEN m.time_left <= 10 THEN 1 ELSE 0 END) AS pressure_moves, " +
+                "SUM(CASE WHEN m.time_left <= 10 AND m.centipawn_loss >= 100 THEN 1 ELSE 0 END) AS pressure_errors, " +
+                "AVG(CASE WHEN m.time_left <= 10 THEN m.centipawn_loss END) AS pressure_cpl, " +
+                "AVG(CASE WHEN m.time_left > 30 THEN m.centipawn_loss END) AS calm_cpl " +
+                "FROM move_analyses m " +
+                "JOIN games_worker g ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index " +
+                "WHERE m.analysis_id = ? AND m.time_left IS NOT NULL " +
+                "AND ((LOWER(g.white_player) = LOWER(?) AND MOD(m.move_number, 2) = 0) " +
+                "  OR (LOWER(g.black_player) = LOWER(?) AND MOD(m.move_number, 2) = 1))"
+            );
+            stmt.setObject(1, analysisId);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
+            var rs = stmt.executeQuery();
+            if (!rs.next()) {
+                return Map.of();
+            }
+
+            int pressureMoves = getInt(rs.getObject("pressure_moves"), 0);
+            if (pressureMoves < 2) {
+                return Map.of();
+            }
+
+            int pressureErrors = getInt(rs.getObject("pressure_errors"), 0);
+            double pressureCpl = getDouble(rs.getObject("pressure_cpl"), 0.0);
+            double calmCpl = getDouble(rs.getObject("calm_cpl"), 0.0);
+            double delta = pressureCpl - calmCpl;
+
+            if (calmCpl <= 0) {
+                return Map.of(
+                    "title", "시간 압박 표본",
+                    "value", pressureMoves + "수",
+                    "description", String.format("10초 이하에서 둔 수가 %d개 잡혔고, 그중 큰 실수는 %d개였습니다. 더 많은 게임이 쌓이면 평소 구간과 비교합니다.", pressureMoves, pressureErrors)
+                );
+            }
+            if (delta > 15.0) {
+                return Map.of(
+                    "title", "시간 압박 약점",
+                    "value", "+" + Math.round(delta * 10.0) / 10.0 + " CPL",
+                    "description", String.format("10초 이하 구간에서 평균 손실이 평소보다 커집니다. 시간 압박 큰 실수는 %d개였습니다.", pressureErrors)
+                );
+            }
+            if (delta < -5.0) {
+                return Map.of(
+                    "title", "시간 압박 대응",
+                    "value", "강함",
+                    "description", String.format("10초 이하 구간 평균 CPL이 평소보다 낮았습니다. 빠른 직관으로 처리한 표본이 %d수 잡혔습니다.", pressureMoves)
+                );
+            }
+            return Map.of(
+                "title", "시간 압박",
+                "value", "안정적",
+                "description", String.format("10초 이하 구간과 평소 구간의 CPL 차이가 크지 않습니다. 시간 압박 큰 실수는 %d개였습니다.", pressureErrors)
+            );
+        } catch (Exception e) {
+            log.warn("Failed to build time pressure insight for {}: {}", analysisId, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> findWeakestOpening(Map<String, Object> openingStats) {
+        List<Map<String, Object>> allRows = new ArrayList<>();
+        allRows.addAll(openingRows(openingStats.get("white")));
+        allRows.addAll(openingRows(openingStats.get("black")));
+        return allRows.stream()
+            .filter(row -> getInt(row.get("count"), 0) > 0)
+            .sorted((a, b) -> {
+                int scoreCompare = Double.compare(getDouble(a.get("scoreRate"), 100.0), getDouble(b.get("scoreRate"), 100.0));
+                if (scoreCompare != 0) return scoreCompare;
+                return Double.compare(getDouble(b.get("averageCpl"), 0.0), getDouble(a.get("averageCpl"), 0.0));
+            })
+            .findFirst()
+            .orElse(Map.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> openingRows(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream()
+                .filter(Map.class::isInstance)
+                .map(row -> (Map<String, Object>) row)
+                .toList();
+        }
+        return List.of();
+    }
+
+    private String buildLearningHeadline(List<Map<String, Object>> cards, int totalGames) {
+        String firstTitle = String.valueOf(cards.get(0).getOrDefault("title", "결정적 순간 복기"));
+        String sample = totalGames < 15 ? "표본이 작으니" : "반복 패턴 기준으로";
+        return sample + " 지금은 '" + firstTitle + "'부터 보는 것이 가장 효율적입니다.";
+    }
+
+    private Map<String, Object> buildTiltInsight(java.sql.Connection connection, UUID analysisId, String username) {
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT g.white_player, g.black_player, g.result, COALESCE(ga.average_centipawn_loss, 0) AS average_centipawn_loss " +
+                "FROM games_worker g " +
+                "LEFT JOIN game_analyses ga ON ga.analysis_id = g.analysis_id AND ga.game_index = g.game_index " +
+                "WHERE g.analysis_id = ? ORDER BY g.game_index"
+            );
+            stmt.setObject(1, analysisId);
+            var rs = stmt.executeQuery();
+
+            List<Double> afterLossCpls = new ArrayList<>();
+            List<Double> afterNonLossCpls = new ArrayList<>();
+            Boolean previousLoss = null;
+
+            while (rs.next()) {
+                String whitePlayer = rs.getString("white_player");
+                String blackPlayer = rs.getString("black_player");
+                boolean isWhite = whitePlayer != null && whitePlayer.equalsIgnoreCase(username);
+                boolean isBlack = blackPlayer != null && blackPlayer.equalsIgnoreCase(username);
+                if (!isWhite && !isBlack) {
+                    continue;
+                }
+
+                double cpl = rs.getDouble("average_centipawn_loss");
+                if (previousLoss != null && cpl > 0) {
+                    if (previousLoss) {
+                        afterLossCpls.add(cpl);
+                    } else {
+                        afterNonLossCpls.add(cpl);
+                    }
+                }
+                previousLoss = scoreForPlayer(rs.getString("result"), isWhite) == 0.0;
+            }
+
+            if (afterLossCpls.isEmpty() || afterNonLossCpls.isEmpty()) {
+                return Map.of();
+            }
+
+            double afterLossAvg = afterLossCpls.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double baselineAvg = afterNonLossCpls.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double delta = afterLossAvg - baselineAvg;
+            if (Math.abs(delta) < 10) {
+                return Map.of(
+                    "title", "패배 후 회복",
+                    "value", "안정적",
+                    "description", "패배 직후 다음 판의 CPL 변화가 크지 않습니다. 감정적으로 크게 흔들리지는 않는 편입니다."
+                );
+            }
+            if (delta > 0) {
+                return Map.of(
+                    "title", "틸트 경고",
+                    "value", "+" + Math.round(delta * 10.0) / 10.0 + " CPL",
+                    "description", "패배 직후 다음 판에서 손실이 커지는 패턴이 보입니다. 연패 구간에서는 3분 쉬고 다음 판을 시작해보세요."
+                );
+            }
+            return Map.of(
+                "title", "반등 패턴",
+                "value", Math.round(Math.abs(delta) * 10.0) / 10.0 + " CPL 개선",
+                "description", "패배 직후 다음 판에서 오히려 더 신중해지는 패턴이 보입니다. 이 루틴을 유지해도 좋습니다."
+            );
+        } catch (Exception e) {
+            log.warn("Failed to build tilt insight for {}: {}", analysisId, e.getMessage());
+            return Map.of();
+        }
+    }
+
     private Map<String, Object> estimatedPercentile(
         String label,
         double value,
@@ -873,7 +1605,7 @@ public class AnalysisService {
         metric.put("unit", unit);
         metric.put("betterThanPercent", betterThan);
         metric.put("topPercent", topPercent);
-        metric.put("topPercentLabel", "상위 " + topPercent + "% 추정");
+        metric.put("topPercentLabel", percentileLabel(betterThan));
         metric.put("basis", "동일 레이팅대 예상 평균 " + Math.round(mean * 10.0) / 10.0 + unit + " 기준");
         return metric;
     }
@@ -887,9 +1619,20 @@ public class AnalysisService {
         metric.put("unit", "점");
         metric.put("betterThanPercent", betterThan);
         metric.put("topPercent", topPercent);
-        metric.put("topPercentLabel", "상위 " + topPercent + "% 추정");
+        metric.put("topPercentLabel", percentileLabel(betterThan));
         metric.put("basis", "0-100 스타일 점수를 백분위처럼 해석한 임시 지표");
         return metric;
+    }
+
+    private String percentileLabel(int betterThanPercent) {
+        int safeBetterThan = Math.max(0, Math.min(99, betterThanPercent));
+        if (safeBetterThan >= 50) {
+            return "상위 " + Math.max(1, 100 - safeBetterThan) + "% 추정";
+        }
+        if (safeBetterThan <= 0) {
+            return "하위 1% 미만 추정";
+        }
+        return "하위 " + safeBetterThan + "% 추정";
     }
 
     private Map<String, Object> buildSampleReliability(int totalGames) {
@@ -1023,18 +1766,16 @@ public class AnalysisService {
         String accuracyRank = String.valueOf(accuracy.getOrDefault("topPercentLabel", "비교 준비 중"));
         String cplRank = String.valueOf(cpl.getOrDefault("topPercentLabel", "비교 준비 중"));
         String gmName = String.valueOf(gmMatch.getOrDefault("name", "분석 준비 중"));
-        String opponentHeadline = String.valueOf(opponentProfile.getOrDefault("headline", "상대 분석 데이터가 충분하지 않습니다."));
         String reliabilityLabel = String.valueOf(reliability.getOrDefault("label", "낮음"));
 
         return String.format(
-            "%s님의 최근 %d판은 표본 신뢰도 %s입니다. 정확도는 %s, CPL 관점은 %s로 추정되며, 스타일 결은 %s 쪽에 가깝습니다. %s",
+            "%s님의 최근 %d판은 표본 신뢰도 %s입니다. 정확도는 %s, CPL 관점은 %s로 추정되며, 스타일 결은 %s 쪽에 가깝습니다.",
             username,
             totalGames,
             reliabilityLabel,
             accuracyRank,
             cplRank,
-            gmName,
-            opponentHeadline
+            gmName
         );
     }
 
@@ -1234,6 +1975,33 @@ public class AnalysisService {
         return Map.of();
     }
 
+    private Map<String, Object> parseJsonMap(String json) {
+        if (json == null || json.isBlank() || "{}".equals(json.trim())) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("Failed to parse JSON map: {}", e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private boolean columnExists(java.sql.Connection connection, String tableName, String columnName) {
+        try {
+            var stmt = connection.prepareStatement(
+                "SELECT 1 FROM information_schema.columns " +
+                "WHERE table_schema = 'public' AND table_name = ? AND column_name = ? LIMIT 1"
+            );
+            stmt.setString(1, tableName);
+            stmt.setString(2, columnName);
+            return stmt.executeQuery().next();
+        } catch (Exception e) {
+            log.warn("Failed to inspect column {}.{}: {}", tableName, columnName, e.getMessage());
+            return false;
+        }
+    }
+
     private Map<String, Object> getOpeningStats(java.sql.Connection connection, UUID analysisId, String username) throws Exception {
         Map<String, OpeningCounter> whiteOpenings = new HashMap<>();
         Map<String, OpeningCounter> blackOpenings = new HashMap<>();
@@ -1241,8 +2009,18 @@ public class AnalysisService {
         int blackGames = 0;
 
         var stmt = connection.prepareStatement(
-            "SELECT white_player, black_player, opening, pgn FROM games_worker WHERE analysis_id = ?");
-        stmt.setObject(1, analysisId);
+            "SELECT g.game_index, g.white_player, g.black_player, g.result, g.opening, g.pgn, " +
+            "COALESCE(ga.average_centipawn_loss, 0) AS average_centipawn_loss, " +
+            "(SELECT MIN(m.move_number) FROM move_analyses m " +
+            " WHERE m.analysis_id = g.analysis_id AND m.game_index = g.game_index AND m.centipawn_loss >= 100 " +
+            " AND ((LOWER(g.white_player) = LOWER(?) AND MOD(m.move_number, 2) = 0) " +
+            "   OR (LOWER(g.black_player) = LOWER(?) AND MOD(m.move_number, 2) = 1))) AS first_issue_move " +
+            "FROM games_worker g " +
+            "LEFT JOIN game_analyses ga ON ga.analysis_id = g.analysis_id AND ga.game_index = g.game_index " +
+            "WHERE g.analysis_id = ? ORDER BY g.game_index");
+        stmt.setString(1, username);
+        stmt.setString(2, username);
+        stmt.setObject(3, analysisId);
         var rs = stmt.executeQuery();
 
         while (rs.next()) {
@@ -1252,38 +2030,70 @@ public class AnalysisService {
 
             if (whitePlayer != null && whitePlayer.equalsIgnoreCase(username)) {
                 whiteGames++;
-                incrementOpening(whiteOpenings, opening);
+                incrementOpening(
+                    whiteOpenings,
+                    opening,
+                    scoreForPlayer(rs.getString("result"), true),
+                    rs.getDouble("average_centipawn_loss"),
+                    rs.getInt("first_issue_move")
+                );
             } else if (blackPlayer != null && blackPlayer.equalsIgnoreCase(username)) {
                 blackGames++;
-                incrementOpening(blackOpenings, opening);
+                incrementOpening(
+                    blackOpenings,
+                    opening,
+                    scoreForPlayer(rs.getString("result"), false),
+                    rs.getDouble("average_centipawn_loss"),
+                    rs.getInt("first_issue_move")
+                );
             }
         }
 
         Map<String, Object> openingStats = new HashMap<>();
         openingStats.put("whiteTotal", whiteGames);
         openingStats.put("blackTotal", blackGames);
-        openingStats.put("white", toOpeningRows(whiteOpenings, whiteGames));
-        openingStats.put("black", toOpeningRows(blackOpenings, blackGames));
+        openingStats.put("white", toOpeningRows(whiteOpenings, whiteGames, 2));
+        openingStats.put("black", toOpeningRows(blackOpenings, blackGames, 2));
+        openingStats.put("whiteAll", toOpeningRows(whiteOpenings, whiteGames, 12));
+        openingStats.put("blackAll", toOpeningRows(blackOpenings, blackGames, 12));
         return openingStats;
     }
 
-    private void incrementOpening(Map<String, OpeningCounter> openings, String opening) {
+    private void incrementOpening(
+        Map<String, OpeningCounter> openings,
+        String opening,
+        double score,
+        double averageCpl,
+        int firstIssueMove
+    ) {
         OpeningCounter counter = openings.computeIfAbsent(opening, key -> new OpeningCounter(key));
         counter.count++;
+        counter.score += score;
+        if (averageCpl > 0) {
+            counter.cplSum += averageCpl;
+            counter.cplSamples++;
+        }
+        if (firstIssueMove > 0) {
+            counter.firstIssueMoveSum += (firstIssueMove / 2) + 1;
+            counter.firstIssueSamples++;
+        }
     }
 
-    private List<Map<String, Object>> toOpeningRows(Map<String, OpeningCounter> openings, int totalGames) {
+    private List<Map<String, Object>> toOpeningRows(Map<String, OpeningCounter> openings, int totalGames, int limit) {
         return openings.values().stream()
             .sorted((a, b) -> {
                 int countCompare = Integer.compare(b.count, a.count);
                 return countCompare != 0 ? countCompare : a.name.compareToIgnoreCase(b.name);
             })
-            .limit(2)
+            .limit(limit)
             .map(counter -> {
                 Map<String, Object> row = new HashMap<>();
                 row.put("name", counter.name);
                 row.put("count", counter.count);
                 row.put("percentage", totalGames > 0 ? Math.round((counter.count * 10000.0) / totalGames) / 100.0 : 0.0);
+                row.put("scoreRate", counter.count > 0 ? Math.round((counter.score * 1000.0) / counter.count) / 10.0 : 0.0);
+                row.put("averageCpl", counter.cplSamples > 0 ? Math.round((counter.cplSum * 10.0) / counter.cplSamples) / 10.0 : 0.0);
+                row.put("firstIssueMove", counter.firstIssueSamples > 0 ? Math.round((counter.firstIssueMoveSum * 10.0) / counter.firstIssueSamples) / 10.0 : null);
                 return row;
             })
             .toList();
@@ -1344,6 +2154,11 @@ public class AnalysisService {
     private static class OpeningCounter {
         private final String name;
         private int count;
+        private double score;
+        private double cplSum;
+        private int cplSamples;
+        private double firstIssueMoveSum;
+        private int firstIssueSamples;
 
         private OpeningCounter(String name) {
             this.name = name;
@@ -1374,6 +2189,36 @@ public class AnalysisService {
             map.put("games", games);
             map.put("scoreRate", Math.round(scoreRate() * 10.0) / 10.0);
             return map;
+        }
+    }
+
+    private static class StatBucket {
+        private final String label;
+        private int games;
+        private double score;
+        private double cpl;
+        private int cplSamples;
+
+        private StatBucket(String label) {
+            this.label = label;
+        }
+
+        private void record(double gameScore, double gameCpl) {
+            this.games++;
+            this.score += gameScore;
+            if (gameCpl > 0) {
+                this.cpl += gameCpl;
+                this.cplSamples++;
+            }
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("label", label);
+            row.put("games", games);
+            row.put("scoreRate", games > 0 ? Math.round((score * 1000.0) / games) / 10.0 : 0.0);
+            row.put("averageCpl", cplSamples > 0 ? Math.round((cpl * 10.0) / cplSamples) / 10.0 : 0.0);
+            return row;
         }
     }
 

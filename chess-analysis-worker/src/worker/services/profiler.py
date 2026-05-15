@@ -715,6 +715,7 @@ class PlayerProfiler:
         
         eval_variances = []
         sacrifice_counts = []
+        multipv_risk_scores = []
         evidence = []
         
         for game, analysis in zip(parsed_games, game_analyses):
@@ -749,6 +750,18 @@ class PlayerProfiler:
                         impact_score=1.5,
                         context={'eval_loss': move.eval_before - move.eval_after}
                     ))
+                if move.played_rank and move.played_rank > 1 and move.critical_move_gap:
+                    choice_risk = min(100.0, (move.played_rank - 1) * 25.0 + move.critical_move_gap / 4.0)
+                    multipv_risk_scores.append(choice_risk)
+                    if move.centipawn_loss < 120 and len(evidence) < 5:
+                        evidence.append(Evidence(
+                            game_id=str(hash(f"{game.info.white_player}_{game.info.black_player}")),
+                            ply=move.ply,
+                            move_san=move.move_san,
+                            description=f"복수 후보 중 {move.played_rank}순위 선택",
+                            impact_score=1.2,
+                            context={'played_rank': move.played_rank, 'critical_gap': move.critical_move_gap}
+                        ))
             
             sacrifice_counts.append(sacrifices)
         
@@ -757,10 +770,12 @@ class PlayerProfiler:
         
         avg_variance = statistics.mean(eval_variances) if eval_variances else 0
         avg_sacrifices = statistics.mean(sacrifice_counts) if sacrifice_counts else 0
+        avg_multipv_risk = statistics.mean(multipv_risk_scores) if multipv_risk_scores else 0
         
         score = (
             weights['eval_variance'] * min(100, avg_variance / 10000) +
-            weights['material_sacrifices'] * min(100, avg_sacrifices * 25)
+            weights['material_sacrifices'] * min(100, avg_sacrifices * 25) +
+            0.25 * avg_multipv_risk
         )
         
         return max(0, min(100, score)), evidence[:5]
@@ -790,6 +805,8 @@ class PlayerProfiler:
             quiet_good = 0
             forcing_moves = 0
             cp_losses = []
+            activity_events = 0
+            structure_events = 0
 
             for move in player_moves:
                 is_forcing = move.is_check or move.is_capture or move.is_promotion
@@ -798,6 +815,29 @@ class PlayerProfiler:
 
                 if move.centipawn_loss is not None:
                     cp_losses.append(move.centipawn_loss)
+
+                positional_delta = (
+                    (move.mobility_delta or 0) +
+                    ((move.king_safety_delta or 0) * 2) +
+                    ((move.pawn_structure_delta or 0) * 3)
+                )
+                if not is_forcing and positional_delta > 0 and move.centipawn_loss <= 50:
+                    activity_events += 1
+                    if len(evidence) < 3:
+                        evidence.append(Evidence(
+                            game_id=str(hash(f"{game.info.white_player}_{game.info.black_player}")),
+                            ply=move.ply,
+                            move_san=move.move_san,
+                            description="기물 활동성/킹 안전/폰 구조를 개선한 조용한 수",
+                            impact_score=1.2,
+                            context={
+                                'mobility_delta': move.mobility_delta,
+                                'king_safety_delta': move.king_safety_delta,
+                                'pawn_structure_delta': move.pawn_structure_delta
+                            }
+                        ))
+                if (move.pawn_structure_delta or 0) > 0:
+                    structure_events += 1
 
                 if (not is_forcing and move.quality in [MoveQuality.BEST, MoveQuality.GOOD]):
                     quiet_good += 1
@@ -819,10 +859,14 @@ class PlayerProfiler:
             quiet_score = min(100, quiet_good_rate * 100)
             restraint_score = max(0, 100 - (forcing_rate * 120))
             accuracy_score = max(0, 100 - avg_cp_loss)
+            activity_score = min(100, (activity_events / len(player_moves)) * 250)
+            structure_score = min(100, (structure_events / len(player_moves)) * 300)
             game_score = (
-                quiet_score * 0.45 +
-                restraint_score * 0.25 +
-                accuracy_score * 0.30
+                quiet_score * 0.32 +
+                restraint_score * 0.18 +
+                accuracy_score * 0.25 +
+                activity_score * 0.18 +
+                structure_score * 0.07
             )
             positional_scores.append(game_score)
         
@@ -947,35 +991,44 @@ class PlayerProfiler:
         parsed_games: List[ParsedGame],
         game_analyses: List[GameAnalysis]
     ) -> Tuple[float, List[Evidence]]:
-        """이론 이탈 습관 점수 계산"""
+        """오프닝 준비 깊이 점수 계산.
+
+        외부 opening book 없이 ECO명만으로 "이탈"을 단정하지 않고,
+        초반 구간에서 큰 손실 없이 몇 수까지 버티는지를 준비도 proxy로 사용한다.
+        """
         
-        # 간단한 휴리스틱: ECO 분류가 있는 게임에서 초기 이탈 탐지
-        deviation_games = 0
-        total_games = 0
+        preparation_depths = []
         evidence = []
         
-        for game in parsed_games:
-            if game.info.eco:
-                total_games += 1
-                # 게임이 20수 이상이고 일반적이지 않은 ECO면 이탈로 간주
-                if len(game.board_history) > 20:
-                    # 일반적인 오프닝 (E, D, C로 시작하지 않으면 비주류로 가정)
-                    if not game.info.eco.startswith(('E4', 'D4', 'C2', 'C3')):
-                        deviation_games += 1
-                        
-                        evidence.append(Evidence(
-                            game_id=str(hash(f"{game.info.white_player}_{game.info.black_player}")),
-                            ply=0,
-                            move_san=game.info.eco,
-                            description=f"비주류 오프닝 선택: {game.info.eco}",
-                            impact_score=1.0,
-                            context={'eco': game.info.eco}
-                        ))
-        
-        if total_games > 0:
-            score = (deviation_games / total_games) * 100
+        for game, analysis in zip(parsed_games, game_analyses):
+            is_white = game.info.white_player.lower() == player_name.lower()
+            player_opening_moves = [
+                move for move in analysis.move_analyses
+                if (move.ply % 2 == 0) == is_white and move.ply < 24
+            ]
+            if not player_opening_moves:
+                continue
+
+            first_issue = next((move for move in player_opening_moves if move.centipawn_loss >= 80), None)
+            if first_issue:
+                depth = max(0, (first_issue.ply // 2) + 1)
+                evidence.append(Evidence(
+                    game_id=str(hash(f"{game.info.white_player}_{game.info.black_player}")),
+                    ply=first_issue.ply,
+                    move_san=first_issue.move_san,
+                    description=f"오프닝 초반 첫 큰 손실: {depth}수 전후",
+                    impact_score=1.0,
+                    context={'eco': game.info.eco, 'opening': game.info.opening, 'centipawn_loss': first_issue.centipawn_loss}
+                ))
+            else:
+                depth = min(12, len(player_opening_moves))
+            preparation_depths.append(depth)
+
+        if preparation_depths:
+            average_depth = statistics.mean(preparation_depths)
+            score = min(100, (average_depth / 10.0) * 100)
         else:
-            score = 50  # 중립
+            score = 50
         
         return score, evidence[:3]
     
@@ -1327,12 +1380,23 @@ class PlayerProfiler:
         blunder_variance = safe_variance(game_blunder_counts)
         
         if len(game_acpls) >= 2:
-            # Elite-optimized variance tolerance
-            variance_tolerance_factor = 1.5 if rating_band in [RatingBand.B4, RatingBand.B5] else 1.0
-            
-            # 낮은 분산 = 높은 점수 (elite players get more tolerance)
-            acpl_score = max(0, 100 - (acpl_variance / variance_tolerance_factor))
-            blunder_score = max(0, 100 - (blunder_variance * 20 / variance_tolerance_factor))
+            # Variance itself is squared and overwhelms the 0-100 scale. Use
+            # standard deviation with rating-band tolerances so normal game to
+            # game noise does not collapse the score to zero.
+            acpl_std = math.sqrt(acpl_variance)
+            blunder_std = math.sqrt(blunder_variance)
+            if rating_band == RatingBand.B1:
+                acpl_tolerance = 50.0
+                blunder_tolerance = 2.5
+            elif rating_band == RatingBand.B2:
+                acpl_tolerance = 42.0
+                blunder_tolerance = 2.0
+            else:
+                acpl_tolerance = 34.0
+                blunder_tolerance = 1.5
+
+            acpl_score = max(0, 100 - (acpl_std / acpl_tolerance) * 60)
+            blunder_score = max(0, 100 - (blunder_std / blunder_tolerance) * 50)
             
             score = (acpl_score + blunder_score) / 2
             
@@ -1664,7 +1728,9 @@ class PlayerProfiler:
             'found_tactics': 0,
             'missed_tactics': 0,
             'tactical_themes': [],
-            'average_tactical_gain': 0.0
+            'average_tactical_gain': 0.0,
+            'heuristic_samples': 0,
+            'sample_confidence': 'none'
         }
         
         found_count = 0
@@ -1685,6 +1751,8 @@ class PlayerProfiler:
                         
                         usage = move_analysis.tactical_usage
                         total_tactical_situations += usage.get('available_tactics', 0)
+                        if usage.get('confidence') == 'heuristic':
+                            tactical_stats['heuristic_samples'] += 1
                         
                         if usage.get('tactic_found'):
                             found_count += 1
@@ -1726,6 +1794,8 @@ class PlayerProfiler:
             total_tactics = found_count + missed_count
             if total_tactics > 0:
                 tactical_stats['tactical_accuracy'] = found_count / total_tactics
+                heuristic_samples = tactical_stats.get('heuristic_samples', 0)
+                tactical_stats['sample_confidence'] = 'heuristic' if heuristic_samples == total_tactics else 'engine'
             
             logger.info(f"전술 통계: {found_count}개 찾음, {missed_count}개 놓침, 정확도 {tactical_stats['tactical_accuracy']:.2%}")
             

@@ -22,6 +22,9 @@ public interface AnalysisRepository extends JpaRepository<Analysis, UUID> {
     
     @Query("SELECT a FROM Analysis a WHERE a.username = :username AND a.platform = :platform AND a.status IN ('PENDING', 'IN_PROGRESS') AND a.createdAt >= :since")
     Optional<Analysis> findActiveAnalysis(@Param("username") String username, @Param("platform") String platform, @Param("since") LocalDateTime since);
+
+    @Query("SELECT a FROM Analysis a WHERE LOWER(a.username) = LOWER(:username) AND a.platform = :platform AND a.status IN ('PENDING', 'IN_PROGRESS') ORDER BY a.createdAt DESC")
+    List<Analysis> findActiveAnalysesForUser(@Param("username") String username, @Param("platform") String platform);
     
     @Query("SELECT COUNT(a) FROM Analysis a WHERE a.createdAt >= :since")
     Long countAnalysesSince(@Param("since") LocalDateTime since);

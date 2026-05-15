@@ -147,7 +147,10 @@ jobs:
         env:
           API_URL: ${{ secrets.PROD_API_URL }}
           CHESS_USERNAME: ${{ secrets.SMOKE_CHESS_USERNAME || 'oswooooo' }}
+          CONCURRENT_CHESS_USERNAME: ${{ secrets.SMOKE_CONCURRENT_CHESS_USERNAME || 'erik' }}
           GAME_COUNT: "5"
+          POLL_ATTEMPTS: "90"
+          RUN_CONCURRENT_SMOKE: "true"
         run: ./scripts/smoke-test.sh
       - name: Smoke test frontend API proxy
         env:

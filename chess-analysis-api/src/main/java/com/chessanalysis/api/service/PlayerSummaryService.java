@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.ResourceAccessException;
 
@@ -29,9 +30,11 @@ public class PlayerSummaryService {
     
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
     
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate = createRestTemplate(5000);
     
     public PlayerSummaryResponse getPlayerSummary(String platform, String username) {
         String cacheKey = CACHE_PREFIX + platform + ":" + username.toLowerCase();
@@ -54,23 +57,27 @@ public class PlayerSummaryService {
         
         // Cache the result
         try {
+            response.cacheStatus = "fresh";
             String json = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(cacheKey, json, CACHE_TTL.getSeconds(), TimeUnit.SECONDS);
             logger.info("Cached summary for {}/{} for {} minutes", platform, username, CACHE_TTL.toMinutes());
         } catch (Exception e) {
             logger.warn("Failed to cache summary: {}", e.getMessage());
         }
-        
-        response.cacheStatus = "fresh";
         return response;
     }
     
     private PlayerSummaryResponse fetchFreshSummary(String platform, String username) {
         logger.info("Fetching fresh summary for {}/{}", platform, username);
-        
-        if ("chesscom".equals(platform)) {
+
+        String normalizedPlatform = platform == null ? "chesscom" : platform.toLowerCase(Locale.ROOT).trim();
+        if ("chess.com".equals(normalizedPlatform)) {
+            normalizedPlatform = "chesscom";
+        }
+
+        if ("chesscom".equals(normalizedPlatform)) {
             return fetchChessComSummary(username);
-        } else if ("lichess".equals(platform)) {
+        } else if ("lichess".equals(normalizedPlatform)) {
             return fetchLichessSummary(username);
         } else {
             throw new IllegalArgumentException("Unsupported platform: " + platform);
@@ -147,9 +154,7 @@ public class PlayerSummaryService {
     
     private JsonNode fetchWithTimeout(String url, int timeoutMs) {
         try {
-            // Create a RestTemplate with custom timeouts for this request
-            RestTemplate customRestTemplate = new RestTemplate();
-            // Note: In modern Spring Boot, timeout configuration is typically done through ClientHttpRequestFactory
+            RestTemplate customRestTemplate = createRestTemplate(timeoutMs);
             String response = customRestTemplate.getForObject(url, String.class);
             return objectMapper.readTree(response);
         } catch (ResourceAccessException e) {
@@ -159,6 +164,13 @@ public class PlayerSummaryService {
             logger.error("Error fetching {}: {}", url, e.getMessage());
             throw new RuntimeException("API error: " + url, e);
         }
+    }
+
+    private static RestTemplate createRestTemplate(int timeoutMs) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(timeoutMs);
+        requestFactory.setReadTimeout(timeoutMs);
+        return new RestTemplate(requestFactory);
     }
     
     private List<PlayerSummaryResponse.RecentGame> fetchRecentChessComGames(String username, int count) {

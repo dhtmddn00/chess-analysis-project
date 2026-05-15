@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -70,6 +71,28 @@ public class AnalysisQueueService {
         } catch (Exception e) {
             log.error("Failed to get queue size: {}", e.getMessage());
             return 0L;
+        }
+    }
+
+    public Long getQueuePosition(UUID analysisId) {
+        try {
+            List<String> queuedJobs = redisTemplate.opsForList().range(QUEUE_NAME, 0, -1);
+            if (queuedJobs == null || queuedJobs.isEmpty()) {
+                return null;
+            }
+
+            for (int indexFromLeft = 0; indexFromLeft < queuedJobs.size(); indexFromLeft++) {
+                String rawJob = queuedJobs.get(indexFromLeft);
+                AnalysisJobDto job = objectMapper.readValue(rawJob, AnalysisJobDto.class);
+                if (analysisId.equals(job.getAnalysisId())) {
+                    return (long) queuedJobs.size() - indexFromLeft;
+                }
+            }
+
+            return null;
+        } catch (Exception e) {
+            log.warn("Failed to calculate queue position for {}: {}", analysisId, e.getMessage());
+            return null;
         }
     }
 }

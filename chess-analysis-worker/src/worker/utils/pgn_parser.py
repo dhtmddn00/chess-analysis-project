@@ -62,7 +62,7 @@ class ParsedGame:
     info: GameInfo
     game: chess.pgn.Game
     board_history: List[chess.Board]
-    move_times: List[Optional[float]]  # 각 수의 소요 시간 (초)
+    move_times: List[Optional[float]]  # 각 수 이후 남은 시간 (초)
     move_evaluations: List[Optional[int]]  # 엔진 평가값 (centipawn)
     
 
@@ -225,13 +225,13 @@ class PGNParser:
     @staticmethod
     def extract_move_times(game: chess.pgn.Game) -> List[Optional[float]]:
         """
-        PGN에서 각 수의 소요 시간 추출
+        PGN에서 각 수 이후 남은 시간 추출
         
         Args:
             game: chess.pgn.Game 객체
             
         Returns:
-            각 수의 소요 시간 리스트 (초 단위, 없으면 None)
+            각 수 이후 남은 시간 리스트 (초 단위, 없으면 None)
         """
         move_times = []
         node = game

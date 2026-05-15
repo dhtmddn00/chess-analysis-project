@@ -90,7 +90,7 @@ class ProgressiveAnalyzer:
                 'deep': {
                     'depth': 16,
                     'movetime': 0.6,
-                    'multipv': 1,
+                    'multipv': 2,
                     'position_limit': 8
                 }
             },
@@ -105,7 +105,7 @@ class ProgressiveAnalyzer:
                 'deep': {
                     'depth': 18,
                     'movetime': 1.2,
-                    'multipv': 2,
+                    'multipv': 3,
                     'position_limit': 14
                 }
             }
@@ -315,6 +315,13 @@ class ProgressiveAnalyzer:
                             board = chess.Board(initial_fen)
                 
                 move_analyses = []
+                clock_left_by_ply = getattr(game_data, 'move_times', []) or []
+                base_seconds = getattr(game_data.info, 'time_control_seconds', 0) or 0
+                increment_seconds = getattr(game_data.info, 'time_increment', 0) or 0
+                previous_clock_by_side = {
+                    chess.WHITE: float(base_seconds) if base_seconds > 0 else None,
+                    chess.BLACK: float(base_seconds) if base_seconds > 0 else None
+                }
                 
                 # Analyze each position quickly
                 for ply, move in enumerate(game.mainline_moves()):
@@ -323,6 +330,15 @@ class ProgressiveAnalyzer:
                         raise RuntimeError("No Stockfish engine available")
 
                     board_before = board.copy()
+                    moving_side = board_before.turn
+                    time_left = self._clock_left_at(clock_left_by_ply, ply)
+                    time_spent = self._estimate_time_spent(
+                        previous_clock_by_side.get(moving_side),
+                        time_left,
+                        increment_seconds
+                    )
+                    if time_left is not None:
+                        previous_clock_by_side[moving_side] = time_left
                     
                     # Quick analysis using the StockfishEngine's analyze_position method
                     eval_before = await engine.analyze_position(
@@ -338,6 +354,7 @@ class ProgressiveAnalyzer:
                     is_capture = board_before.is_capture(move)
                     is_castling = board_before.is_castling(move)
                     is_promotion = move.promotion is not None
+                    legal_move_count = board_before.legal_moves.count()
                     
                     # Make the move
                     board.push(move)
@@ -355,15 +372,31 @@ class ProgressiveAnalyzer:
                     best_eval = None
                     best_move_san = None
                     best_move_uci = None
+                    move_options = {
+                        'multipv_candidates': [],
+                        'played_rank': None,
+                        'critical_move_gap': 0.0,
+                        'is_only_move': False,
+                        'best_mate': None
+                    }
 
                     if self._should_refine_move(ply, cp_loss, is_check, is_capture, is_promotion):
-                        best_eval, best_move_san, best_move_uci = await self._analyze_best_move(
+                        move_options = await self._analyze_move_options(
                             engine,
-                            board_before
+                            board_before,
+                            move
                         )
+                        best_eval = move_options.get('best_eval')
+                        best_move_san = move_options.get('best_move_san')
+                        best_move_uci = move_options.get('best_move_uci')
                         if best_eval is not None:
                             cp_loss = self._side_to_move_loss(best_eval, cp_after, board_before.turn)
                     cp_loss = max(0, int(cp_loss or 0))
+                    win_probability_loss = self._win_probability_loss(
+                        best_eval if best_eval is not None else cp_before,
+                        cp_after,
+                        board_before.turn
+                    )
                     
                     move_analysis = {
                         'ply': ply,
@@ -372,11 +405,26 @@ class ProgressiveAnalyzer:
                         'eval_before': cp_before if cp_before is not None else 0,
                         'eval_after': cp_after if cp_after is not None else 0,
                         'best_eval': best_eval,
+                        'mate_before': self._score_to_mate(eval_before),
+                        'mate_after': self._score_to_mate(eval_after),
+                        'best_mate': move_options.get('best_mate'),
                         'best_move_san': best_move_san,
                         'best_move_uci': best_move_uci,
+                        'multipv_candidates': move_options.get('multipv_candidates', []),
+                        'played_rank': move_options.get('played_rank'),
+                        'critical_move_gap': move_options.get('critical_move_gap', 0.0),
+                        'is_only_move': move_options.get('is_only_move', False),
+                        'analysis_depth': self.deep_config['depth'] if move_options.get('best_eval') is not None else self.shallow_config['depth'],
                         'quality': self._quality_from_cp_loss(cp_loss),
                         'centipawn_loss': cp_loss,
-                        'win_probability_loss': self._win_probability_loss(cp_before, cp_after, board_before.turn),
+                        'win_probability_loss': win_probability_loss,
+                        'move_accuracy': self._move_accuracy_from_win_loss(win_probability_loss),
+                        'time_spent': time_spent,
+                        'time_left': time_left,
+                        'legal_move_count': legal_move_count,
+                        'mobility_delta': self._mobility_delta(board_before, board, board_before.turn),
+                        'king_safety_delta': self._king_safety_delta(board_before, board, board_before.turn),
+                        'pawn_structure_delta': self._pawn_structure_delta(board_before, board, board_before.turn),
                         'is_check': is_check,
                         'is_capture': is_capture,
                         'is_castling': is_castling,
@@ -491,6 +539,15 @@ class ProgressiveAnalyzer:
         except Exception:
             return None
 
+    def _score_to_mate(self, score: Optional[chess.engine.PovScore]) -> Optional[int]:
+        try:
+            if score is None:
+                return None
+            white_score = score.white()
+            return white_score.mate() if white_score.is_mate() else None
+        except Exception:
+            return None
+
     def _side_to_move_loss(
         self,
         reference_eval: Optional[int],
@@ -538,26 +595,95 @@ class ProgressiveAnalyzer:
         engine: StockfishEngine,
         board: chess.Board
     ) -> Tuple[Optional[int], Optional[str], Optional[str]]:
+        options = await self._analyze_move_options(engine, board, None)
+        return options.get('best_eval'), options.get('best_move_san'), options.get('best_move_uci')
+
+    async def _analyze_move_options(
+        self,
+        engine: StockfishEngine,
+        board: chess.Board,
+        played_move: Optional[chess.Move]
+    ) -> Dict[str, Any]:
         try:
+            multipv = max(1, int(self.deep_config.get('multipv', 1)))
             info = await engine.engine.analyse(
                 board,
                 limit=chess.engine.Limit(
                     depth=self.deep_config['depth'],
                     time=self.deep_config['movetime']
                 ),
-                multipv=1
+                multipv=multipv
             )
-            if isinstance(info, list):
-                info = info[0] if info else {}
-            pv = info.get('pv', []) if isinstance(info, dict) else []
-            best_move = pv[0] if pv else None
-            best_eval = self._score_to_cp(engine, info.get('score') if isinstance(info, dict) else None)
-            if not best_move:
-                return best_eval, None, None
-            return best_eval, board.san(best_move), best_move.uci()
+            lines = info if isinstance(info, list) else [info]
+            candidates = []
+
+            for line in lines:
+                if not isinstance(line, dict):
+                    continue
+                pv = line.get('pv', [])
+                candidate_move = pv[0] if pv else None
+                if not candidate_move:
+                    continue
+
+                eval_cp = self._score_to_cp(engine, line.get('score'))
+                candidate = {
+                    'rank': int(line.get('multipv', len(candidates) + 1)),
+                    'moveSan': board.san(candidate_move),
+                    'moveUci': candidate_move.uci(),
+                    'evalCp': eval_cp,
+                    'mateDistance': self._score_to_mate(line.get('score'))
+                }
+                candidate['playerEval'] = self._player_eval(eval_cp, board.turn)
+                candidates.append(candidate)
+
+            candidates.sort(key=lambda item: item.get('playerEval') if item.get('playerEval') is not None else -99999, reverse=True)
+            for idx, candidate in enumerate(candidates, start=1):
+                candidate['rank'] = idx
+                candidate.pop('playerEval', None)
+
+            best = candidates[0] if candidates else {}
+            best_eval = best.get('evalCp')
+            best_uci = best.get('moveUci')
+            best_san = best.get('moveSan')
+            played_rank = None
+            if played_move is not None:
+                played_uci = played_move.uci()
+                played_rank = next((c['rank'] for c in candidates if c.get('moveUci') == played_uci), None)
+
+            critical_gap = 0.0
+            if len(candidates) >= 2:
+                top_eval = self._player_eval(candidates[0].get('evalCp'), board.turn)
+                second_eval = self._player_eval(candidates[1].get('evalCp'), board.turn)
+                if top_eval is not None and second_eval is not None:
+                    critical_gap = max(0.0, round(top_eval - second_eval, 1))
+
+            return {
+                'best_eval': best_eval,
+                'best_move_san': best_san,
+                'best_move_uci': best_uci,
+                'best_mate': best.get('mateDistance'),
+                'multipv_candidates': candidates,
+                'played_rank': played_rank,
+                'critical_move_gap': critical_gap,
+                'is_only_move': critical_gap >= 120.0
+            }
         except Exception as e:
             logger.debug(f"Best move refinement skipped: {e}")
-            return None, None, None
+            return {
+                'best_eval': None,
+                'best_move_san': None,
+                'best_move_uci': None,
+                'best_mate': None,
+                'multipv_candidates': [],
+                'played_rank': None,
+                'critical_move_gap': 0.0,
+                'is_only_move': False
+            }
+
+    def _player_eval(self, eval_cp: Optional[int], side: chess.Color) -> Optional[int]:
+        if eval_cp is None:
+            return None
+        return eval_cp if side == chess.WHITE else -eval_cp
 
     def _win_probability(self, eval_cp: Optional[int]) -> Optional[float]:
         if eval_cp is None:
@@ -580,6 +706,85 @@ class ProgressiveAnalyzer:
         else:
             loss = actual_probability - reference_probability
         return round(max(0.0, loss) * 100.0, 2)
+
+    def _move_accuracy_from_win_loss(self, win_probability_loss: float) -> float:
+        """Chess.com-style accuracy curve from win-probability loss."""
+        try:
+            accuracy = 103.1668 * pow(2.718281828459045, -0.04354 * max(0.0, win_probability_loss)) - 3.1668
+            return round(max(0.0, min(100.0, accuracy)), 2)
+        except Exception:
+            return 0.0
+
+    def _side_mobility(self, board: chess.Board, side: chess.Color) -> int:
+        probe = board.copy(stack=False)
+        probe.turn = side
+        return probe.legal_moves.count()
+
+    def _mobility_delta(self, before: chess.Board, after: chess.Board, side: chess.Color) -> int:
+        try:
+            return self._side_mobility(after, side) - self._side_mobility(before, side)
+        except Exception:
+            return 0
+
+    def _king_safety_delta(self, before: chess.Board, after: chess.Board, side: chess.Color) -> int:
+        try:
+            before_king = before.king(side)
+            after_king = after.king(side)
+            if before_king is None or after_king is None:
+                return 0
+            before_attackers = len(before.attackers(not side, before_king))
+            after_attackers = len(after.attackers(not side, after_king))
+            return before_attackers - after_attackers
+        except Exception:
+            return 0
+
+    def _pawn_structure_penalty(self, board: chess.Board, side: chess.Color) -> int:
+        pawns = list(board.pieces(chess.PAWN, side))
+        files = [chess.square_file(square) for square in pawns]
+        penalty = 0
+
+        for file_idx in set(files):
+            file_count = files.count(file_idx)
+            if file_count > 1:
+                penalty += file_count - 1
+
+        for file_idx in files:
+            if (file_idx - 1 not in files) and (file_idx + 1 not in files):
+                penalty += 1
+
+        return penalty
+
+    def _pawn_structure_delta(self, before: chess.Board, after: chess.Board, side: chess.Color) -> int:
+        try:
+            return self._pawn_structure_penalty(before, side) - self._pawn_structure_penalty(after, side)
+        except Exception:
+            return 0
+
+    def _clock_left_at(self, clock_left_by_ply: List[Optional[float]], ply: int) -> Optional[float]:
+        """Return the PGN clock value after this ply, if clock comments exist."""
+        if ply >= len(clock_left_by_ply):
+            return None
+        clock_left = clock_left_by_ply[ply]
+        if clock_left is None:
+            return None
+        try:
+            return float(clock_left)
+        except (TypeError, ValueError):
+            return None
+
+    def _estimate_time_spent(
+        self,
+        previous_clock: Optional[float],
+        current_clock: Optional[float],
+        increment_seconds: int
+    ) -> Optional[float]:
+        """Estimate thinking time from remaining-clock comments."""
+        if previous_clock is None or current_clock is None:
+            return None
+        spent = previous_clock + max(0, increment_seconds) - current_clock
+        if spent < 0:
+            return 0.0
+        return round(spent, 2)
     
     async def _deep_analysis_pass(
         self,
@@ -733,6 +938,12 @@ class ProgressiveAnalyzer:
                     is_check = move_data.get('is_check', move_san.endswith('+') or move_san.endswith('#'))
                     is_promotion = move_data.get('is_promotion', '=' in move_san)
                     is_castling = move_data.get('is_castling', move_san in ['O-O', 'O-O-O'])
+                    tactical_usage, tactical_opportunities, tactical_motifs = self._infer_tactical_context(
+                        move_data,
+                        is_check,
+                        is_capture,
+                        is_promotion
+                    )
                     
                     move_analysis = MoveAnalysis(
                         ply=move_data.get('ply', 0),
@@ -741,8 +952,18 @@ class ProgressiveAnalyzer:
                         eval_before=move_data.get('eval_before'),
                         eval_after=move_data.get('eval_after'),
                         best_eval=move_data.get('best_eval'),
+                        win_probability_loss=move_data.get('win_probability_loss', 0.0),
+                        move_accuracy=move_data.get('move_accuracy', 100.0),
+                        mate_before=move_data.get('mate_before'),
+                        mate_after=move_data.get('mate_after'),
+                        best_mate=move_data.get('best_mate'),
                         best_move_san=move_data.get('best_move_san'),
                         best_move_uci=move_data.get('best_move_uci'),
+                        multipv_candidates=move_data.get('multipv_candidates', []),
+                        played_rank=move_data.get('played_rank'),
+                        critical_move_gap=move_data.get('critical_move_gap'),
+                        is_only_move=move_data.get('is_only_move', False),
+                        analysis_depth=move_data.get('analysis_depth'),
                         quality=MoveQuality(move_data.get('quality', 'good')),
                         centipawn_loss=move_data.get('centipawn_loss', 0),
                         is_check=is_check,
@@ -751,9 +972,13 @@ class ProgressiveAnalyzer:
                         is_promotion=is_promotion,
                         time_spent=move_data.get('time_spent'),
                         time_left=move_data.get('time_left'),
-                        tactical_opportunities=move_data.get('tactical_opportunities'),
-                        tactical_motifs=move_data.get('tactical_motifs'),
-                        tactical_usage=move_data.get('tactical_usage')
+                        legal_move_count=move_data.get('legal_move_count'),
+                        mobility_delta=move_data.get('mobility_delta'),
+                        king_safety_delta=move_data.get('king_safety_delta'),
+                        pawn_structure_delta=move_data.get('pawn_structure_delta'),
+                        tactical_opportunities=move_data.get('tactical_opportunities') or tactical_opportunities,
+                        tactical_motifs=move_data.get('tactical_motifs') or tactical_motifs,
+                        tactical_usage=move_data.get('tactical_usage') or tactical_usage
                     )
                     move_analysis_objects.append(move_analysis)
                 except Exception as e:
@@ -803,6 +1028,61 @@ class ProgressiveAnalyzer:
         
         logger.info(f"Converted {len(game_summaries)} game summaries to {len(game_analyses)} GameAnalysis objects")
         return game_analyses
+
+    def _infer_tactical_context(
+        self,
+        move_data: Dict[str, Any],
+        is_check: bool,
+        is_capture: bool,
+        is_promotion: bool
+    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], List[str]]:
+        """Infer lightweight tactical context for progressive summaries.
+
+        The fast progressive path intentionally avoids expensive full tactical
+        search. Without this inference the profile can report a misleading
+        0/0 tactical sample. This classifies only obvious forcing moves and
+        high-loss refined positions as a low-confidence tactical sample.
+        """
+        cp_loss = int(move_data.get('centipawn_loss') or 0)
+        best_move_known = bool(move_data.get('best_move_san') or move_data.get('best_move_uci'))
+
+        pattern = None
+        if is_promotion:
+            pattern = 'promotion'
+        elif is_check:
+            pattern = 'check'
+        elif is_capture:
+            pattern = 'capture'
+        elif best_move_known and cp_loss >= 80:
+            pattern = 'critical_move'
+
+        if pattern is None:
+            return None, [], []
+
+        found = (is_check or is_capture or is_promotion) and cp_loss <= 50
+        missed = best_move_known and cp_loss >= 80
+
+        if not found and not missed:
+            return None, [], []
+
+        usage = {
+            'available_tactics': 1,
+            'tactic_found': found,
+            'tactic_missed': missed,
+            'tactic_type_played': pattern if found else None,
+            'tactic_type_missed': pattern if missed else None,
+            'tactical_accuracy': 1.0 if found else 0.0,
+            'confidence': 'heuristic'
+        }
+
+        opportunity = {
+            'pattern': pattern,
+            'value_gain': max(50, cp_loss),
+            'difficulty': 1 if pattern in ['check', 'capture'] else 2,
+            'description': '강제수/전술 후보를 안정적으로 처리했습니다.' if found else '중요 전술 후보에서 평가 손실이 컸습니다.',
+            'found': found
+        }
+        return usage, [opportunity], [pattern]
     
     def _generate_endgame_analysis(self, analyses: List[Any], profile: Any) -> Dict[str, Any]:
         """Generate endgame analysis from combined results"""

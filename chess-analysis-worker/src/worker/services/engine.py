@@ -376,15 +376,28 @@ class StockfishEngine:
             moves.append(node.move)
         
         total_moves = len(moves)
+        base_seconds = parsed_game.info.time_control_seconds or 0
+        increment_seconds = parsed_game.info.time_increment or 0
+        previous_clock_by_side = {
+            chess.WHITE: float(base_seconds) if base_seconds > 0 else None,
+            chess.BLACK: float(base_seconds) if base_seconds > 0 else None
+        }
         
         # 각 수 분석
         for i, (board, move) in enumerate(zip(boards, moves)):
             try:
                 move_analysis = await self.analyze_move(board, move, depth)
                 
-                # 시간 정보 추가 (PGN에서 추출된 경우)
+                # PGN clock comments store remaining time after the move.
                 if i < len(parsed_game.move_times):
-                    move_analysis.time_spent = parsed_game.move_times[i]
+                    time_left = parsed_game.move_times[i]
+                    moving_side = board.turn
+                    previous_clock = previous_clock_by_side.get(moving_side)
+                    move_analysis.time_left = time_left
+                    if previous_clock is not None and time_left is not None:
+                        move_analysis.time_spent = max(0.0, previous_clock + max(0, increment_seconds) - time_left)
+                    if time_left is not None:
+                        previous_clock_by_side[moving_side] = time_left
                 
                 move_analyses.append(move_analysis)
                 

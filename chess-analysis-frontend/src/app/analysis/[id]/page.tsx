@@ -334,9 +334,10 @@ export default function AdvancedAnalysisResultPage() {
                        ((() => {
                          try {
                            const tacticalStats = JSON.parse(result.styleProfile?.tacticalStats || '{}');
-                           return `${((tacticalStats.tactical_accuracy || 0) * 100).toFixed(1)}%`;
+                           const total = tacticalStats.total_tactical_opportunities || 0;
+                           return total > 0 ? `${((tacticalStats.tactical_accuracy || 0) * 100).toFixed(1)}%` : '표본 부족';
                          } catch {
-                           return '0.0%';
+                           return '표본 부족';
                          }
                        })())
                       }
@@ -830,6 +831,11 @@ export default function AdvancedAnalysisResultPage() {
                       <div className="text-sm text-gray-600 mt-1">전술 정확도</div>
                     </div>
                   </div>
+                  {result.tacticalOverview.message && (
+                    <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                      {result.tacticalOverview.message}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -903,23 +909,28 @@ export default function AdvancedAnalysisResultPage() {
                 {(() => {
                   try {
                     const tacticalStats = JSON.parse(result.styleProfile?.tacticalStats || '{}');
+                    const totalOpportunities = tacticalStats.total_tactical_opportunities || tacticalStats.totalTacticalOpportunities || 0;
+                    const tacticalAccuracy = totalOpportunities > 0
+                      ? `${(((tacticalStats.tactical_accuracy ?? tacticalStats.tacticalAccuracy) || 0) * 100).toFixed(0)}%`
+                      : '표본 부족';
+                    const patternsFound = tacticalStats.patterns_found || tacticalStats.patternsFound || {};
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-purple-600">
-                            {tacticalStats.totalTacticalOpportunities || 0}
+                            {totalOpportunities}
                           </div>
                           <div className="text-sm text-gray-600">총 전술 기회</div>
                         </div>
                         <div className="text-center">
                           <div className="text-3xl font-bold text-blue-600">
-                            {((tacticalStats.tacticalAccuracy || 0) * 100).toFixed(0)}%
+                            {tacticalAccuracy}
                           </div>
                           <div className="text-sm text-gray-600">전술 정확도</div>
                         </div>
                         <div className="text-center">
                           <div className="text-3xl font-bold text-green-600">
-                            {Object.keys(tacticalStats.patternsFound || {}).length}
+                            {Object.keys(patternsFound).length}
                           </div>
                           <div className="text-sm text-gray-600">발견된 패턴 종류</div>
                         </div>

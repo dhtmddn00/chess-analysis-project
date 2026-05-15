@@ -121,6 +121,9 @@ export interface AnalysisResult {
     foundTactics: number;
     missedTactics: number;
     tacticalAccuracy: string;
+    sampleAvailable?: boolean;
+    confidence?: string;
+    message?: string;
   };
   styleProfile?: {
     playingStyle: string;
@@ -167,6 +170,11 @@ export interface AnalysisResult {
     averageDifficulty: number;
     description?: string;
   }>;
+  comparativeInsights?: Record<string, any>;
+  decisiveMoments?: Array<Record<string, any>>;
+  learningInsights?: Record<string, any>;
+  advancedInsights?: Record<string, any>;
+  opponentExploitPlan?: Record<string, any>;
   trainingRecommendations?: Array<{
     category: string;
     priority: number;

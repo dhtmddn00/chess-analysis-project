@@ -40,11 +40,17 @@ public class AnalysisController {
         } catch (IllegalStateException e) {
             log.warn("Analysis creation failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(null);
+                    .body(Map.of(
+                            "error", e.getMessage(),
+                            "status", "conflict"
+                    ));
         } catch (Exception e) {
             log.error("Failed to create analysis: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(null);
+                    .body(Map.of(
+                            "error", "분석 요청을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.",
+                            "details", e.getMessage() == null ? "" : e.getMessage()
+                    ));
         }
     }
 
@@ -76,7 +82,8 @@ public class AnalysisController {
             return ResponseEntity.ok(status);
         } catch (Exception e) {
             log.error("Failed to get analysis status for {}: {}", analysisId, e.getMessage());
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Analysis not found", "id", analysisId.toString()));
         }
     }
     
@@ -107,7 +114,8 @@ public class AnalysisController {
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("Failed to get analysis result for {}: {}", analysisId, e.getMessage());
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Analysis result not found", "id", analysisId.toString()));
         }
     }
     

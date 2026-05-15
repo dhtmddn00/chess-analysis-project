@@ -125,7 +125,7 @@ python -m src.worker.main
 # PostgreSQL
 POSTGRES_DB: chess_analysis
 POSTGRES_USER: chess_user
-POSTGRES_PASSWORD: chess_password
+POSTGRES_PASSWORD: local-dev-only
 
 # Redis
 REDIS_HOST: redis

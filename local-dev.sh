@@ -7,7 +7,7 @@ set -e
 # 환경변수 설정
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/chess_analysis
 export SPRING_DATASOURCE_USERNAME=chess_user
-export SPRING_DATASOURCE_PASSWORD=chess_password
+export SPRING_DATASOURCE_PASSWORD=local-dev-only
 export SPRING_DATA_REDIS_HOST=localhost
 export SPRING_DATA_REDIS_PORT=6379
 
@@ -17,7 +17,7 @@ export DB_HOST=localhost
 export DB_PORT=5432
 export DB_NAME=chess_analysis
 export DB_USER=chess_user
-export DB_PASSWORD=chess_password
+export DB_PASSWORD=local-dev-only
 
 export NEXT_PUBLIC_API_URL=http://localhost:8080
 

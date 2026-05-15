@@ -184,7 +184,7 @@ mvn -version
 docker run -d --name postgres \
   -e POSTGRES_DB=chess_analysis \
   -e POSTGRES_USER=chess_user \
-  -e POSTGRES_PASSWORD=chess_password \
+  -e POSTGRES_PASSWORD=local-dev-only \
   -p 5432:5432 postgres:16-alpine
 
 # Redis 실행
@@ -238,7 +238,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/chess_analysis
     username: chess_user
-    password: chess_password
+    password: local-dev-only
     
   data:
     redis:
@@ -261,7 +261,7 @@ chess-analysis:
 ```bash
 # Database
 DB_USERNAME=chess_user
-DB_PASSWORD=chess_password
+DB_PASSWORD=local-dev-only
 
 # Redis
 REDIS_HOST=localhost

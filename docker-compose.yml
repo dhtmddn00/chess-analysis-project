@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: chess_analysis
       POSTGRES_USER: chess_user
-      POSTGRES_PASSWORD: chess_password
+      POSTGRES_PASSWORD: local-dev-only
     ports:
       - "5432:5432"
     volumes:
@@ -43,7 +43,7 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/chess_analysis
       - SPRING_DATASOURCE_USERNAME=chess_user
-      - SPRING_DATASOURCE_PASSWORD=chess_password
+      - SPRING_DATASOURCE_PASSWORD=local-dev-only
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - AWS_S3_BUCKET=chess-analysis-reports
@@ -74,7 +74,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=chess_analysis
       - DB_USER=chess_user
-      - DB_PASSWORD=chess_password
+      - DB_PASSWORD=local-dev-only
       - STOCKFISH_PATH=/usr/bin/stockfish
       - WORKER_ID=1
     depends_on:
@@ -97,7 +97,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=chess_analysis
       - DB_USER=chess_user
-      - DB_PASSWORD=chess_password
+      - DB_PASSWORD=local-dev-only
       - STOCKFISH_PATH=/usr/bin/stockfish
       - WORKER_ID=2
     depends_on:

@@ -1,0 +1,9 @@
+.env
+.env.*
+.env*.local
+.gradle
+build
+out
+logs
+*.log
+.DS_Store

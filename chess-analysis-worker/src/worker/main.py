@@ -59,7 +59,7 @@ class ChessAnalysisWorker:
                 port=int(os.getenv('DB_PORT', '5432')),
                 database=os.getenv('DB_NAME', 'chess_analysis'),
                 user=os.getenv('DB_USER', 'chess_user'),
-                password=os.getenv('DB_PASSWORD', 'chess_password'),
+                password=os.getenv('DB_PASSWORD', ''),
                 ssl=os.getenv('DB_SSL', 'false').lower() == 'true'
             )
             await self.db_client.connect()

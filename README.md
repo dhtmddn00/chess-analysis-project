@@ -176,7 +176,7 @@ PYTHONPATH=src python -m worker.main
 
 ```env
 DB_USERNAME=chess_user
-DB_PASSWORD=chess_password
+DB_PASSWORD=local-dev-only
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -193,7 +193,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=chess_analysis
 DB_USER=chess_user
-DB_PASSWORD=chess_password
+DB_PASSWORD=local-dev-only
 DB_SSL=false
 REDIS_HOST=localhost
 REDIS_PORT=6379

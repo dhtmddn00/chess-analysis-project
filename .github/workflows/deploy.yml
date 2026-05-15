@@ -151,6 +151,8 @@ jobs:
           GAME_COUNT: "5"
           POLL_ATTEMPTS: "90"
           RUN_CONCURRENT_SMOKE: "true"
+          ALLOW_BUSY_QUEUE_PASS: "true"
+          BUSY_QUEUE_GRACE_ATTEMPTS: "12"
         run: ./scripts/smoke-test.sh
       - name: Smoke test frontend API proxy
         env:

@@ -88,25 +88,25 @@ class ProgressiveAnalyzer:
                     'opening_skip_ply': 16
                 },
                 'deep': {
-                    'depth': 16,
-                    'movetime': 0.6,
+                    'depth': 14,
+                    'movetime': 0.45,
                     'multipv': 2,
-                    'position_limit': 8
+                    'position_limit': 6
                 }
             },
             'precise': {
                 'shallow': {
-                    'depth': 10,
-                    'movetime': 0.10,
+                    'depth': 9,
+                    'movetime': 0.08,
                     'multipv': 1,
-                    'deep_trigger_cp': 35,
-                    'opening_skip_ply': 10
+                    'deep_trigger_cp': 50,
+                    'opening_skip_ply': 14
                 },
                 'deep': {
-                    'depth': 18,
-                    'movetime': 1.2,
-                    'multipv': 3,
-                    'position_limit': 14
+                    'depth': 15,
+                    'movetime': 0.55,
+                    'multipv': 2,
+                    'position_limit': 8
                 }
             }
         }

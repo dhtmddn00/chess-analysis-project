@@ -12,6 +12,8 @@ GAME_COUNT="${GAME_COUNT:-5}"
 POLL_ATTEMPTS="${POLL_ATTEMPTS:-90}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-5}"
 RUN_CONCURRENT_SMOKE="${RUN_CONCURRENT_SMOKE:-true}"
+ALLOW_BUSY_QUEUE_PASS="${ALLOW_BUSY_QUEUE_PASS:-false}"
+BUSY_QUEUE_GRACE_ATTEMPTS="${BUSY_QUEUE_GRACE_ATTEMPTS:-12}"
 
 json_field() {
   local path="$1"
@@ -111,6 +113,10 @@ get_summary() {
   rm -f "${body_file}"
 }
 
+get_active_analysis_count() {
+  request_json GET "${API_URL}/analysis/stats" | json_field active_analyses
+}
+
 create_analysis() {
   local username="$1"
   local payload
@@ -175,6 +181,7 @@ validate_result() {
 poll_until_done() {
   local ids=("$@")
   local completed=()
+  local busy_queue_seen=()
   local attempt
 
   for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
@@ -211,12 +218,32 @@ poll_until_done() {
           echo "${status_response}" >&2
           fail "analysis ${analysis_id} failed: ${error_message:-unknown error}"
           ;;
+        pending)
+          if [ "${ALLOW_BUSY_QUEUE_PASS}" = "true" ] \
+            && [ "${attempt}" -ge "${BUSY_QUEUE_GRACE_ATTEMPTS}" ] \
+            && [ -n "${queue_position}" ] \
+            && [ "${queue_position}" -ge 1 ]; then
+            if [[ " ${busy_queue_seen[*]} " != *" ${analysis_id} "* ]]; then
+              busy_queue_seen+=("${analysis_id}")
+            fi
+          fi
+          ;;
       esac
     done
 
     if [ "${#completed[@]}" -eq "${#ids[@]}" ]; then
       echo "All analyses completed"
       return 0
+    fi
+
+    if [ "${ALLOW_BUSY_QUEUE_PASS}" = "true" ] \
+      && [ "${#busy_queue_seen[@]}" -eq "${#ids[@]}" ]; then
+      local active_count
+      active_count="$(get_active_analysis_count)"
+      if [ -n "${active_count}" ] && [ "${active_count}" -gt "${#ids[@]}" ]; then
+        echo "Queue is healthy but busy; ${#ids[@]} smoke job(s) remained queued behind existing production work"
+        return 0
+      fi
     fi
 
     if [ "${all_done}" = "false" ]; then

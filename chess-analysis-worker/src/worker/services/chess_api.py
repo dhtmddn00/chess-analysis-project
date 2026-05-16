@@ -67,13 +67,12 @@ class ChessComAPI:
         """HTTP 세션 생성"""
         if self.session is None or self.session.closed:
             import ssl
+            import os
             timeout = aiohttp.ClientTimeout(total=self.timeout)
-            # SSL 검증 비활성화 (개발환경)
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            
-            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            # 운영 환경에서 SSL 검증을 끄면 Chess.com 응답이 중간자 공격으로 변조될 수 있다.
+            # VERIFY_SSL=false 는 로컬 개발 디버깅 전용이며 운영에서는 절대 사용 금지.
+            verify_ssl = os.getenv('VERIFY_SSL', 'true').lower() != 'false'
+            connector = aiohttp.TCPConnector(ssl=verify_ssl)
             self.session = aiohttp.ClientSession(
                 headers=self.headers,
                 timeout=timeout,
@@ -119,12 +118,16 @@ class ChessComAPI:
         
         def sync_request():
             try:
+                import os
+                # 운영 환경에서 SSL 검증을 끄면 Chess.com 응답이 중간자 공격으로 변조될 수 있다.
+                # VERIFY_SSL=false 는 로컬 개발 디버깅 전용이며 운영에서는 절대 사용 금지.
+                verify_ssl = os.getenv('VERIFY_SSL', 'true').lower() != 'false'
                 logger.debug(f"API 요청: {url}")
                 response = requests.get(
-                    url, 
-                    headers=self.headers, 
+                    url,
+                    headers=self.headers,
                     timeout=self.timeout,
-                    verify=False  # SSL 검증 비활성화
+                    verify=verify_ssl
                 )
                 
                 if response.status_code == 404:

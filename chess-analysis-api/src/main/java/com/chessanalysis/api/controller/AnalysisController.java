@@ -46,15 +46,18 @@ public class AnalysisController {
                     ));
         } catch (Exception e) {
             log.error("Failed to create analysis: {}", e.getMessage(), e);
+            // 내부 예외 메시지를 클라이언트에 그대로 노출하면 DB 스키마·설정 정보가 유출될 수 있다.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of(
-                            "error", "분석 요청을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.",
-                            "details", e.getMessage() == null ? "" : e.getMessage()
+                            "error", "분석 요청을 생성하지 못했습니다. 잠시 후 다시 시도해주세요."
                     ));
         }
     }
 
     private String resolveClientIp(HttpServletRequest request) {
+        // X-Forwarded-For는 클라이언트가 임의로 위조할 수 있으므로 신뢰된 프록시(Fly.io 등)를
+        // 거친 경우에만 사용해야 한다. 현재는 헤더 존재 여부만 확인하며 검증 없이 사용 중이므로
+        // IP 기반 rate limit이 우회될 수 있다. 신뢰 프록시 IP 범위 검증을 권장한다.
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {
             return forwardedFor.split(",")[0].trim();

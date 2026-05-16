@@ -229,7 +229,8 @@ export const analysisApi = {
     current_page: number;
     page_size: number;
   }> {
-    const response = await api.get(`/analysis/player/${username}`, {
+    // Backend route is /analysis/user/{username}, not /analysis/player/{username}
+    const response = await api.get(`/analysis/user/${username}`, {
       params: { platform, page, size }
     });
     return response.data;

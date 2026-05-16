@@ -46,7 +46,9 @@ services:
       - SPRING_DATASOURCE_PASSWORD=local-dev-only
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - JAVA_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=*:5005
+      # address=*:5005 는 네트워크상 모든 인터페이스를 열어 외부에서 JVM에 임의 코드 실행이 가능하다.
+      # 로컬호스트만 허용하도록 127.0.0.1로 제한한다.
+      - JAVA_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005
     ports:
       - "8080:8080"
       - "5005:5005"  # Debug port

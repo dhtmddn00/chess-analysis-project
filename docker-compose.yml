@@ -46,8 +46,6 @@ services:
       - SPRING_DATASOURCE_PASSWORD=local-dev-only
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - AWS_S3_BUCKET=chess-analysis-reports
-      - AWS_REGION=us-east-1
     ports:
       - "8080:8080"
     depends_on:
@@ -82,8 +80,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      chess-api:
-        condition: service_healthy
     restart: unless-stopped
 
   chess-worker-2:
@@ -104,8 +100,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      chess-api:
         condition: service_healthy
     restart: unless-stopped
 

@@ -74,40 +74,35 @@ jobs:
     needs:
       - build-images
       - migrate-database
-    defaults:
-      run:
-        working-directory: chess-analysis-api
     steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # master 태그는 플로팅 참조라 임의 변경에 노출된다. 공급망 리스크를 줄이기 위해 고정 버전을 사용한다.
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
       - name: Deploy API
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: >
           flyctl deploy
           --app "${{ secrets.FLY_API_APP }}"
-          --remote-only
+          --image "${{ env.API_IMAGE }}:${{ github.sha }}"
           --yes
 
   deploy-worker:
     name: Deploy worker to Fly.io
     runs-on: ubuntu-latest
     needs:
-      - build-images
-      - migrate-database
-    defaults:
-      run:
-        working-directory: chess-analysis-worker
+      # API가 완전히 배포된 뒤 워커를 올려 스키마 불일치 윈도우를 제거한다.
+      - deploy-api
     steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
       - name: Deploy worker
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: >
           flyctl deploy
           --app "${{ secrets.FLY_WORKER_APP }}"
-          --remote-only
+          --image "${{ env.WORKER_IMAGE }}:${{ github.sha }}"
           --yes
 
   deploy-frontend:

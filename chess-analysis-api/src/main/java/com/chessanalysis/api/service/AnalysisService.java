@@ -38,10 +38,17 @@ public class AnalysisService {
     private static final Duration ANALYSIS_CREATE_LOCK_TTL = Duration.ofSeconds(30);
     private static final Duration PENDING_STALE_AFTER = Duration.ofMinutes(45);
     private static final Duration IN_PROGRESS_STALE_AFTER = Duration.ofMinutes(30);
+    private static final int FAST_MAX_GAMES = 20;
+    private static final int BALANCED_MAX_GAMES = 20;
+    private static final int PRECISE_MAX_GAMES = 10;
     
     public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp) {
         String normalizedUsername = request.getUsername() == null ? "" : request.getUsername().trim();
         String normalizedPlatform = request.getPlatform() == null ? "chess.com" : request.getPlatform().trim();
+        String normalizedPriority = normalizePriority(request.getPriority());
+        int normalizedGameCount = clampGameCount(request.getGameCount(), normalizedPriority);
+        request.setPriority(normalizedPriority);
+        request.setGameCount(normalizedGameCount);
         String lockKey = activeCreationLockKey(normalizedPlatform, normalizedUsername);
 
         rateLimitService.enforceLimits(request, clientIp);
@@ -66,10 +73,10 @@ public class AnalysisService {
         Analysis analysis = Analysis.builder()
                 .username(normalizedUsername)
                 .platform(normalizedPlatform)
-                .gameCount(request.getGameCount())
+                .gameCount(normalizedGameCount)
                 .status(Analysis.AnalysisStatus.PENDING)
                 .progress(0)
-                .currentStep("Queued for processing")
+                .currentStep("Queued for " + normalizedPriority + " analysis")
                 .build();
                 
         analysis = analysisRepository.saveAndFlush(analysis);
@@ -85,9 +92,9 @@ public class AnalysisService {
                 analysis.getId(),
                 normalizedUsername,
                 normalizedPlatform,
-                request.getGameCount(),
+                normalizedGameCount,
                 request.getTimeControl(),
-                request.getPriority()
+                normalizedPriority
         );
         
         try {
@@ -143,6 +150,27 @@ public class AnalysisService {
         String normalizedUsername = username == null ? "unknown" : username.toLowerCase(Locale.ROOT).trim();
         return "analysis:create-lock:" + normalizedPlatform.replaceAll("[^a-z0-9._:-]", "_")
                 + ":" + normalizedUsername.replaceAll("[^a-z0-9._:-]", "_");
+    }
+
+    private String normalizePriority(String priority) {
+        if (priority == null || priority.isBlank()) {
+            return "fast";
+        }
+        String normalized = priority.toLowerCase(Locale.ROOT).trim();
+        if (!Set.of("fast", "balanced", "precise").contains(normalized)) {
+            return "fast";
+        }
+        return normalized;
+    }
+
+    private int clampGameCount(Integer requestedGameCount, String priority) {
+        int requested = requestedGameCount == null ? 10 : requestedGameCount;
+        int maxForPriority = switch (priority) {
+            case "precise" -> PRECISE_MAX_GAMES;
+            case "balanced" -> BALANCED_MAX_GAMES;
+            default -> FAST_MAX_GAMES;
+        };
+        return Math.max(5, Math.min(requested, maxForPriority));
     }
     
     @Transactional(readOnly = true)

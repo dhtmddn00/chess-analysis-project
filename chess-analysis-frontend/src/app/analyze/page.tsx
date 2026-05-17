@@ -305,6 +305,7 @@ export default function UnifiedAnalyzePage() {
     jobId,
     status,
     isDone,
+    isFailed,
     tacticsReady,
     swingMomentsReady,
     endgameReady,
@@ -312,6 +313,33 @@ export default function UnifiedAnalyzePage() {
   } = useAnalysis();
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
+  const [resultError, setResultError] = useState<string | null>(null);
+
+  const modeMeta = {
+    fast: {
+      label: '빠르게',
+      maxGames: 20,
+      estimate: '보통 1-3분',
+      cost: '저비용',
+      description: '최근 경향과 반복 실수를 빠르게 확인합니다.',
+    },
+    balanced: {
+      label: '균형',
+      maxGames: 20,
+      estimate: '보통 3-6분',
+      cost: '중간',
+      description: '중요한 수를 더 꼼꼼히 보며 실전 복기에 적합합니다.',
+    },
+    precise: {
+      label: '정밀하게',
+      maxGames: 10,
+      estimate: '보통 5-10분',
+      cost: '고비용',
+      description: '표본은 줄이고 핵심 국면을 더 깊게 봅니다.',
+    },
+  } as const;
+
+  const selectedMode = modeMeta[searchForm.priority];
 
   const trackEvent = (eventName: string, payload: Record<string, string | number | boolean>) => {
     if (!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID) return;
@@ -349,6 +377,7 @@ export default function UnifiedAnalyzePage() {
     setHasSearched(true);
     setAnalysisStarted(false);
     setAnalysisError(null);
+    setResultError(null);
     setDetailedResult(null);
     trackEvent('player_search', {
       platform: searchForm.platform,
@@ -363,6 +392,7 @@ export default function UnifiedAnalyzePage() {
     
     try {
       setAnalysisError(null);
+      setResultError(null);
       await createJob({
         platform: searchForm.platform,
         username: searchForm.username,
@@ -388,19 +418,31 @@ export default function UnifiedAnalyzePage() {
     const fetchDetailedResult = async () => {
       if (isDone && jobId) {
         try {
+          setResultError(null);
           const response = await fetch(`/api/v1/analysis/${jobId}/result`);
           if (response.ok) {
             const data = await response.json();
             setDetailedResult(data);
+          } else {
+            const body = await response.text();
+            setResultError(body || `결과를 가져오지 못했습니다. HTTP ${response.status}`);
           }
         } catch (error) {
           console.error('Failed to fetch detailed results:', error);
+          setResultError(error instanceof Error ? error.message : '결과를 가져오지 못했습니다.');
         }
       }
     };
 
     fetchDetailedResult();
   }, [isDone, jobId]);
+
+  useEffect(() => {
+    const maxGames = modeMeta[searchForm.priority].maxGames;
+    if (searchForm.n > maxGames) {
+      setSearchForm((previous) => ({ ...previous, n: maxGames }));
+    }
+  }, [searchForm.priority, searchForm.n]);
 
   const getResultColor = (result: string) => {
     if (result === 'W') return 'text-white bg-black';
@@ -507,7 +549,7 @@ export default function UnifiedAnalyzePage() {
                 >
                   <option value={5}>5게임</option>
                   <option value={10}>10게임</option>
-                  <option value={20}>20게임</option>
+                  <option value={20} disabled={selectedMode.maxGames < 20}>20게임</option>
                 </select>
               </div>
               
@@ -555,6 +597,41 @@ export default function UnifiedAnalyzePage() {
                   )}
                 </button>
               </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {(Object.keys(modeMeta) as Array<keyof typeof modeMeta>).map((mode) => {
+                const meta = modeMeta[mode];
+                const active = searchForm.priority === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSearchForm((previous) => ({
+                      ...previous,
+                      priority: mode,
+                      n: Math.min(previous.n, meta.maxGames),
+                    }))}
+                    className={`rounded-lg border px-4 py-3 text-left transition ${
+                      active
+                        ? 'border-zinc-950 bg-zinc-950 text-white'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-zinc-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-black">{meta.label}</div>
+                      <div className={`rounded-full px-2 py-0.5 text-xs font-bold ${active ? 'bg-white text-zinc-950' : 'bg-white text-zinc-600'}`}>
+                        {meta.cost}
+                      </div>
+                    </div>
+                    <div className={`mt-1 text-xs font-semibold ${active ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                      최대 {meta.maxGames}게임 · {meta.estimate}
+                    </div>
+                    <div className={`mt-2 text-xs leading-5 ${active ? 'text-zinc-200' : 'text-zinc-600'}`}>
+                      {meta.description}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </form>
         </div>
@@ -753,8 +830,46 @@ export default function UnifiedAnalyzePage() {
         {/* Analysis Progress and Results */}
         {analysisStarted && status && (
           <div className="space-y-8">
+            {isFailed && (
+              <div className="rounded-xl border border-zinc-300 bg-white p-6 shadow-lg chess-panel">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-zinc-950">분석이 중단되었습니다</h3>
+                    <p className="text-sm text-zinc-500">대기열, 외부 Chess.com 응답, 엔진 작업 중 하나에서 실패했을 수 있습니다.</p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700">
+                  {status.errorMessage || status.currentStep || '잠시 후 빠르게 모드로 다시 시도해주세요.'}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchForm((previous) => ({ ...previous, priority: 'fast', n: Math.min(previous.n, 10) }));
+                      setAnalysisStarted(false);
+                      setAnalysisError(null);
+                      setResultError(null);
+                    }}
+                    className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800"
+                  >
+                    빠르게 모드로 다시 준비
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    상태 새로고침
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Progress Indicator */}
-            {!isDone && (
+            {!isDone && !isFailed && (
               <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
                 <h3 className="text-xl font-bold text-gray-900 mb-4">분석 진행 중...</h3>
                 <div className="flex justify-between items-center mb-2">
@@ -771,6 +886,11 @@ export default function UnifiedAnalyzePage() {
                 {status.currentStep && (
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
                     <span className="font-medium">현재 단계:</span> {status.currentStep}
+                  </div>
+                )}
+                {typeof status.queuePosition === 'number' && typeof status.queueSize === 'number' && (
+                  <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                    대기열 {status.queuePosition}번째 · 총 {status.queueSize}개 대기 중입니다. 오래 걸리면 빠르게 모드와 5-10게임이 가장 안정적입니다.
                   </div>
                 )}
 
@@ -811,6 +931,45 @@ export default function UnifiedAnalyzePage() {
                     <div>
                       <h3 className="text-2xl font-bold">종합 분석 결과</h3>
                       <p className="text-blue-100">플레이어: {detailedResult.username} • 분석 게임: {detailedResult.totalGames}개</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-lg chess-panel">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+                      <Target className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-zinc-950">오늘 바로 볼 복기 순서</h4>
+                      <p className="text-sm text-zinc-500">사용자가 실제로 고칠 가능성이 높은 순서로 압축했습니다</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="text-xs font-black text-zinc-500">1순위</div>
+                      <div className="mt-1 text-base font-black text-zinc-950">결정적 순간 {detailedResult.decisiveMoments?.length || 0}개</div>
+                      <p className="mt-2 text-sm leading-6 text-zinc-600">
+                        승패가 크게 흔들린 수부터 보면 복기 시간이 가장 효율적입니다.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="text-xs font-black text-zinc-500">2순위</div>
+                      <div className="mt-1 text-base font-black text-zinc-950">
+                        {detailedResult.advancedInsights?.openingHoles?.[0]?.name || '반복 오프닝 확인'}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-zinc-600">
+                        자주 두면서 점수율이나 CPL이 나쁜 레퍼토리를 먼저 손보세요.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="text-xs font-black text-zinc-500">3순위</div>
+                      <div className="mt-1 text-base font-black text-zinc-950">
+                        {detailedResult.trainingRecommendations?.[0]?.title || '맞춤 훈련'}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-zinc-600">
+                        한 번에 많이 고치기보다 이번 주 하나만 반복하는 쪽이 점수에 잘 남습니다.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1415,6 +1574,23 @@ export default function UnifiedAnalyzePage() {
                     분석 ID: {detailedResult.analysisId}
                   </div>
                 </div>
+              </div>
+            )}
+            {isDone && !detailedResult && resultError && (
+              <div className="rounded-xl border border-zinc-300 bg-white p-6 shadow-lg chess-panel">
+                <h3 className="text-xl font-bold text-zinc-950">분석은 완료됐지만 결과를 불러오지 못했습니다</h3>
+                <p className="mt-2 text-sm text-zinc-600">{resultError}</p>
+                <button
+                  type="button"
+                  onClick={() => jobId && fetch(`/api/v1/analysis/${jobId}/result`).then(async (response) => {
+                    if (!response.ok) throw new Error(await response.text());
+                    setDetailedResult(await response.json());
+                    setResultError(null);
+                  }).catch((error) => setResultError(error instanceof Error ? error.message : '결과를 다시 가져오지 못했습니다.'))}
+                  className="mt-4 rounded-lg bg-zinc-950 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800"
+                >
+                  결과 다시 불러오기
+                </button>
               </div>
             )}
           </div>

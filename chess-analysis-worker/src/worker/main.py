@@ -13,7 +13,7 @@ from dataclasses import asdict
 import redis
 import psycopg2
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .services.engine import StockfishEngine
 from .services.chess_api import ChessComAPI
@@ -22,6 +22,14 @@ from .services.progressive_analyzer import ProgressiveAnalyzer
 from .utils.pgn_parser import parse_chess_com_games
 from .utils.elite_config import get_elite_config
 from .models.database import DatabaseClient
+
+
+class FatalAnalysisError(Exception):
+    """Raised for errors that should not be retried (bad input, unsupported platform, etc.)."""
+
+
+class TransientAnalysisError(Exception):
+    """Raised for errors that are safe to retry (network timeouts, transient DB errors)."""
 
 
 class ChessAnalysisWorker:
@@ -78,7 +86,11 @@ class ChessAnalysisWorker:
             logger.error(f"Failed to initialize worker: {e}")
             raise
             
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(TransientAnalysisError),
+    )
     async def process_analysis_job(self, job_data: Dict[str, Any]) -> None:
         """Process a single analysis job"""
         analysis_id = job_data.get('analysisId')
@@ -90,7 +102,7 @@ class ChessAnalysisWorker:
         
         try:
             if platform not in ('chess.com', 'chesscom'):
-                raise Exception("Only chess.com analysis is currently supported")
+                raise FatalAnalysisError(f"Unsupported platform: {platform}. Only chess.com is supported.")
 
             # Update status: Starting
             await self.update_analysis_status(
@@ -102,7 +114,7 @@ class ChessAnalysisWorker:
             games, player_info = await self.chess_api.get_recent_games(username, game_count)
             
             if not games:
-                raise Exception("No games found for user")
+                raise FatalAnalysisError(f"No games found for user: {username}")
                 
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 20, f'Collected {len(games)} games'
@@ -115,7 +127,7 @@ class ChessAnalysisWorker:
             valid_games = [g for g in parsed_games if g is not None]
             
             if not valid_games:
-                raise Exception("No valid games to analyze")
+                raise FatalAnalysisError("No valid games to analyze after parsing")
                 
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 30, f'Parsed {len(valid_games)} games'
@@ -153,7 +165,7 @@ class ChessAnalysisWorker:
             )
             
             if not results:
-                raise Exception("Progressive analysis failed")
+                raise TransientAnalysisError("Progressive analysis returned no results — may retry")
                 
             # Extract game analyses from results
             game_analyses = results.get('game_analyses', [])
@@ -203,16 +215,27 @@ class ChessAnalysisWorker:
             
             logger.info(f"Successfully completed analysis {analysis_id}")
             
-        except Exception as e:
-            logger.error(f"Analysis {analysis_id} failed: {e}", exc_info=True)
+        except FatalAnalysisError as e:
+            logger.error(f"Analysis {analysis_id} failed (fatal, no retry): {e}")
             await self.update_analysis_status(
                 analysis_id,
                 'FAILED',
                 None,
-                f'Analysis failed: {str(e)}',
+                f'분석 실패 (재시도 불가): {str(e)}',
                 error_message=str(e)
             )
-            raise
+            # Do not re-raise — fatal errors should not trigger tenacity retry
+        except Exception as e:
+            logger.error(f"Analysis {analysis_id} failed (may retry): {e}", exc_info=True)
+            await self.update_analysis_status(
+                analysis_id,
+                'FAILED',
+                None,
+                f'분석 실패: {str(e)}',
+                error_message=str(e)
+            )
+            # Wrap unknown errors as transient so @retry can attempt again
+            raise TransientAnalysisError(str(e)) from e
             
     async def update_analysis_status(self, analysis_id: str, status: str, 
                                    progress: int = None, current_step: str = None,

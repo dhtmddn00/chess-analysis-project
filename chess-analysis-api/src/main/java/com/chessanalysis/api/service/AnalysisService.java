@@ -43,6 +43,8 @@ public class AnalysisService {
         String normalizedPlatform = request.getPlatform() == null ? "chess.com" : request.getPlatform().trim();
         String lockKey = activeCreationLockKey(normalizedPlatform, normalizedUsername);
 
+        rateLimitService.enforceLimits(request, clientIp);
+
         Boolean lockAcquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", ANALYSIS_CREATE_LOCK_TTL);
         if (!Boolean.TRUE.equals(lockAcquired)) {
             Optional<Analysis> activeWhileLocked = findReusableActiveAnalysis(normalizedUsername, normalizedPlatform);
@@ -58,8 +60,6 @@ public class AnalysisService {
             log.info("Returning existing active analysis {} for user: {}", existing.getId(), normalizedUsername);
             return AnalysisResponseDto.fromEntity(existing);
         }
-
-        rateLimitService.enforceLimits(request, clientIp);
         
         // Create new analysis
         Analysis analysis = Analysis.builder()

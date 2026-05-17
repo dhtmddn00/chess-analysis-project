@@ -61,7 +61,7 @@ export default function AdvancedAnalysisResultPage() {
     }
   }, [analysisId]);
 
-  const getStyleDimensions = (styleProfile: any): StyleDimension[] => {
+  const getStyleDimensions = (styleProfile: NonNullable<AnalysisResult['styleProfile']>): StyleDimension[] => {
     return [
       { name: '전술적 감각', score: styleProfile.tacticalRating || 0, description: '전술 패턴 인식과 계산 능력', icon: Zap },
       { name: '포지셔널 이해', score: styleProfile.positionalRating || 0, description: '포지션 평가와 장기 계획', icon: Brain },
@@ -348,7 +348,7 @@ export default function AdvancedAnalysisResultPage() {
             </div>
 
             {/* Detailed Explanations */}
-            {(result as any).explanations && (
+            {result.explanations && (
               <div className="bg-white rounded-lg shadow">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-medium text-gray-900">분석 결과 해석</h3>
@@ -357,17 +357,17 @@ export default function AdvancedAnalysisResultPage() {
                 <div className="p-6 space-y-6">
                   <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
                     <h4 className="text-lg font-semibold text-blue-900 mb-2">🎯 정확도 분석</h4>
-                    <p className="text-blue-800 leading-relaxed">{(result as any).explanations.accuracyExplanation}</p>
+                    <p className="text-blue-800 leading-relaxed">{result.explanations.accuracyExplanation}</p>
                   </div>
                   
                   <div className="bg-green-50 border-l-4 border-green-400 p-4">
                     <h4 className="text-lg font-semibold text-green-900 mb-2">📊 센티폰 손실 분석</h4>
-                    <p className="text-green-800 leading-relaxed">{(result as any).explanations.acplExplanation}</p>
+                    <p className="text-green-800 leading-relaxed">{result.explanations.acplExplanation}</p>
                   </div>
                   
                   <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                     <h4 className="text-lg font-semibold text-orange-900 mb-2">⚠️ 실수 패턴 분석</h4>
-                    <p className="text-orange-800 leading-relaxed">{(result as any).explanations.errorAnalysis}</p>
+                    <p className="text-orange-800 leading-relaxed">{result.explanations.errorAnalysis}</p>
                   </div>
                 </div>
               </div>
@@ -382,10 +382,10 @@ export default function AdvancedAnalysisResultPage() {
                 </div>
                 <div className="p-6">
                   {/* Overall Style Analysis */}
-                  {(result.styleProfile as any).dimensionExplanations?.overallStyleAnalysis && (
+                  {result.styleProfile.dimensionExplanations?.overallStyleAnalysis && (
                     <div className="bg-purple-50 border-l-4 border-purple-400 p-4 mb-6">
                       <h4 className="text-lg font-semibold text-purple-900 mb-2">🎨 당신의 체스 스타일</h4>
-                      <p className="text-purple-800 leading-relaxed">{(result.styleProfile as any).dimensionExplanations.overallStyleAnalysis}</p>
+                      <p className="text-purple-800 leading-relaxed">{result.styleProfile.dimensionExplanations.overallStyleAnalysis}</p>
                     </div>
                   )}
                   
@@ -600,36 +600,36 @@ export default function AdvancedAnalysisResultPage() {
               <div className="p-6">
                 <div className="space-y-6">
                   {/* Dimension-specific explanations */}
-                  {(result.styleProfile as any).dimensionExplanations && (
+                  {result.styleProfile.dimensionExplanations && (
                     <div className="space-y-4">
                       <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4">
                         <h4 className="text-lg font-semibold text-indigo-900 mb-2">⚡ 전술적 감각</h4>
-                        <p className="text-indigo-800">{(result.styleProfile as any).dimensionExplanations.tacticalExplanation}</p>
+                        <p className="text-indigo-800">{result.styleProfile.dimensionExplanations.tacticalExplanation}</p>
                       </div>
                       
                       <div className="bg-teal-50 border-l-4 border-teal-400 p-4">
                         <h4 className="text-lg font-semibold text-teal-900 mb-2">🧠 포지셔널 이해</h4>
-                        <p className="text-teal-800">{(result.styleProfile as any).dimensionExplanations.positionalExplanation}</p>
+                        <p className="text-teal-800">{result.styleProfile.dimensionExplanations.positionalExplanation}</p>
                       </div>
                       
                       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
                         <h4 className="text-lg font-semibold text-yellow-900 mb-2">👑 엔드게임 기술</h4>
-                        <p className="text-yellow-800">{(result.styleProfile as any).dimensionExplanations.endgameExplanation}</p>
+                        <p className="text-yellow-800">{result.styleProfile.dimensionExplanations.endgameExplanation}</p>
                       </div>
                       
                       <div className="bg-red-50 border-l-4 border-red-400 p-4">
                         <h4 className="text-lg font-semibold text-red-900 mb-2">⏰ 시간 관리</h4>
-                        <p className="text-red-800">{(result.styleProfile as any).dimensionExplanations.timeManagementExplanation}</p>
+                        <p className="text-red-800">{result.styleProfile.dimensionExplanations.timeManagementExplanation}</p>
                       </div>
                       
                       <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                         <h4 className="text-lg font-semibold text-orange-900 mb-2">🎯 공격성</h4>
-                        <p className="text-orange-800">{(result.styleProfile as any).dimensionExplanations.aggressionExplanation}</p>
+                        <p className="text-orange-800">{result.styleProfile.dimensionExplanations.aggressionExplanation}</p>
                       </div>
                       
                       <div className="bg-green-50 border-l-4 border-green-400 p-4">
                         <h4 className="text-lg font-semibold text-green-900 mb-2">📈 일관성</h4>
-                        <p className="text-green-800">{(result.styleProfile as any).dimensionExplanations.consistencyExplanation}</p>
+                        <p className="text-green-800">{result.styleProfile.dimensionExplanations.consistencyExplanation}</p>
                       </div>
                     </div>
                   )}
@@ -841,7 +841,7 @@ export default function AdvancedAnalysisResultPage() {
             )}
 
             {/* Tactical Analysis */}
-            {(result as any).tacticalAnalysis && (
+            {result.tacticalAnalysis && (
               <div className="bg-white rounded-lg shadow">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-medium text-gray-900">전술 기회 분석</h3>
@@ -849,7 +849,7 @@ export default function AdvancedAnalysisResultPage() {
                 <div className="p-6">
                   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
                     <h4 className="text-lg font-semibold text-yellow-900 mb-2">⚡ 전술적 기회 평가</h4>
-                    <p className="text-yellow-800 leading-relaxed">{(result as any).tacticalAnalysis}</p>
+                    <p className="text-yellow-800 leading-relaxed">{result.tacticalAnalysis}</p>
                   </div>
                 </div>
               </div>
@@ -890,9 +890,9 @@ export default function AdvancedAnalysisResultPage() {
                       </div>
                     </div>
                     {/* Pattern Description */}
-                    {(pattern as any).description && (
+                    {pattern.description && (
                       <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700 leading-relaxed">{(pattern as any).description}</p>
+                        <p className="text-sm text-gray-700 leading-relaxed">{pattern.description}</p>
                       </div>
                     )}
                   </div>

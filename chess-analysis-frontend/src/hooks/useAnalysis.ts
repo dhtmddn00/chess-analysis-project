@@ -14,6 +14,9 @@ export interface AnalysisJobStatus {
   progress: number; // 0 to 100
   currentStep: string;
   errorMessage: string;
+  error?: string;
+  analysisVersion?: string;
+  etaRemainingSec?: number;
   queuePosition?: number | null;
   queueSize?: number | null;
   partials?: {

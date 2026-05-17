@@ -33,29 +33,29 @@ export function JobProgress({ status, className = '' }: JobProgressProps) {
       id: 'tactics',
       title: '전술 분석',
       icon: Zap,
-      ready: (status as any).partials?.tactics?.ready || false,
-      data: (status as any).partials?.tactics,
+      ready: status.partials?.tactics?.ready || false,
+      data: status.partials?.tactics,
     },
     {
       id: 'swing_moments', 
       title: '승부 전환점',
       icon: Target,
-      ready: (status as any).partials?.swing_moments?.ready || false,
-      data: (status as any).partials?.swing_moments,
+      ready: status.partials?.swing_moments?.ready || false,
+      data: status.partials?.swing_moments,
     },
     {
       id: 'endgame',
       title: '엔드게임 기술',
       icon: Brain,
-      ready: (status as any).partials?.endgame?.ready || false,
-      data: (status as any).partials?.endgame,
+      ready: status.partials?.endgame?.ready || false,
+      data: status.partials?.endgame,
     },
     {
       id: 'time_mgmt',
       title: '시간 관리',
       icon: Timer,
-      ready: (status as any).partials?.time_mgmt?.ready || false,
-      data: (status as any).partials?.time_mgmt,
+      ready: status.partials?.time_mgmt?.ready || false,
+      data: status.partials?.time_mgmt,
     },
   ];
 
@@ -67,17 +67,17 @@ export function JobProgress({ status, className = '' }: JobProgressProps) {
           <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor()}`}>
             {getStatusText()}
           </div>
-          {(status as any).analysisVersion && (
+          {status.analysisVersion && (
             <div className="text-xs text-gray-500">
-              v{(status as any).analysisVersion}
+              v{status.analysisVersion}
             </div>
           )}
         </div>
         
-        {(status as any).etaRemainingSec && status.status === 'in_progress' && (
+        {status.etaRemainingSec && status.status === 'in_progress' && (
           <div className="flex items-center space-x-1 text-sm text-gray-600">
             <Clock className="w-4 h-4" />
-            <span>약 {Math.ceil((status as any).etaRemainingSec / 60)}분 남음</span>
+            <span>약 {Math.ceil(status.etaRemainingSec / 60)}분 남음</span>
           </div>
         )}
       </div>
@@ -87,25 +87,25 @@ export function JobProgress({ status, className = '' }: JobProgressProps) {
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-700">전체 진행률</span>
-            <span className="text-sm text-gray-600">{Math.round(((status as any).progress || 0) * 100)}%</span>
+            <span className="text-sm text-gray-600">{Math.round((status.progress || 0) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
               className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${((status as any).progress || 0) * 100}%` }}
+              style={{ width: `${(status.progress || 0) * 100}%` }}
             />
           </div>
         </div>
       )}
 
       {/* Error display */}
-      {(status as any).error && (
+      {status.error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center space-x-2">
             <AlertTriangle className="w-5 h-5 text-red-500" />
             <span className="font-medium text-red-800">오류 발생</span>
           </div>
-          <p className="text-sm text-red-700 mt-1">{(status as any).error}</p>
+          <p className="text-sm text-red-700 mt-1">{status.error}</p>
         </div>
       )}
 

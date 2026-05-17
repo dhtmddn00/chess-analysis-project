@@ -67,6 +67,11 @@ export interface Analysis {
   analysisDurationSeconds?: number;
 }
 
+export interface AnalysisPartial {
+  ready: boolean;
+  data?: unknown;
+}
+
 export interface AnalysisStatus {
   id: string;
   status: string;
@@ -75,10 +80,20 @@ export interface AnalysisStatus {
   current_step?: string;
   errorMessage?: string;
   error_message?: string;
+  error?: string;
   created_at?: string;
   started_at?: string;
   completed_at?: string;
-  queue_info?: Record<string, any>;
+  analysisVersion?: string;
+  etaRemainingSec?: number;
+  queue_info?: Record<string, unknown>;
+  partials?: {
+    tactics?: AnalysisPartial & Record<string, unknown>;
+    swing_moments?: AnalysisPartial & Record<string, unknown>;
+    endgame?: AnalysisPartial & Record<string, unknown>;
+    time_mgmt?: AnalysisPartial & Record<string, unknown>;
+    [key: string]: (AnalysisPartial & Record<string, unknown>) | undefined;
+  };
 }
 
 export interface AnalysisStats {

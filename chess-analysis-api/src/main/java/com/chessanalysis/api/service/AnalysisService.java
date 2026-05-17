@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLDecoder;
@@ -288,7 +289,8 @@ public class AnalysisService {
     public Map<String, Object> getAnalysisResult(UUID analysisId) {
         Map<String, Object> result = new HashMap<>();
         
-        try (var connection = dataSource.getConnection()) {
+        var connection = DataSourceUtils.getConnection(dataSource);
+        try {
             // Get analysis summary
             var analysisStmt = connection.prepareStatement(
                 "SELECT username, platform, game_count, status FROM analyses WHERE id = ?");
@@ -634,8 +636,10 @@ public class AnalysisService {
         } catch (Exception e) {
             log.error("Failed to get analysis result for {}: {}", analysisId, e.getMessage());
             throw new RuntimeException("Failed to get analysis result", e);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
         }
-        
+
         return result;
     }
     
@@ -643,7 +647,8 @@ public class AnalysisService {
     public List<Map<String, Object>> getAnalysisGames(UUID analysisId) {
         List<Map<String, Object>> games = new ArrayList<>();
         
-        try (var connection = dataSource.getConnection()) {
+        var connection = DataSourceUtils.getConnection(dataSource);
+        try {
             // Get games with their analysis
             var stmt = connection.prepareStatement(
                 "SELECT g.game_index, g.white_player, g.black_player, g.result, " +
@@ -670,8 +675,10 @@ public class AnalysisService {
         } catch (Exception e) {
             log.error("Failed to get games for analysis {}: {}", analysisId, e.getMessage());
             throw new RuntimeException("Failed to get games", e);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
         }
-        
+
         return games;
     }
 

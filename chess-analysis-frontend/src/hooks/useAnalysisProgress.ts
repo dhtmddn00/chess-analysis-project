@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { analysisApi, AnalysisStatus } from '@/lib/api';
+import { analysisApi } from '@/lib/api';
 
 export interface ProgressState {
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | null;
@@ -11,23 +11,40 @@ export interface ProgressState {
   isPolling: boolean;
 }
 
+const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+
+function normalizeStatus(status: string): ProgressState['status'] {
+  const normalized = status.toUpperCase();
+  if (
+    normalized === 'PENDING' || normalized === 'IN_PROGRESS' ||
+    normalized === 'COMPLETED' || normalized === 'FAILED' || normalized === 'CANCELLED'
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
 export function useAnalysisProgress(analysisId: string | null) {
   const [progressState, setProgressState] = useState<ProgressState>({
     status: null,
     progress: 0,
     currentStep: '',
-    isPolling: false
+    isPolling: false,
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Track polling state in a ref so fetchProgress never captures a stale value
+  // and doesn't need to be listed as a dependency.
+  const isPollingRef = useRef(false);
 
-  const normalizeStatus = (status: string): ProgressState['status'] => {
-    const normalized = status.toUpperCase();
-    if (normalized === 'PENDING' || normalized === 'IN_PROGRESS' || normalized === 'COMPLETED' || normalized === 'FAILED' || normalized === 'CANCELLED') {
-      return normalized;
+  const clearPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-    return null;
-  };
+    isPollingRef.current = false;
+    setProgressState(prev => ({ ...prev, isPolling: false }));
+  }, []);
 
   const fetchProgress = useCallback(async () => {
     if (!analysisId) return;
@@ -35,89 +52,48 @@ export function useAnalysisProgress(analysisId: string | null) {
     try {
       const statusData = await analysisApi.getAnalysisStatus(analysisId);
       const normalizedStatus = normalizeStatus(statusData.status);
-      
-      const newState: ProgressState = {
+
+      setProgressState({
         status: normalizedStatus,
         progress: statusData.progress || 0,
         currentStep: statusData.currentStep || statusData.current_step || '',
         error: statusData.errorMessage || statusData.error_message,
-        isPolling: progressState.isPolling
-      };
+        isPolling: isPollingRef.current,
+      });
 
-      setProgressState(newState);
-
-      // Stop polling if analysis is completed or failed
-      if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'FAILED') {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        setProgressState(prev => ({ ...prev, isPolling: false }));
+      if (normalizedStatus && TERMINAL_STATUSES.has(normalizedStatus)) {
+        clearPolling();
       }
-
     } catch (error) {
       console.error('Failed to fetch analysis progress:', error);
-      setProgressState(prev => ({
-        ...prev,
-        error: 'Failed to fetch progress',
-        isPolling: false
-      }));
-      
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      setProgressState(prev => ({ ...prev, error: 'Failed to fetch progress' }));
+      clearPolling();
     }
-  }, [analysisId, progressState.isPolling]);
+  }, [analysisId, clearPolling]);
 
   const startPolling = useCallback(() => {
     if (!analysisId || intervalRef.current) return;
 
+    isPollingRef.current = true;
     setProgressState(prev => ({ ...prev, isPolling: true }));
-    
-    // Initial fetch
+
     fetchProgress();
-    
-    // Set up polling every 2 seconds
     intervalRef.current = setInterval(fetchProgress, 2000);
   }, [analysisId, fetchProgress]);
 
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setProgressState(prev => ({ ...prev, isPolling: false }));
-  }, []);
+  const stopPolling = clearPolling;
 
-  // Auto-start polling when analysisId is provided
   useEffect(() => {
     if (analysisId && !intervalRef.current) {
       startPolling();
     }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [analysisId, startPolling]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, []);
+    return clearPolling;
+  }, [analysisId, startPolling, clearPolling]);
 
   return {
     ...progressState,
     startPolling,
     stopPolling,
-    refetch: fetchProgress
+    refetch: fetchProgress,
   };
 }

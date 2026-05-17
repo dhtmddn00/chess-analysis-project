@@ -77,8 +77,6 @@ public class PlayerSummaryService {
 
         if ("chesscom".equals(normalizedPlatform)) {
             return fetchChessComSummary(username);
-        } else if ("lichess".equals(normalizedPlatform)) {
-            return fetchLichessSummary(username);
         } else {
             throw new IllegalArgumentException("Unsupported platform: " + platform);
         }
@@ -122,36 +120,6 @@ public class PlayerSummaryService {
         return response;
     }
     
-    private PlayerSummaryResponse fetchLichessSummary(String username) {
-        // Similar implementation for Lichess
-        PlayerSummaryResponse response = new PlayerSummaryResponse();
-        
-        try {
-            // Lichess has different API endpoints
-            CompletableFuture<JsonNode> profileFuture = CompletableFuture.supplyAsync(() ->
-                fetchWithTimeout("https://lichess.org/api/user/" + username, 3000));
-            
-            CompletableFuture<List<PlayerSummaryResponse.RecentGame>> gamesFuture = 
-                CompletableFuture.supplyAsync(() -> fetchRecentLichessGames(username, 10));
-            
-            CompletableFuture.allOf(profileFuture, gamesFuture).get(8, TimeUnit.SECONDS);
-            
-            JsonNode profile = profileFuture.get();
-            List<PlayerSummaryResponse.RecentGame> recentGames = gamesFuture.get();
-            
-            response.player = buildLichessPlayerInfo(profile);
-            response.recent10 = recentGames;
-            response.openings = extractOpeningsFromGames(recentGames);
-            response.cohortHint = buildCohortHint(response.player.ratings);
-            
-        } catch (Exception e) {
-            logger.error("Failed to fetch Lichess summary for {}: {}", username, e.getMessage());
-            throw new RuntimeException("Failed to fetch player summary", e);
-        }
-        
-        return response;
-    }
-    
     private JsonNode fetchWithTimeout(String url, int timeoutMs) {
         try {
             RestTemplate customRestTemplate = createRestTemplate(timeoutMs);
@@ -170,7 +138,14 @@ public class PlayerSummaryService {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(timeoutMs);
         requestFactory.setReadTimeout(timeoutMs);
-        return new RestTemplate(requestFactory);
+        RestTemplate restTemplate = new RestTemplate(requestFactory);
+        // Chess.com API 이용 가이드라인에 따라 User-Agent를 명시해야 한다.
+        // 헤더가 없으면 Chess.com 측에서 요청을 차단하거나 스로틀링할 수 있다.
+        restTemplate.setInterceptors(List.of((request, body, execution) -> {
+            request.getHeaders().set("User-Agent", "chess-analysis-project/1.0 (https://github.com/VectorSophie/chess-analysis-project)");
+            return execution.execute(request, body);
+        }));
+        return restTemplate;
     }
     
     private List<PlayerSummaryResponse.RecentGame> fetchRecentChessComGames(String username, int count) {
@@ -215,33 +190,6 @@ public class PlayerSummaryService {
             
         } catch (Exception e) {
             logger.warn("Failed to fetch recent Chess.com games for {}: {}", username, e.getMessage());
-        }
-        
-        return games;
-    }
-    
-    private List<PlayerSummaryResponse.RecentGame> fetchRecentLichessGames(String username, int count) {
-        List<PlayerSummaryResponse.RecentGame> games = new ArrayList<>();
-        
-        try {
-            String url = String.format("https://lichess.org/api/games/user/%s?max=%d&format=json", username, count);
-            String response = restTemplate.getForObject(url, String.class);
-            
-            if (response != null) {
-                String[] lines = response.split("\n");
-                for (String line : lines) {
-                    if (!line.trim().isEmpty()) {
-                        JsonNode game = objectMapper.readTree(line);
-                        PlayerSummaryResponse.RecentGame recentGame = parseLichessGame(game, username);
-                        if (recentGame != null) {
-                            games.add(recentGame);
-                        }
-                    }
-                }
-            }
-            
-        } catch (Exception e) {
-            logger.warn("Failed to fetch recent Lichess games for {}: {}", username, e.getMessage());
         }
         
         return games;
@@ -292,39 +240,6 @@ public class PlayerSummaryService {
         return player;
     }
     
-    private PlayerSummaryResponse.Player buildLichessPlayerInfo(JsonNode profile) {
-        PlayerSummaryResponse.Player player = new PlayerSummaryResponse.Player();
-        
-        player.username = profile.path("username").asText();
-        player.country = profile.path("profile").path("country").asText();
-        player.avatar = ""; // Lichess doesn't provide avatars in same way
-        
-        player.ratings = new HashMap<>();
-        JsonNode perfs = profile.path("perfs");
-        
-        if (perfs.has("blitz")) {
-            player.ratings.put("blitz", perfs.path("blitz").path("rating").asInt());
-        }
-        if (perfs.has("rapid")) {
-            player.ratings.put("rapid", perfs.path("rapid").path("rating").asInt());
-        }
-        if (perfs.has("bullet")) {
-            player.ratings.put("bullet", perfs.path("bullet").path("rating").asInt());
-        }
-        
-        // Lichess aggregate stats
-        player.recordAll = new PlayerSummaryResponse.RecordAll();
-        JsonNode count = profile.path("count");
-        player.recordAll.games = count.path("all").asInt();
-        player.recordAll.win = count.path("win").asInt();
-        player.recordAll.draw = count.path("draw").asInt();
-        player.recordAll.loss = count.path("loss").asInt();
-        player.recordAll.winrate = player.recordAll.games > 0 ? 
-            (double) player.recordAll.win / player.recordAll.games : 0.0;
-        
-        return player;
-    }
-    
     private PlayerSummaryResponse.RecentGame parseChessComGame(JsonNode game, String username) {
         try {
             PlayerSummaryResponse.RecentGame recentGame = new PlayerSummaryResponse.RecentGame();
@@ -360,51 +275,6 @@ public class PlayerSummaryService {
             
         } catch (Exception e) {
             logger.warn("Failed to parse Chess.com game: {}", e.getMessage());
-            return null;
-        }
-    }
-    
-    private PlayerSummaryResponse.RecentGame parseLichessGame(JsonNode game, String username) {
-        try {
-            PlayerSummaryResponse.RecentGame recentGame = new PlayerSummaryResponse.RecentGame();
-            
-            recentGame.endedAt = Instant.ofEpochMilli(game.path("createdAt").asLong());
-            recentGame.timeControl = game.path("speed").asText();
-            recentGame.gameId = game.path("id").asText();
-            
-            // Determine color and result
-            JsonNode players = game.path("players");
-            JsonNode white = players.path("white");
-            JsonNode black = players.path("black");
-            
-            boolean isWhite = white.path("user").path("name").asText().equalsIgnoreCase(username);
-            recentGame.color = isWhite ? "white" : "black";
-            
-            if (isWhite) {
-                recentGame.opponent = black.path("user").path("name").asText();
-                recentGame.oppRating = black.path("rating").asInt();
-            } else {
-                recentGame.opponent = white.path("user").path("name").asText(); 
-                recentGame.oppRating = white.path("rating").asInt();
-            }
-            
-            // Parse result
-            String winner = game.path("winner").asText();
-            if (winner.isEmpty()) {
-                recentGame.result = "D";
-            } else if (winner.equals(recentGame.color)) {
-                recentGame.result = "W";
-            } else {
-                recentGame.result = "L";
-            }
-            
-            recentGame.eco = game.path("opening").path("eco").asText("---");
-            recentGame.termination = game.path("status").asText();
-            
-            return recentGame;
-            
-        } catch (Exception e) {
-            logger.warn("Failed to parse Lichess game: {}", e.getMessage());
             return null;
         }
     }

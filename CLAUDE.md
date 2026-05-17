@@ -2,203 +2,135 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Behavioral Guidelines
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### Think Before Coding
+
+Before implementing: state assumptions explicitly, surface tradeoffs, push back on overcomplication, and ask when something is unclear. Don't pick silently between interpretations.
+
+### Simplicity First
+
+Minimum code that solves the problem. No features beyond what was asked, no abstractions for single-use code, no error handling for impossible scenarios. If you write 200 lines and it could be 50, rewrite it.
+
+### Surgical Changes
+
+Touch only what you must. Don't refactor adjacent code, match existing style even if you'd do it differently, and don't delete pre-existing dead code unless asked. Every changed line should trace directly to the request.
+
+### Goal-Driven Execution
+
+Transform tasks into verifiable goals. For multi-step tasks, state a plan with explicit verify steps before starting.
+
+---
+
 ## Project Architecture
 
-This is a comprehensive chess analysis platform built with a microservices architecture using Docker Compose:
+Chess analysis platform with microservices:
 
-- **chess-analysis-api**: Java Spring Boot service handling HTTP requests, job queuing, and data persistence
-- **chess-analysis-frontend**: Next.js 14 React frontend with Apple-inspired design
-- **chess-analysis-worker**: Python workers that perform actual chess engine analysis using Stockfish
-- **PostgreSQL**: Main database for persistent storage
-- **Redis**: Message queue for background jobs and caching
+- **chess-analysis-api**: Java 21 / Spring Boot 3.2 — HTTP endpoints, rate limiting, job queuing, data persistence
+- **chess-analysis-frontend**: Next.js 14 (App Router) — React UI polling for analysis results
+- **chess-analysis-worker**: Python async workers — Stockfish engine analysis, Chess.com API integration
+- **PostgreSQL**: Primary persistence; **Redis**: job queue, rate limit counters, distributed locks, caching
 
 ### Data Flow
-1. Frontend sends analysis request to Java API
-2. API creates Analysis entity and queues job in Redis
-3. Python workers consume jobs from Redis queue
-4. Workers fetch Chess.com game data, analyze with Stockfish engine
-5. Workers update analysis status in PostgreSQL via Redis
-6. Frontend polls API for status updates and results
+1. Frontend POST `/api/v1/analysis` → API creates `Analysis` (UUID), acquires Redis distributed lock (30s TTL) to prevent duplicate submissions, enqueues job to `chess-analysis-queue`
+2. Worker consumes job, fetches games from Chess.com public API, analyzes moves with Stockfish
+3. Worker writes per-game results + 12-dim style profile to PostgreSQL, updates progress via Redis
+4. Frontend polls `/api/v1/analysis/{id}/status` every 2 seconds; retrieves full results at `/api/v1/analysis/{id}/result`
 
-## Development Environment Commands
+### Progress Stages
+Worker reports: 0–20% collect → 20–30% parse → 30–70% analyze → 70–90% profile → 90–100% finalize
 
-### Quick Start
+### Rate Limiting (Redis-based, resets midnight Asia/Seoul)
+- Per-user: 3 fast / 1 precise per day (`rate:analysis:username:*`)
+- Per-IP: 10/day (`rate:analysis:ip:*`); Global: 200/day (`rate:analysis:global:*`)
+- Queue blocks new jobs if 30+ jobs pending; whitelists configurable via env vars
+
+### Stale Analysis Detection
+- PENDING → stale after 45 minutes; IN_PROGRESS → stale after 30 minutes
+
+## Development Commands
+
 ```bash
-# Start development environment (recommended)
-./dev.sh start
-
-# Local development (without Docker, hot reload)
-./local-dev.sh start
+./dev.sh start             # Start all services (Docker, hot reload)
+./local-dev.sh start       # Start only databases (for IDE debugging)
+./dev.sh stop | restart | status | build | clean
+./dev.sh logs [service]
+./dev.sh test              # End-to-end API smoke test
 ```
 
-### Development Scripts
 ```bash
-# Core development commands
-./dev.sh start          # Start all services in dev mode
-./dev.sh stop           # Stop all services
-./dev.sh restart        # Restart all services
-./dev.sh status         # Show service status
-./dev.sh logs [service] # View logs (optionally for specific service)
-./dev.sh build          # Rebuild all images
-./dev.sh clean          # Stop and remove all containers/volumes
-./dev.sh test           # Run end-to-end API test
-
-# Local development (hot reload, IDE debugging)
-./local-dev.sh start    # Start databases only, manual service startup
-./local-dev.sh stop     # Stop databases
-./local-dev.sh status   # Check database status
-./local-dev.sh test     # Test API/Frontend connections
-```
-
-### Docker Compose Environments
-```bash
-# Development environment (hot reload, volume mounts)
-docker-compose -f docker-compose.dev.yml up -d
-
-# Production environment (optimized builds)
-docker-compose up -d
-```
-
-### Individual Service Commands
-
-#### Java API (chess-analysis-api)
-```bash
+# Java API
 cd chess-analysis-api
+./gradlew build && ./gradlew test
+./gradlew bootRun          # Needs PostgreSQL + Redis
 
-# Build and test
-./gradlew build
-./gradlew test
-
-# Run application (requires PostgreSQL/Redis)
-./gradlew bootRun
-
-# Build Docker image
-docker build -t chess-api .
-```
-
-#### Frontend (chess-analysis-frontend) 
-```bash
+# Frontend
 cd chess-analysis-frontend
-
-# Install dependencies
-npm install
-
-# Development server
-npm run dev
-
-# Production build and start
-npm run build
-npm start
-
-# Lint code
+npm install && npm run dev
 npm run lint
-```
 
-#### Python Worker (chess-analysis-worker)
-```bash
+# Python Worker
 cd chess-analysis-worker
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run worker (requires PostgreSQL/Redis)
-python -m worker.main
+python -m worker.main      # Needs PostgreSQL + Redis
 ```
 
-## Key Architecture Components
+## Key Source Locations
 
-### Chess Analysis Pipeline
-- **Stockfish Engine**: Chess engine for position evaluation and move analysis
-- **12-Dimensional Style Profiling**: Analyzes player style across dimensions (aggression, tactical dependency, endgame technique, etc.)
-- **Progressive Analysis**: Batch processing of games with real-time progress updates
-- **Tactical Pattern Detection**: Identifies tactical opportunities (captures, checks, undefended attacks)
-- **Cohort Comparison**: Compares players against others in similar rating brackets
-- **Training Plan Generation**: Creates personalized improvement recommendations
+| Concern | Path |
+|---|---|
+| API entry point | `chess-analysis-api/src/main/java/.../ChessAnalysisApiApplication.java` |
+| Main REST endpoints | `AnalysisController` — POST/GET `/api/v1/analysis` |
+| Rate limit logic | `AnalysisRateLimitService` |
+| Job queuing | `AnalysisQueueService` |
+| Worker entry point | `chess-analysis-worker/src/worker/main.py` |
+| 12-dim style profiling | `PlayerProfiler` |
+| Stockfish engine wrapper | `StockfishEngine` |
+| Frontend API client | `chess-analysis-frontend/src/lib/api.ts` |
+| Status polling hook | `useAnalysisProgress` (polls every 2s) |
+| DB schema | `init-db.sql` |
 
-### Database Schema (PostgreSQL)
-- `analyses`: Main analysis jobs with status tracking and results
-- `games`: Individual chess games with metadata and PGN data
-- `game_analysis_result`: Stockfish analysis results per game
-- `style_profile`: 12-dimensional style analysis results
+## Database Schema
 
-### Redis Usage
-- **Job Queue**: Analysis job queuing and processing
-- **Caching**: Player summaries and API responses
-- **Progress Updates**: Real-time analysis progress tracking
+- `analyses` — UUID id, status, progress %, current_step, short_link, error_message
+- `games` — game metadata and PGN, FK to analysis
+- `game_analysis_results` — accuracy, ACPL, blunders per game; `move_analysis_json` JSONB
+- `style_profiles` — 12 float columns + `insights_json`, `recommendations_json` JSONB
 
-## Environment Configuration
+## Service Ports & Docker URLs
 
-### Docker Internal Communication
-Services communicate using Docker service names:
-- **Frontend to API**: `http://chess-api:8080` (internal)
-- **Workers to Redis**: `redis:6379` 
-- **Workers to PostgreSQL**: `postgres:5432`
+| Service | Local | Docker internal |
+|---|---|---|
+| Frontend | 3000 | — |
+| Java API (`/api/v1`) | 8080 | `http://chess-api:8080` |
+| API debug (dev) | 5005 | — |
+| PostgreSQL | 5432 | `postgres:5432` |
+| Redis | 6379 | `redis:6379` |
 
-### Critical Environment Variables
+## Critical Environment Variables
+
 ```bash
 # Java API
 SPRING_PROFILES_ACTIVE=dev|docker
 SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/chess_analysis
 SPRING_DATA_REDIS_HOST=redis
 
-# Frontend (Docker)
-NEXT_PUBLIC_API_URL=http://chess-api:8080
+# Frontend
+NEXT_PUBLIC_API_URL=http://chess-api:8080   # Must use Docker service name, not localhost
 
-# Python Workers
+# Worker
 REDIS_HOST=redis
 DB_HOST=postgres
 STOCKFISH_PATH=/usr/bin/stockfish
 ```
 
-## Service Dependencies & Ports
-- Frontend: http://localhost:3000
-- Java API: http://localhost:8080/api/v1  
-- Java API Debug: http://localhost:5005 (dev mode)
-- PostgreSQL: localhost:5432
-- Redis: localhost:6379
+## Non-Obvious Gotchas
 
-## Development Workflow
-
-### Hot Reload Development
-1. Use `./dev.sh start` for full Docker development with volume mounts
-2. Frontend: Auto-reloads on file changes in `./chess-analysis-frontend`
-3. Workers: Auto-restart on file changes in `./chess-analysis-worker/src`
-4. API: Gradle continuous build with Spring Boot DevTools
-
-### Local Development (IDE Debugging)
-1. Use `./local-dev.sh start` to start databases only
-2. Run services manually in separate terminals for full IDE debugging support
-3. Faster iteration but requires local Java/Node/Python setup
-
-### Testing Strategy
-- **Java**: JUnit tests via `./gradlew test`
-- **Frontend**: ESLint for code quality via `npm run lint`
-- **Integration**: `./dev.sh test` runs end-to-end API test
-- **Manual Testing**: Use frontend at http://localhost:3000
-
-## Common Issues and Solutions
-
-### Docker Network Issues
-If frontend shows 500 errors connecting to API:
-- Ensure `NEXT_PUBLIC_API_URL=http://chess-api:8080` in Docker environment
-- Restart frontend service: `docker-compose restart chess-frontend`
-
-### Redis/Jackson Serialization 
-The system uses custom Jackson ObjectMapper configuration for Redis caching to handle `java.time.Instant` serialization.
-
-### Port Conflicts
-```bash
-# Check for port conflicts
-lsof -ti:3000  # Frontend
-lsof -ti:8080  # API
-lsof -ti:5432  # PostgreSQL
-lsof -ti:6379  # Redis
-```
-
-## Architecture Notes
-- **Microservices Design**: Each service is independently deployable and scalable
-- **Asynchronous Processing**: Long-running analysis jobs use Redis queue with progress updates
-- **Chess Engine Integration**: Stockfish engine runs in Python workers for performance
-- **API-First Design**: RESTful API with comprehensive OpenAPI documentation
-- **Responsive Design**: Frontend uses Apple Design Language with full mobile support
-- **Docker-First**: All services containerized with development and production configurations
+- **Korean strings are intentional**: Error messages and logs are in Korean for the Korean user base. Do not translate them.
+- **Jackson/Redis serialization**: Custom `ObjectMapper` handles `java.time.Instant` for Redis. Don't replace with a default mapper.
+- **Short links**: Each analysis gets a `/s/{shortLink}` alias (30-day expiry) in the `short_link` column.
+- **No unit test files**: Testing is via `./dev.sh test` (integration) and `npm run lint`. `./gradlew test` has no test classes yet.
+- **Worker startup order**: Worker performs API health-check before consuming jobs to ensure DB migrations are complete.
+- **500 errors in Docker**: Almost always `NEXT_PUBLIC_API_URL` is set to `localhost` instead of the Docker service name.

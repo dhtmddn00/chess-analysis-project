@@ -40,7 +40,27 @@ class DatabaseClient:
         if self.pool:
             await self.pool.close()
             logger.info("Database connection pool closed")
-            
+
+    async def healthcheck(self) -> bool:
+        """Return True if the pool can execute a trivial query, False otherwise."""
+        try:
+            async with self.pool.acquire() as connection:
+                await connection.fetchval("SELECT 1")
+            return True
+        except Exception as e:
+            logger.warning(f"Database healthcheck failed: {e}")
+            return False
+
+    async def ensure_connected(self) -> None:
+        """Re-create the pool if the healthcheck fails (stale connections after DB restart)."""
+        if not await self.healthcheck():
+            logger.warning("Database pool unhealthy — reconnecting")
+            try:
+                await self.pool.close()
+            except Exception:
+                pass
+            await self.connect()
+
     async def execute(self, query: str, params: List[Any] = None) -> str:
         """Execute a query that doesn't return results"""
         async with self.pool.acquire() as connection:

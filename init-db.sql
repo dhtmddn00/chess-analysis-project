@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS analyses (
     username VARCHAR(50) NOT NULL,
     platform VARCHAR(20) NOT NULL DEFAULT 'chess.com',
     game_count INTEGER NOT NULL DEFAULT 20,
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CONSTRAINT analyses_status_check CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED','FAILED','CANCELLED')),
     progress INTEGER DEFAULT 0,
     current_step TEXT,
     error_message TEXT,
@@ -81,6 +82,7 @@ CREATE TABLE IF NOT EXISTS style_profiles (
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_analyses_username_platform ON analyses(username, platform);
 CREATE INDEX IF NOT EXISTS idx_analyses_status ON analyses(status);
+CREATE INDEX IF NOT EXISTS idx_analyses_status_created_at ON analyses(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses(created_at);
 CREATE INDEX IF NOT EXISTS idx_analyses_short_link ON analyses(short_link);
 CREATE INDEX IF NOT EXISTS idx_games_analysis_id ON games(analysis_id);
@@ -163,6 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_games_worker_analysis_id ON games_worker(analysis
 CREATE INDEX IF NOT EXISTS idx_game_analyses_analysis_id ON game_analyses(analysis_id);
 CREATE INDEX IF NOT EXISTS idx_move_analyses_analysis_id ON move_analyses(analysis_id);
 CREATE INDEX IF NOT EXISTS idx_move_analyses_game ON move_analyses(analysis_id, game_index);
+CREATE INDEX IF NOT EXISTS idx_move_analyses_centipawn_loss ON move_analyses(centipawn_loss);
 CREATE INDEX IF NOT EXISTS idx_style_profiles_worker_analysis_id ON style_profiles_worker(analysis_id);
 
 -- Enhanced columns used by the current Python worker

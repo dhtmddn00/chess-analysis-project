@@ -15,13 +15,18 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/analysis")
 @RequiredArgsConstructor
 @Slf4j
 public class AnalysisController {
-    
+
+    private static final Pattern IP_PATTERN = Pattern.compile(
+        "^(([0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39})$"
+    );
+
     private final AnalysisService analysisService;
     
     @PostMapping
@@ -57,12 +62,20 @@ public class AnalysisController {
     private String resolveClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+            String candidate = forwardedFor.split(",")[0].trim();
+            if (IP_PATTERN.matcher(candidate).matches()) {
+                return candidate;
+            }
+            log.debug("Ignoring invalid X-Forwarded-For value: {}", candidate);
         }
 
         String realIp = request.getHeader("X-Real-IP");
         if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
+            String candidate = realIp.trim();
+            if (IP_PATTERN.matcher(candidate).matches()) {
+                return candidate;
+            }
+            log.debug("Ignoring invalid X-Real-IP value: {}", candidate);
         }
 
         return request.getRemoteAddr();

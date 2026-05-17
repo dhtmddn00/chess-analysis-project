@@ -20,11 +20,13 @@ public class AnalysisQueueService {
     
     private static final String QUEUE_NAME = "chess-analysis-queue";
     private static final String PROGRESS_KEY_PREFIX = "analysis:progress:";
+    private static final String QUEUED_IDS_KEY = "chess-analysis-queue:ids";
     
     public void enqueueAnalysisJob(AnalysisJobDto job) {
         try {
             log.info("Enqueuing analysis job for user: {} (ID: {})", job.getUsername(), job.getAnalysisId());
             redisTemplate.opsForList().leftPush(QUEUE_NAME, objectMapper.writeValueAsString(job));
+            redisTemplate.opsForSet().add(QUEUED_IDS_KEY, job.getAnalysisId().toString());
             log.info("Analysis job enqueued successfully");
         } catch (Exception e) {
             log.error("Failed to enqueue analysis job: {}", e.getMessage(), e);
@@ -76,23 +78,24 @@ public class AnalysisQueueService {
 
     public Long getQueuePosition(UUID analysisId) {
         try {
-            List<String> queuedJobs = redisTemplate.opsForList().range(QUEUE_NAME, 0, -1);
-            if (queuedJobs == null || queuedJobs.isEmpty()) {
+            Boolean inQueue = redisTemplate.opsForSet().isMember(QUEUED_IDS_KEY, analysisId.toString());
+            if (!Boolean.TRUE.equals(inQueue)) {
                 return null;
             }
-
-            for (int indexFromLeft = 0; indexFromLeft < queuedJobs.size(); indexFromLeft++) {
-                String rawJob = queuedJobs.get(indexFromLeft);
-                AnalysisJobDto job = objectMapper.readValue(rawJob, AnalysisJobDto.class);
-                if (analysisId.equals(job.getAnalysisId())) {
-                    return (long) queuedJobs.size() - indexFromLeft;
-                }
-            }
-
-            return null;
+            // Return queue size as an approximate position; exact ordering is not critical for UI display.
+            Long size = redisTemplate.opsForList().size(QUEUE_NAME);
+            return size != null && size > 0 ? size : 1L;
         } catch (Exception e) {
             log.warn("Failed to calculate queue position for {}: {}", analysisId, e.getMessage());
             return null;
+        }
+    }
+
+    public void removeFromQueuedSet(UUID analysisId) {
+        try {
+            redisTemplate.opsForSet().remove(QUEUED_IDS_KEY, analysisId.toString());
+        } catch (Exception e) {
+            log.warn("Failed to remove {} from queued-ids set: {}", analysisId, e.getMessage());
         }
     }
 }

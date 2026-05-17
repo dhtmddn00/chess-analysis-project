@@ -30,28 +30,28 @@ export function JobProgress({ status, className = '' }: JobProgressProps) {
 
   const sections = [
     {
-      id: 'tactics',
+      id: 'tactics' as const,
       title: '전술 분석',
       icon: Zap,
       ready: status.partials?.tactics?.ready || false,
       data: status.partials?.tactics,
     },
     {
-      id: 'swing_moments', 
+      id: 'swing_moments' as const,
       title: '승부 전환점',
       icon: Target,
       ready: status.partials?.swing_moments?.ready || false,
       data: status.partials?.swing_moments,
     },
     {
-      id: 'endgame',
+      id: 'endgame' as const,
       title: '엔드게임 기술',
       icon: Brain,
       ready: status.partials?.endgame?.ready || false,
       data: status.partials?.endgame,
     },
     {
-      id: 'time_mgmt',
+      id: 'time_mgmt' as const,
       title: '시간 관리',
       icon: Timer,
       ready: status.partials?.time_mgmt?.ready || false,

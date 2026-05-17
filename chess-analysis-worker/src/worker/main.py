@@ -1100,7 +1100,10 @@ class ChessAnalysisWorker:
                 if result:
                     queue_name, job_data_str = result
                     job_data = json.loads(job_data_str)
-                    
+
+                    # Verify DB pool is healthy before starting the job
+                    await self.db_client.ensure_connected()
+
                     logger.info(f"Received job: {job_data}")
                     await self.process_analysis_job(job_data)
                     

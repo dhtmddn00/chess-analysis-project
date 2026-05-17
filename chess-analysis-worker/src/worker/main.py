@@ -109,8 +109,9 @@ class ChessAnalysisWorker:
             )
             
             # Step 2: Parse games (20-30%)
+            # PGN parsing is CPU-bound; run in thread pool to avoid blocking the event loop.
             logger.info("Parsing game data")
-            parsed_games = parse_chess_com_games(games)
+            parsed_games = await asyncio.to_thread(parse_chess_com_games, games)
             valid_games = [g for g in parsed_games if g is not None]
             
             if not valid_games:

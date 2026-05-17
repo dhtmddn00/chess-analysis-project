@@ -85,26 +85,30 @@ class StockfishEngine:
             except Exception as e:
                 logger.warning(f"엔진 종료 중 오류: {e}")
     
+    # Maximum wall-clock seconds allowed per single position analysis.
+    # Prevents a hung engine from stalling a job indefinitely.
+    MAX_ANALYSIS_SECONDS: float = 10.0
+
     async def analyze_position(
-        self, 
-        board: chess.Board, 
+        self,
+        board: chess.Board,
         depth: int = None,
         time_limit: float = None
     ) -> Optional[chess.engine.PovScore]:
         """
         보드 포지션 분석
-        
+
         Args:
             board: 분석할 보드 포지션
             depth: 분석 깊이
             time_limit: 시간 제한 (초)
-            
+
         Returns:
             포지션 평가값 (백의 관점)
         """
         if not self._is_running:
             await self.start_engine()
-        
+
         try:
             # 분석 제한 설정
             limit = chess.engine.Limit()
@@ -112,55 +116,68 @@ class StockfishEngine:
                 limit.depth = depth
             if time_limit:
                 limit.time = time_limit
-            
-            # 분석 실행
-            info = await self.engine.analyse(board, limit)
+
+            # 분석 실행 (MAX_ANALYSIS_SECONDS 초과 시 asyncio.TimeoutError 발생)
+            info = await asyncio.wait_for(
+                self.engine.analyse(board, limit),
+                timeout=self.MAX_ANALYSIS_SECONDS,
+            )
             score = info.get('score')
             if score is None:
                 return chess.engine.PovScore(chess.engine.Cp(0), chess.WHITE)
             return score
-            
+
+        except asyncio.TimeoutError:
+            logger.warning(f"포지션 분석 타임아웃 ({self.MAX_ANALYSIS_SECONDS}s), 기본값 반환")
+            return chess.engine.PovScore(chess.engine.Cp(0), chess.WHITE)
         except Exception as e:
             logger.error(f"포지션 분석 오류: {e}")
             return None
     
     async def get_best_move(
-        self, 
-        board: chess.Board, 
+        self,
+        board: chess.Board,
         depth: int = None,
         time_limit: float = None
     ) -> Tuple[Optional[chess.Move], Optional[List[chess.Move]]]:
         """
         최선수와 주요 변형 획득
-        
+
         Args:
             board: 분석할 보드 포지션
             depth: 분석 깊이
             time_limit: 시간 제한 (초)
-            
+
         Returns:
             (최선수, 주요 변형)
         """
         if not self._is_running:
             await self.start_engine()
-        
+
         try:
-            # 분석 제한 설정
             limit = chess.engine.Limit()
             if depth:
                 limit.depth = depth
             if time_limit:
                 limit.time = time_limit
-            
-            # 분석 실행
-            result = await self.engine.play(board, limit)
-            info = await self.engine.analyse(board, limit)
-            
+
+            result = await asyncio.wait_for(
+                self.engine.play(board, limit),
+                timeout=self.MAX_ANALYSIS_SECONDS,
+            )
+            info = await asyncio.wait_for(
+                self.engine.analyse(board, limit),
+                timeout=self.MAX_ANALYSIS_SECONDS,
+            )
+
             best_move = result.move
             pv = info.get('pv', [])
-            
+
             return best_move, pv
-            
+
+        except asyncio.TimeoutError:
+            logger.warning(f"최선수 분석 타임아웃 ({self.MAX_ANALYSIS_SECONDS}s)")
+            return None, []
         except Exception as e:
             logger.error(f"최선수 분석 오류: {e}")
             return None, []

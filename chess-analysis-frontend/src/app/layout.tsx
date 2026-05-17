@@ -14,7 +14,7 @@ const inter = Inter({
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://chess-analysis-gg.vercel.app"),
+  metadataBase: new URL("https://chesslab.kr"),
   title: "Chess Analysis Pro",
   description: "Stockfish 기반 체스 게임 심층 분석. 플레이 스타일을 파악하고 약점을 발견해 실력을 향상시키세요.",
   keywords: "chess, analysis, stockfish, chess.com, game analysis, chess improvement, tactics, strategy",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     siteName: "Chess Analysis Pro",
     title: "Chess Analysis Pro - Stockfish 기반 체스 분석",
     description: "Stockfish 엔진으로 체스 게임을 분석하세요. 플레이 스타일, 약점, 전술 기회를 한눈에 확인.",
-    url: "https://chess-analysis-gg.vercel.app",
+    url: "https://chesslab.kr",
   },
   twitter: {
     card: "summary_large_image",

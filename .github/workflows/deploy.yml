@@ -162,7 +162,7 @@ jobs:
         run: ./scripts/smoke-test.sh
       - name: Smoke test frontend API proxy
         env:
-          FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL || 'https://chess-analysis-gg.vercel.app' }}
+          FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL || 'https://chesslab.kr' }}
           CHESS_USERNAME: ${{ secrets.SMOKE_CHESS_USERNAME || 'oswooooo' }}
         run: |
           curl -fsS \

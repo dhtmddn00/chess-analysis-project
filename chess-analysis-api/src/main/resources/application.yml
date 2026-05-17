@@ -69,7 +69,7 @@ chess-analysis:
       ips: ${RATE_LIMIT_WHITELIST_IPS:}
 
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://chess-analysis-gg.vercel.app}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://chess-analysis-gg.vercel.app,https://chesslab.kr,https://www.chesslab.kr}
       
   worker:
     queue-name: chess-analysis-queue

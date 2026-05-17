@@ -4,6 +4,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { SiteFooter } from "@/components/SiteFooter";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -55,10 +56,12 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased`}
       >
-        <ToastProvider>
-          {children}
-          <SiteFooter />
-        </ToastProvider>
+        <ErrorBoundary>
+          <ToastProvider>
+            {children}
+            <SiteFooter />
+          </ToastProvider>
+        </ErrorBoundary>
         {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
       </body>
     </html>

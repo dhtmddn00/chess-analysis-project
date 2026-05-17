@@ -2,9 +2,11 @@ package com.chessanalysis.api.service;
 
 import com.chessanalysis.api.dto.AnalysisRequestDto;
 import com.chessanalysis.api.queue.AnalysisQueueService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -12,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -27,14 +30,32 @@ public class AnalysisRateLimitService {
     private static final int MAX_QUEUE_SIZE = 30;
     private static final String TIME_ZONE = "Asia/Seoul";
 
+    // Atomically increment counter and set TTL only on first creation.
+    // Returns the new counter value.
+    private static final RedisScript<Long> INCREMENT_SCRIPT = RedisScript.of(
+        "local c = redis.call('INCR', KEYS[1])\n" +
+        "if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end\n" +
+        "return c",
+        Long.class
+    );
+
     private final StringRedisTemplate redisTemplate;
     private final AnalysisQueueService queueService;
 
     @Value("${chess-analysis.rate-limit.whitelist.usernames:}")
-    private String whitelistUsernames;
+    private String whitelistUsernamesCsv;
 
     @Value("${chess-analysis.rate-limit.whitelist.ips:}")
-    private String whitelistIps;
+    private String whitelistIpsCsv;
+
+    private Set<String> whitelistUsernameSet = Set.of();
+    private Set<String> whitelistIpSet = Set.of();
+
+    @PostConstruct
+    void initWhitelists() {
+        whitelistUsernameSet = normalizedCsvSet(whitelistUsernamesCsv);
+        whitelistIpSet = normalizedCsvSet(whitelistIpsCsv);
+    }
 
     public void enforceLimits(AnalysisRequestDto request, String clientIp) {
         long queueSize = queueService.getQueueSize();
@@ -77,9 +98,9 @@ public class AnalysisRateLimitService {
         checkCurrentCount(ipKey, IP_DAILY_LIMIT, "ip", resetAt);
         checkCurrentCount(globalKey, GLOBAL_DAILY_LIMIT, "global", resetAt);
 
-        increment(usernameKey);
-        increment(ipKey);
-        increment(globalKey);
+        atomicIncrement(usernameKey);
+        atomicIncrement(ipKey);
+        atomicIncrement(globalKey);
     }
 
     private void checkCurrentCount(String key, int limit, String scope, String resetAt) {
@@ -95,11 +116,13 @@ public class AnalysisRateLimitService {
         }
     }
 
-    private void increment(String key) {
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(key, ttlUntilReset());
-        }
+    private long atomicIncrement(String key) {
+        Long result = redisTemplate.execute(
+            INCREMENT_SCRIPT,
+            List.of(key),
+            String.valueOf(ttlUntilReset().getSeconds())
+        );
+        return result == null ? 1L : result;
     }
 
     private int currentCount(String key) {
@@ -149,8 +172,8 @@ public class AnalysisRateLimitService {
     }
 
     private boolean isWhitelisted(String username, String clientIp) {
-        return normalizedCsvSet(whitelistUsernames).contains(normalizeToken(username))
-            || normalizedCsvSet(whitelistIps).contains(normalizeToken(clientIp));
+        return whitelistUsernameSet.contains(normalizeToken(username))
+            || whitelistIpSet.contains(normalizeToken(clientIp));
     }
 
     private Set<String> normalizedCsvSet(String csv) {

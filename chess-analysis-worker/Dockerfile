@@ -24,6 +24,12 @@ COPY config/ ./config/
 ENV PYTHONPATH=/app/src
 ENV STOCKFISH_PATH=/usr/games/stockfish
 
+# root로 실행하면 컨테이너 탈출 시 호스트 권한을 그대로 획득할 수 있다.
+# 전용 비권한 유저로 프로세스를 실행해 공격 표면을 줄인다.
+RUN groupadd --system appgroup && useradd --system --gid appgroup appuser \
+    && chown -R appuser:appgroup /app
+USER appuser
+
 # 헬스체크 설정 (Redis 연결 확인)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import os, redis; r=redis.Redis(host=os.getenv('REDIS_HOST', 'redis'), port=int(os.getenv('REDIS_PORT', '6379')), password=os.getenv('REDIS_PASSWORD') or None, ssl=os.getenv('REDIS_SSL', 'false').lower() == 'true'); r.ping()" || exit 1

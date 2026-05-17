@@ -33,8 +33,9 @@ public class HealthController {
     public ResponseEntity<Map<String, Object>> detailedHealth() {
         Map<String, Object> health = new HashMap<>();
         Map<String, Object> components = new HashMap<>();
-        
+
         // Check database connection
+        // 공개 health 응답에 내부 예외 메시지를 포함하면 DB/Redis 연결 정보가 노출될 수 있다.
         try (Connection connection = dataSource.getConnection()) {
             if (!connection.isClosed()) {
                 components.put("db", Map.of("status", "UP"));
@@ -42,9 +43,9 @@ public class HealthController {
                 components.put("db", Map.of("status", "DOWN"));
             }
         } catch (Exception e) {
-            components.put("db", Map.of("status", "DOWN", "error", e.getMessage()));
+            components.put("db", Map.of("status", "DOWN"));
         }
-        
+
         // Check Redis connection
         try {
             redisTemplate.opsForValue().set("health:check", "ping");
@@ -55,7 +56,7 @@ public class HealthController {
                 components.put("redis", Map.of("status", "DOWN"));
             }
         } catch (Exception e) {
-            components.put("redis", Map.of("status", "DOWN", "error", e.getMessage()));
+            components.put("redis", Map.of("status", "DOWN"));
         }
         
         boolean allUp = components.values().stream()

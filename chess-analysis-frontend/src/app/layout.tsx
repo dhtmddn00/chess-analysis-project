@@ -14,8 +14,9 @@ const inter = Inter({
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://chess-analysis-gg.vercel.app"),
   title: "Chess Analysis Pro",
-  description: "Advanced chess game analysis powered by Stockfish engine. Discover your playing style, identify weaknesses, and improve your game.",
+  description: "Stockfish 기반 체스 게임 심층 분석. 플레이 스타일을 파악하고 약점을 발견해 실력을 향상시키세요.",
   keywords: "chess, analysis, stockfish, chess.com, game analysis, chess improvement, tactics, strategy",
   authors: [{ name: "Chess Analysis Pro Team" }],
   creator: "Chess Analysis Pro",
@@ -29,15 +30,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Chess Analysis Pro",
-    title: "Chess Analysis Pro - Advanced Chess Game Analysis",
-    description: "Analyze your chess games with Stockfish engine. Get insights, identify weaknesses, and improve your playing style.",
-    url: "https://chessanalysis.pro",
-    images: []
+    title: "Chess Analysis Pro - Stockfish 기반 체스 분석",
+    description: "Stockfish 엔진으로 체스 게임을 분석하세요. 플레이 스타일, 약점, 전술 기회를 한눈에 확인.",
+    url: "https://chess-analysis-gg.vercel.app",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Chess Analysis Pro",
-    description: "Advanced chess game analysis powered by Stockfish engine"
+    description: "Stockfish 기반 체스 게임 심층 분석"
   },
   icons: {
     icon: [

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -113,6 +114,13 @@ public class PlayerSummaryService {
             logger.info("Successfully built Chess.com summary for {}", username);
             
         } catch (Exception e) {
+            Throwable cause = e;
+            while (cause != null) {
+                if (cause instanceof PlayerNotFoundException pnfe) {
+                    throw pnfe;
+                }
+                cause = cause.getCause();
+            }
             logger.error("Failed to fetch Chess.com summary for {}: {}", username, e.getMessage());
             throw new RuntimeException("Failed to fetch player summary", e);
         }
@@ -125,6 +133,12 @@ public class PlayerSummaryService {
             RestTemplate customRestTemplate = createRestTemplate(timeoutMs);
             String response = customRestTemplate.getForObject(url, String.class);
             return objectMapper.readTree(response);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 404) {
+                throw new PlayerNotFoundException("플레이어를 찾을 수 없습니다");
+            }
+            logger.error("Error fetching {}: {}", url, e.getMessage());
+            throw new RuntimeException("API error: " + url, e);
         } catch (ResourceAccessException e) {
             logger.warn("Timeout fetching {}: {}", url, e.getMessage());
             throw new RuntimeException("API timeout: " + url, e);

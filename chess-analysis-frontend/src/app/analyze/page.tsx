@@ -726,7 +726,7 @@ export default function UnifiedAnalyzePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {summary.player.ratings?.rapid || summary.player.time_controls?.rapid?.rating || 'N/A'}
+                  {summary.player.ratings?.rapid ?? summary.player.time_controls?.rapid?.rating ?? '-'}
                 </div>
                 <div className="text-sm text-gray-600">♙ 래피드</div>
                 {summary.player.time_controls?.rapid && (
@@ -738,7 +738,7 @@ export default function UnifiedAnalyzePage() {
               
               <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
                 <div className="text-2xl font-bold text-green-600">
-                  {summary.player.ratings?.blitz || summary.player.time_controls?.blitz?.rating || 'N/A'}
+                  {summary.player.ratings?.blitz ?? summary.player.time_controls?.blitz?.rating ?? '-'}
                 </div>
                 <div className="text-sm text-gray-600">♞ 블리츠</div>
                 {summary.player.time_controls?.blitz && (
@@ -750,7 +750,7 @@ export default function UnifiedAnalyzePage() {
               
               <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
                 <div className="text-2xl font-bold text-red-600">
-                  {summary.player.ratings?.bullet || summary.player.time_controls?.bullet?.rating || 'N/A'}
+                  {summary.player.ratings?.bullet ?? summary.player.time_controls?.bullet?.rating ?? '-'}
                 </div>
                 <div className="text-sm text-gray-600">♜ 불릿</div>
                 {summary.player.time_controls?.bullet && (

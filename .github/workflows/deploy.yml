@@ -40,6 +40,8 @@ jobs:
           tags: |
             ${{ env.API_IMAGE }}:${{ github.sha }}
             ${{ env.API_IMAGE }}:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
       - name: Build and push worker image
         uses: docker/build-push-action@v6
         with:
@@ -49,6 +51,8 @@ jobs:
           tags: |
             ${{ env.WORKER_IMAGE }}:${{ github.sha }}
             ${{ env.WORKER_IMAGE }}:latest
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,scope=worker,mode=max
 
   migrate-database:
     name: Apply database schema

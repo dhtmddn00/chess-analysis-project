@@ -53,6 +53,8 @@ docker-compose.override.yml
 
 # Other
 .claude/
+CLAUDE.md
+MEMORY.md
 engines/
 .vercel
 .env*.local

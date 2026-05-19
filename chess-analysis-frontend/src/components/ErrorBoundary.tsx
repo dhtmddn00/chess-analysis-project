@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface Props {
   children: React.ReactNode;
@@ -10,6 +11,26 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+function ErrorFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const t = useTranslations('ErrorBoundary');
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">{t('title')}</h2>
+        <p className="text-gray-500 text-sm mb-4">
+          {error?.message ?? t('message')}
+        </p>
+        <button
+          onClick={onReset}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+        >
+          {t('retry')}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -32,22 +53,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
         return this.props.fallback;
       }
       return (
-        <div className="min-h-screen flex items-center justify-center p-8">
-          <div className="text-center max-w-md">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              페이지를 불러오지 못했습니다
-            </h2>
-            <p className="text-gray-500 text-sm mb-4">
-              {this.state.error?.message ?? '알 수 없는 오류가 발생했습니다.'}
-            </p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
-            >
-              다시 시도
-            </button>
-          </div>
-        </div>
+        <ErrorFallback
+          error={this.state.error}
+          onReset={() => this.setState({ hasError: false, error: null })}
+        />
       );
     }
 

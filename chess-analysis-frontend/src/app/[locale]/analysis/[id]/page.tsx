@@ -1,7 +1,9 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+import { useRouter } from '../../../../i18n/navigation';
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { analysisApi, Analysis, AnalysisResult, AnalysisGame } from '@/lib/api';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { 
@@ -19,6 +21,8 @@ interface StyleDimension {
 }
 
 export default function AdvancedAnalysisResultPage() {
+  const t = useTranslations('AnalysisDetail');
+  const tCommon = useTranslations('Common');
   const params = useParams();
   const router = useRouter();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);

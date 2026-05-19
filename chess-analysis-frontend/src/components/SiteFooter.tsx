@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Github, Mail, Eye, Sparkles } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface SiteStats {
   totalViews: number;
@@ -15,7 +16,6 @@ const VISITOR_ID_KEY = 'chess-analysis-visitor-id';
 function getOrCreateVisitorId() {
   const existing = window.localStorage.getItem(VISITOR_ID_KEY);
   if (existing) return existing;
-
   const id = typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -24,45 +24,31 @@ function getOrCreateVisitorId() {
 }
 
 export function SiteFooter() {
+  const t = useTranslations('SiteFooter');
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [statsUnavailable, setStatsUnavailable] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-
     const recordVisit = async () => {
       try {
         const visitorId = getOrCreateVisitorId();
         const response = await fetch('/api/v1/site/visit', {
           method: 'POST',
-          headers: {
-            'X-Visitor-Id': visitorId,
-          },
+          headers: { 'X-Visitor-Id': visitorId },
         });
-
         if (!response.ok) {
-          if (isMounted) {
-            setStatsUnavailable(true);
-          }
+          if (isMounted) setStatsUnavailable(true);
           return;
         }
         const data = await response.json();
-        if (isMounted) {
-          setStats(data);
-          setStatsUnavailable(false);
-        }
+        if (isMounted) { setStats(data); setStatsUnavailable(false); }
       } catch {
-        if (isMounted) {
-          setStatsUnavailable(true);
-        }
+        if (isMounted) setStatsUnavailable(true);
       }
     };
-
     recordVisit();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return (
@@ -71,11 +57,9 @@ export function SiteFooter() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-bold text-zinc-600">
             <Sparkles className="h-3.5 w-3.5" />
-            Built by 오승우
+            {t('builtBy')}
           </div>
-          <p className="text-sm leading-6 text-zinc-600">
-            버그나 에러 리포트 및 아이디어 제안 등 자유롭게 메일 주세요.
-          </p>
+          <p className="text-sm leading-6 text-zinc-600">{t('contactDesc')}</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a
               href="https://github.com/dhtmddn00"
@@ -99,21 +83,19 @@ export function SiteFooter() {
         <div className="rounded-lg border border-zinc-200 bg-zinc-950 p-5 text-white lg:min-w-72">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
             <Eye className="h-4 w-4" />
-            누적 방문자
+            {t('visitors')}
           </div>
           <div className="text-3xl font-black">
             {stats ? stats.totalViews.toLocaleString() : statsUnavailable ? '-' : '...'}
           </div>
           <div className="mt-2 text-sm text-zinc-400">
             {stats
-              ? `오늘 고유 방문 ${stats.todayUniqueViews.toLocaleString()}명`
+              ? t('todayVisits', { count: stats.todayUniqueViews.toLocaleString() })
               : statsUnavailable
-                ? '집계 서버 연결 확인 중'
-                : '방문 기록 반영 중'}
+                ? t('checkingServer')
+                : t('recordingVisit')}
           </div>
-          <div className="mt-3 text-xs leading-5 text-zinc-500">
-            같은 브라우저는 하루 한 번만 집계됩니다.
-          </div>
+          <div className="mt-3 text-xs leading-5 text-zinc-500">{t('oncePerDay')}</div>
         </div>
       </div>
     </footer>

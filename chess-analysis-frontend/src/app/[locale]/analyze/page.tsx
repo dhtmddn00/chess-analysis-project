@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, ShieldCheck } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
-import { usePlayerSummary } from '../../hooks/usePlayerSummary';
-import { useAnalysis } from '../../hooks/useAnalysis';
+import { useTranslations } from 'next-intl';
+import { useRouter as useIntlRouter } from '../../../i18n/navigation';
+import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
+import { useAnalysis } from '../../../hooks/useAnalysis';
 
 interface PlayerSummary {
   player: {
@@ -280,6 +282,8 @@ interface OpponentBucket {
 }
 
 export default function UnifiedAnalyzePage() {
+  const t = useTranslations('Analyze');
+  const tCommon = useTranslations('Common');
   const [searchForm, setSearchForm] = useState({
     platform: 'chess.com',
     username: '',
@@ -317,25 +321,25 @@ export default function UnifiedAnalyzePage() {
 
   const modeMeta = {
     fast: {
-      label: '빠르게',
+      label: t('modeFastLabel'),
       maxGames: 20,
-      estimate: '보통 1-3분',
-      cost: '저비용',
-      description: '최근 경향과 반복 실수를 빠르게 확인합니다.',
+      estimate: t('modeFastEstimate'),
+      cost: t('modeFastCost'),
+      description: t('modeFastDesc'),
     },
     balanced: {
-      label: '균형',
+      label: t('modeBalancedLabel'),
       maxGames: 20,
-      estimate: '보통 3-6분',
-      cost: '중간',
-      description: '중요한 수를 더 꼼꼼히 보며 실전 복기에 적합합니다.',
+      estimate: t('modeBalancedEstimate'),
+      cost: t('modeBalancedCost'),
+      description: t('modeBalancedDesc'),
     },
     precise: {
-      label: '정밀하게',
+      label: t('modePreciseLabel'),
       maxGames: 10,
-      estimate: '보통 5-10분',
-      cost: '고비용',
-      description: '표본은 줄이고 핵심 국면을 더 깊게 봅니다.',
+      estimate: t('modePreciseEstimate'),
+      cost: t('modePreciseCost'),
+      description: t('modePreciseDesc'),
     },
   } as const;
 
@@ -534,7 +538,7 @@ export default function UnifiedAnalyzePage() {
                   type="text"
                   value={searchForm.username}
                   onChange={(e) => setSearchForm({...searchForm, username: e.target.value})}
-                  placeholder="예: hikaru, magnus"
+                  placeholder={tCommon('usernamePlaceholder')}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />

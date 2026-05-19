@@ -1,7 +1,8 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '../../i18n/navigation';
 import {
   ArrowRight,
   BarChart3,
@@ -11,29 +12,7 @@ import {
   ShieldCheck,
   Swords,
 } from 'lucide-react';
-
-const featureRows = [
-  {
-    icon: Gauge,
-    title: '성과 지표',
-    description: '정확도, 평균 손실, 실수 패턴을 한 화면에서 확인합니다.',
-  },
-  {
-    icon: GitBranch,
-    title: '오프닝 레퍼토리',
-    description: '백/흑으로 자주 쓰는 오프닝과 최근 게임 내 비율을 분리해 보여줍니다.',
-  },
-  {
-    icon: BarChart3,
-    title: '12차원 스타일',
-    description: '공격성, 포지셔널, 엔드게임, 시간관리까지 플레이 성향을 수치화합니다.',
-  },
-  {
-    icon: ShieldCheck,
-    title: '비용 보호 베타',
-    description: 'Redis 기반 일일 제한과 대기열 제한으로 공개 테스트 비용을 통제합니다.',
-  },
-];
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 const boardPieces = [
   '♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜',
@@ -47,17 +26,24 @@ const boardPieces = [
 ];
 
 export default function Home() {
+  const t = useTranslations('Home');
+  const tNav = useTranslations('Nav');
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [gameCount, setGameCount] = useState(10);
   const [priority, setPriority] = useState<'fast' | 'balanced' | 'precise'>('fast');
 
+  const featureRows = [
+    { icon: Gauge, title: t('feature0Title'), description: t('feature0Desc') },
+    { icon: GitBranch, title: t('feature1Title'), description: t('feature1Desc') },
+    { icon: BarChart3, title: t('feature2Title'), description: t('feature2Desc') },
+    { icon: ShieldCheck, title: t('feature3Title'), description: t('feature3Desc') },
+  ];
+
   const startAnalysis = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const params = new URLSearchParams();
-    if (username.trim()) {
-      params.set('username', username.trim());
-    }
+    if (username.trim()) params.set('username', username.trim());
     params.set('n', String(gameCount));
     params.set('priority', priority);
     router.push(`/analyze?${params.toString()}`);
@@ -78,18 +64,21 @@ export default function Home() {
             </span>
             <span>
               <span className="block text-base font-bold text-zinc-950">Chess Analysis</span>
-              <span className="block text-xs font-medium text-zinc-500">Stockfish profile lab</span>
+              <span className="block text-xs font-medium text-zinc-500">{tNav('logoSubtitle')}</span>
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => router.push('/analyze')}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
-          >
-            <Search className="h-4 w-4" />
-            분석 화면
-          </button>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <button
+              type="button"
+              onClick={() => router.push('/analyze')}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+            >
+              <Search className="h-4 w-4" />
+              {tNav('analyzeScreen')}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -98,21 +87,20 @@ export default function Home() {
           <div className="flex flex-col justify-center">
             <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
               <Swords className="h-3.5 w-3.5" />
-              Chess.com recent-game analysis
+              {t('badge')}
             </div>
 
             <h1
               className="max-w-4xl text-4xl font-black leading-tight tracking-normal text-zinc-950 sm:text-5xl lg:text-5xl xl:text-6xl"
               style={{ wordBreak: 'keep-all' }}
             >
-              최근 게임을 읽고
-              <br />
-              체스 스타일을 숫자로 정리합니다
+              {t('heroTitle').split('\n').map((line, i) => (
+                <span key={i}>{line}{i === 0 && <br />}</span>
+              ))}
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg">
-              Stockfish 분석 결과를 성과 지표, 오프닝 레퍼토리, 12차원 스타일 프로파일로 압축해 보여줍니다.
-              지금은 Chess.com 사용자 분석에 집중한 공개 베타입니다.
+              {t('heroSubtitle')}
             </p>
 
             <form onSubmit={startAnalysis} className="mt-8 max-w-2xl rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
@@ -125,7 +113,7 @@ export default function Home() {
                   <input
                     id="home-username"
                     value={username}
-                    onChange={(event) => setUsername(event.target.value)}
+                    onChange={(e) => setUsername(e.target.value)}
                     placeholder="Chess.com username"
                     className="h-11 w-full rounded-lg border border-zinc-300 bg-zinc-50 pl-9 pr-3 text-sm font-medium text-zinc-950 outline-none focus:border-black focus:bg-white"
                   />
@@ -133,9 +121,8 @@ export default function Home() {
 
                 <select
                   value={gameCount}
-                  onChange={(event) => setGameCount(Number(event.target.value))}
+                  onChange={(e) => setGameCount(Number(e.target.value))}
                   className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
-                  aria-label="분석 게임 수"
                 >
                   <option value={5}>5 games</option>
                   <option value={10}>10 games</option>
@@ -144,9 +131,8 @@ export default function Home() {
 
                 <select
                   value={priority}
-                  onChange={(event) => setPriority(event.target.value as 'fast' | 'balanced' | 'precise')}
+                  onChange={(e) => setPriority(e.target.value as 'fast' | 'balanced' | 'precise')}
                   className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
-                  aria-label="분석 모드"
                 >
                   <option value="fast">Fast</option>
                   <option value="balanced">Balanced</option>
@@ -157,7 +143,7 @@ export default function Home() {
                   type="submit"
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-bold text-white hover:bg-zinc-800"
                 >
-                  시작
+                  {t('start')}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -211,15 +197,15 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-end justify-between gap-6">
           <div>
-            <p className="text-sm font-bold text-zinc-500">Analysis surface</p>
-            <h2 className="mt-2 text-2xl font-black text-zinc-950">첫 화면에서 바로 이어지는 분석 흐름</h2>
+            <p className="text-sm font-bold text-zinc-500">{t('analysisSurface')}</p>
+            <h2 className="mt-2 text-2xl font-black text-zinc-950">{t('analysisSurfaceTitle')}</h2>
           </div>
           <button
             type="button"
             onClick={() => router.push('/analyze')}
             className="hidden h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-bold text-zinc-900 hover:bg-zinc-50 sm:inline-flex"
           >
-            전체 분석 화면 열기
+            {t('openFullAnalysis')}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>

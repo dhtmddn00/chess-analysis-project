@@ -63,6 +63,7 @@ export interface PlayerSummary {
     time_control: string;
     color: 'white' | 'black';
     eco: string;
+    opening_name?: string;
     termination: string;
     game_id: string;
   }>;

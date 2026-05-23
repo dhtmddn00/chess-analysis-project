@@ -49,6 +49,8 @@ public class PlayerSummaryResponse {
         public String timeControl;
         public String color;
         public String eco;
+        @JsonProperty("opening_name")
+        public String openingName;
         public String termination;
         @JsonProperty("game_id")
         public String gameId;

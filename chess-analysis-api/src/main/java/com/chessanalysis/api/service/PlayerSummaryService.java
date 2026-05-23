@@ -281,8 +281,10 @@ public class PlayerSummaryService {
                     (white.path("result").asText().equals("win") ? "L" : "D");
             }
             
-            // Extract ECO and termination
-            recentGame.eco = game.path("eco").asText("---");
+            // Extract ECO code and opening name from PGN
+            String pgn = game.path("pgn").asText("");
+            recentGame.eco = extractPgnTag(pgn, "ECO").orElse("---");
+            recentGame.openingName = extractPgnTag(pgn, "Opening").orElse(null);
             recentGame.termination = game.path("termination").asText();
             
             return recentGame;
@@ -302,9 +304,12 @@ public class PlayerSummaryService {
         
         for (PlayerSummaryResponse.RecentGame game : games) {
             if (game.eco == null || game.eco.equals("---")) continue;
-            
+
             String openingKey = game.eco;
-            ecoNames.put(openingKey, getOpeningName(game.eco));
+            String displayName = (game.openingName != null && !game.openingName.isBlank())
+                ? game.openingName
+                : ecoCodeToFamily(game.eco);
+            ecoNames.put(openingKey, displayName);
             
             if ("white".equals(game.color)) {
                 whiteResults.computeIfAbsent(openingKey, k -> new ArrayList<>()).add(game.result);
@@ -340,16 +345,30 @@ public class PlayerSummaryService {
         return opening;
     }
     
-    private String getOpeningName(String eco) {
-        // Simple ECO to name mapping - in production you'd have a full database
-        Map<String, String> ecoNames = Map.of(
-            "B30", "Sicilian Defense",
-            "B22", "Sicilian Alapin", 
-            "D30", "Queen's Gambit Declined",
-            "C50", "Italian Game",
-            "E20", "Nimzo-Indian Defense"
-        );
-        return ecoNames.getOrDefault(eco, "Unknown Opening");
+    /**
+     * Extract a PGN header tag value, e.g. extractPgnTag(pgn, "ECO") → Optional("C33")
+     */
+    private java.util.Optional<String> extractPgnTag(String pgn, String tag) {
+        if (pgn == null || pgn.isBlank()) return java.util.Optional.empty();
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+            "\\[" + tag + "\\s+\"([^\"]+)\"\\]");
+        java.util.regex.Matcher m = p.matcher(pgn);
+        return m.find() ? java.util.Optional.of(m.group(1)) : java.util.Optional.empty();
+    }
+
+    /**
+     * Fallback: derive a readable opening family from the ECO letter (A–E).
+     */
+    private String ecoCodeToFamily(String eco) {
+        if (eco == null || eco.length() < 1) return "Unknown Opening";
+        return switch (eco.charAt(0)) {
+            case 'A' -> "Flank / Other Opening";
+            case 'B' -> "Semi-Open Game";
+            case 'C' -> "Open Game";
+            case 'D' -> "Closed / Semi-Closed Game";
+            case 'E' -> "Indian Defense";
+            default  -> "Unknown Opening";
+        };
     }
     
     private PlayerSummaryResponse.CohortHint buildCohortHint(Map<String, Integer> ratings) {

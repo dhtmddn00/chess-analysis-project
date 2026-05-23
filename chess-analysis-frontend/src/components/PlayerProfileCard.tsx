@@ -141,13 +141,15 @@ export function PlayerProfileCard({ summary }: Props) {
                         </span>
                       )}
                     </div>
-                    {game.eco && (
-                      <div className="text-[11px] text-zinc-400 truncate">
-                        <span className="font-mono">{game.eco}</span>
-                        {' · '}
-                        {game.time_control}
-                      </div>
-                    )}
+                    <div className="text-[11px] text-zinc-400 truncate">
+                      {game.eco && game.eco !== '---' && (
+                        <span className="font-mono mr-1">{game.eco}</span>
+                      )}
+                      {game.opening_name
+                        ? <span>{game.opening_name}</span>
+                        : <span>{game.time_control}</span>
+                      }
+                    </div>
                   </div>
 
                   {/* Color indicator */}

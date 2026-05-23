@@ -294,6 +294,63 @@ body {
   background: #e4e4e7 !important;
 }
 
+/* ── dark-surface: correct heading/paragraph contrast on black backgrounds ──
+   Specificity 0,0,2,1 beats the global h-tag rule (0,0,1,1),
+   so these !important overrides always win. */
+
+/* bg-zinc-950 dark sections tagged with .dark-surface */
+.chess-toss .dark-surface h1,
+.chess-toss .dark-surface h2,
+.chess-toss .dark-surface h3,
+.chess-toss .dark-surface h4,
+.chess-toss .dark-surface h5 {
+  color: #ffffff !important;
+}
+
+.chess-toss .dark-surface p {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* Restore dark text for nested white / light cards inside dark-surface */
+.chess-toss .dark-surface .bg-white h1,
+.chess-toss .dark-surface .bg-white h2,
+.chess-toss .dark-surface .bg-white h3,
+.chess-toss .dark-surface .bg-white h4,
+.chess-toss .dark-surface .bg-white h5,
+.chess-toss .dark-surface .bg-zinc-50 h5,
+.chess-toss .dark-surface .bg-zinc-100 h5 {
+  color: #111111 !important;
+}
+
+.chess-toss .dark-surface .bg-white p,
+.chess-toss .dark-surface .bg-zinc-50 p,
+.chess-toss .dark-surface .bg-zinc-100 p {
+  color: #5f6368 !important;
+}
+
+/* Dark nested cards (bg-zinc-900) inside dark-surface keep white text */
+.chess-toss .dark-surface .bg-zinc-900 p {
+  color: rgba(255, 255, 255, 0.80) !important;
+}
+
+/* bg-gradient-to-r sections are rendered dark (see .chess-toss .bg-gradient-to-r rule).
+   Fix heading contrast there too (h3 & h5.chess-style-summary already handled above). */
+.chess-toss .bg-gradient-to-r h1,
+.chess-toss .bg-gradient-to-r h2,
+.chess-toss .bg-gradient-to-r h4,
+.chess-toss .bg-gradient-to-r h5 {
+  color: #ffffff !important;
+}
+
+.chess-toss .bg-gradient-to-r p {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* chess-style-summary p already has 0.72 alpha above; keep it slightly dimmer */
+.chess-toss .chess-style-summary p {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
 /* Apple-style spacing and typography */
 .apple-text-large {
   font-size: 48px;

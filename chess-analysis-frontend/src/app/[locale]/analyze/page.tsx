@@ -961,7 +961,7 @@ export default function UnifiedAnalyzePage() {
                   </div>
 
                   {detailedResult.comparativeInsights && (
-                    <div className="mb-6 rounded-xl border border-zinc-300 bg-zinc-950 p-5 text-white shadow-sm">
+                    <div className="mb-6 rounded-xl border border-zinc-300 bg-zinc-950 p-5 text-white shadow-sm dark-surface">
                       <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div>
                           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-3 py-1 text-xs font-bold text-zinc-950">
@@ -1080,7 +1080,7 @@ export default function UnifiedAnalyzePage() {
                   )}
 
                   {detailedResult.opponentExploitPlan && (
-                    <div className="mb-6 rounded-lg border border-zinc-950 bg-zinc-950 p-4 text-white">
+                    <div className="mb-6 rounded-lg border border-zinc-950 bg-zinc-950 p-4 text-white dark-surface">
                       <div className="mb-2 flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5" />
                         <h5 className="font-semibold">상대로 만났을 때 공략법</h5>

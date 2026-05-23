@@ -69,7 +69,7 @@ export function PlayerProfileCard({ summary }: Props) {
     <div className="bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden mb-4">
 
       {/* ── Dark profile header ────────────────────── */}
-      <div className="bg-zinc-950 text-white px-5 py-4">
+      <div className="bg-zinc-950 text-white px-5 py-4 dark-surface">
         <div className="flex items-center justify-between gap-4 flex-wrap">
 
           {/* Avatar + meta */}

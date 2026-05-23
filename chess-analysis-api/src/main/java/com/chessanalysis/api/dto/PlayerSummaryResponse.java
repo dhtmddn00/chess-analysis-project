@@ -7,6 +7,15 @@ import java.util.Map;
 
 public class PlayerSummaryResponse {
     
+    public static class TimeControlStats {
+        public int rating;
+        public int games;
+        public int win;
+        public int draw;
+        public int loss;
+        public double winrate;
+    }
+
     public static class Player {
         public String username;
         public String country;
@@ -14,6 +23,8 @@ public class PlayerSummaryResponse {
         public Map<String, Integer> ratings;
         @JsonProperty("record_all")
         public RecordAll recordAll;
+        @JsonProperty("time_controls")
+        public Map<String, TimeControlStats> timeControls;
     }
     
     public static class RecordAll {

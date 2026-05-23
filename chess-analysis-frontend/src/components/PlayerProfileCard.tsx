@@ -1,42 +1,77 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Globe } from 'lucide-react';
-import { PlayerSummary } from '../hooks/usePlayerSummary';
+import { PlayerSummary, TimeControlStats } from '../hooks/usePlayerSummary';
 
 interface Props {
   summary: PlayerSummary;
+}
+
+type Tab = 'all' | 'rapid' | 'blitz' | 'bullet';
+
+const TAB_META: { key: Tab; icon: string; label: string }[] = [
+  { key: 'all',    icon: '◈', label: '전체'  },
+  { key: 'rapid',  icon: '♙', label: 'Rapid'  },
+  { key: 'blitz',  icon: '♞', label: 'Blitz'  },
+  { key: 'bullet', icon: '♜', label: 'Bullet' },
+];
+
+/** chess.com time_control 초 값 → 종류 추론 */
+function tcLabel(raw: string): string {
+  const secs = parseInt(raw.split('+')[0] ?? '0', 10);
+  if (secs >= 1800) return 'Rapid';
+  if (secs >= 180)  return 'Blitz';
+  return 'Bullet';
 }
 
 export function PlayerProfileCard({ summary }: Props) {
   const t = useTranslations('PlayerSummaryCard');
   const { player, recent10, cohort_hint, openings } = summary;
 
-  const wins = player.record_all.win;
-  const draws = player.record_all.draw;
-  const losses = player.record_all.loss;
-  const total = player.record_all.games || 1;
-  const winRate = (player.record_all.winrate * 100).toFixed(1);
-  const winPct = (wins / total) * 100;
-  const drawPct = (draws / total) * 100;
+  const [activeTab, setActiveTab] = useState<Tab>('all');
 
+  /* ── active stats ──────────────────────────────── */
+  const tc = player.time_controls;
+  const statsMap: Record<Tab, { games: number; win: number; draw: number; loss: number; winrate: number } | null> = {
+    all:    player.record_all,
+    rapid:  tc?.rapid  ?? null,
+    blitz:  tc?.blitz  ?? null,
+    bullet: tc?.bullet ?? null,
+  };
+  const activeStats = statsMap[activeTab] ?? player.record_all;
+  const { games, win, draw, loss, winrate } = activeStats;
+  const winRate  = (winrate * 100).toFixed(1);
+  const winPct   = games > 0 ? (win  / games) * 100 : 0;
+  const drawPct  = games > 0 ? (draw / games) * 100 : 0;
+
+  /* ── tabs that have data ──────────────────────── */
+  const availableTabs = TAB_META.filter(
+    ({ key }) => key === 'all' || statsMap[key] !== null,
+  );
+
+  /* ── recent game helper ───────────────────────── */
   const resultStyle = (result: 'W' | 'L' | 'D') => {
-    if (result === 'W') return { bg: 'bg-blue-500', label: 'W' };
-    if (result === 'L') return { bg: 'bg-red-400', label: 'L' };
-    return { bg: 'bg-zinc-400', label: 'D' };
+    if (result === 'W') return { bg: 'bg-blue-500',  label: 'W' };
+    if (result === 'L') return { bg: 'bg-red-400',   label: 'L' };
+    return               { bg: 'bg-zinc-400',         label: 'D' };
   };
 
+  /* ── rating columns ───────────────────────────── */
   const ratingColumns = [
-    { key: 'rapid', icon: '♙', label: 'Rapid' },
-    { key: 'blitz', icon: '♞', label: 'Blitz' },
+    { key: 'rapid',  icon: '♙', label: 'Rapid'  },
+    { key: 'blitz',  icon: '♞', label: 'Blitz'  },
     { key: 'bullet', icon: '♜', label: 'Bullet' },
   ] as const;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden mb-4">
-      {/* ── Dark profile header ──────────────────────────────── */}
+
+      {/* ── Dark profile header ────────────────────── */}
       <div className="bg-zinc-950 text-white px-5 py-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
+
           {/* Avatar + meta */}
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0 border-2 border-zinc-600">
@@ -68,10 +103,8 @@ export function PlayerProfileCard({ summary }: Props) {
           <div className="flex gap-5 flex-shrink-0">
             {ratingColumns.map(({ key, icon, label }) => {
               const rating = player.ratings?.[key]
-                ?? (player.time_controls?.[key] as { rating?: number } | undefined)?.rating;
-              const tc = player.time_controls?.[key] as
-                | { rating: number; winrate: number; games: number }
-                | undefined;
+                ?? (player.time_controls?.[key] as TimeControlStats | undefined)?.rating;
+              const tcStat = player.time_controls?.[key] as TimeControlStats | undefined;
               return (
                 <div key={key} className="text-center">
                   <div className="text-2xl font-black tabular-nums">
@@ -80,9 +113,9 @@ export function PlayerProfileCard({ summary }: Props) {
                   <div className="text-xs text-zinc-400 mt-0.5">
                     {icon} {label}
                   </div>
-                  {tc && (
+                  {tcStat && (
                     <div className="text-xs text-zinc-500 mt-0.5">
-                      {(tc.winrate * 100).toFixed(0)}% W · {tc.games.toLocaleString()}판
+                      {(tcStat.winrate * 100).toFixed(0)}% W · {tcStat.games.toLocaleString()}판
                     </div>
                   )}
                 </div>
@@ -92,23 +125,55 @@ export function PlayerProfileCard({ summary }: Props) {
         </div>
       </div>
 
-      {/* ── Stats strip ──────────────────────────────────────── */}
-      <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-2.5">
-        <div className="flex items-center gap-4 text-sm flex-wrap">
-          <span className="font-bold text-zinc-800">{player.record_all.games.toLocaleString()}게임</span>
-          <span className="font-black text-blue-600">{winRate}%</span>
-          <span className="text-green-600 font-semibold">W {wins.toLocaleString()}</span>
-          <span className="text-zinc-400">D {draws.toLocaleString()}</span>
-          <span className="text-red-500 font-semibold">L {losses.toLocaleString()}</span>
+      {/* ── Stats tabs ─────────────────────────────── */}
+      <div className="border-b border-zinc-100 bg-zinc-50">
+        {/* Tab bar */}
+        <div className="flex gap-0 px-5 pt-2">
+          {availableTabs.map(({ key, icon, label }) => {
+            const tabStats = statsMap[key];
+            const isActive = activeTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key)}
+                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-zinc-900 text-zinc-900'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-600'
+                }`}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+                {tabStats && key !== 'all' && (
+                  <span className="ml-1 text-[10px] text-zinc-400 tabular-nums font-normal">
+                    {tabStats.games.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        <div className="mt-2 h-1.5 rounded-full overflow-hidden flex bg-zinc-200">
-          <div className="bg-blue-500 h-full" style={{ width: `${winPct}%` }} />
-          <div className="bg-zinc-300 h-full" style={{ width: `${drawPct}%` }} />
+
+        {/* Stats strip */}
+        <div className="px-5 py-2.5">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
+            <span className="font-bold text-zinc-800">{games.toLocaleString()}게임</span>
+            <span className="font-black text-blue-600">{winRate}%</span>
+            <span className="text-green-600 font-semibold">W {win.toLocaleString()}</span>
+            <span className="text-zinc-400">D {draw.toLocaleString()}</span>
+            <span className="text-red-500 font-semibold">L {loss.toLocaleString()}</span>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full overflow-hidden flex bg-zinc-200">
+            <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${winPct}%` }} />
+            <div className="bg-zinc-300 h-full transition-all duration-300" style={{ width: `${drawPct}%` }} />
+          </div>
         </div>
       </div>
 
-      {/* ── Content ──────────────────────────────────────────── */}
+      {/* ── Content ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-zinc-100">
+
         {/* Recent games (2/3) */}
         <div className="lg:col-span-2 p-4">
           <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mb-3">
@@ -117,10 +182,11 @@ export function PlayerProfileCard({ summary }: Props) {
           <div className="space-y-0.5">
             {(recent10 || []).slice(0, 10).map((game, i) => {
               const rs = resultStyle(game.result);
+              const tcTag = tcLabel(game.time_control);
               return (
                 <div
                   key={i}
-                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-50 transition-colors group"
+                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   {/* W/L/D badge */}
                   <span
@@ -151,6 +217,11 @@ export function PlayerProfileCard({ summary }: Props) {
                       }
                     </div>
                   </div>
+
+                  {/* Time control chip */}
+                  <span className="text-[10px] font-semibold text-zinc-400 flex-shrink-0 bg-zinc-100 rounded px-1.5 py-0.5">
+                    {tcTag}
+                  </span>
 
                   {/* Color indicator */}
                   <div
@@ -214,6 +285,7 @@ export function PlayerProfileCard({ summary }: Props) {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

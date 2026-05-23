@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 
+export interface TimeControlStats {
+  rating: number;
+  games: number;
+  win: number;
+  draw: number;
+  loss: number;
+  winrate: number;
+}
+
 export interface PlayerSummary {
   player: {
     username: string;
@@ -15,30 +24,9 @@ export interface PlayerSummary {
       winrate: number;
     };
     time_controls?: {
-      rapid?: {
-        rating: number;
-        games: number;
-        win: number;
-        draw: number;
-        loss: number;
-        winrate: number;
-      };
-      blitz?: {
-        rating: number;
-        games: number;
-        win: number;
-        draw: number;
-        loss: number;
-        winrate: number;
-      };
-      bullet?: {
-        rating: number;
-        games: number;
-        win: number;
-        draw: number;
-        loss: number;
-        winrate: number;
-      };
+      rapid?: TimeControlStats;
+      blitz?: TimeControlStats;
+      bullet?: TimeControlStats;
     };
   };
   openings: {
@@ -78,13 +66,20 @@ interface UsePlayerSummaryResult {
   summary: PlayerSummary | null;
   isLoading: boolean;
   error: string | null;
+  notFound: boolean;
   refetch: () => void;
 }
 
 const fetcher = (url: string) => {
   console.log('Fetching from URL:', url);
-  return fetch(url).then(res => {
+  return fetch(url).then(async res => {
     console.log('Response status:', res.status, res.statusText);
+    if (res.status === 404) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.error || '플레이어를 찾을 수 없습니다');
+      (err as any).status = 404;
+      throw err;
+    }
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
@@ -117,6 +112,7 @@ export function usePlayerSummary(
     summary: data || null,
     isLoading,
     error: error?.message || null,
+    notFound: (error as any)?.status === 404 || error?.message?.includes('찾을 수 없습니다') || false,
     refetch: mutate,
   };
 }

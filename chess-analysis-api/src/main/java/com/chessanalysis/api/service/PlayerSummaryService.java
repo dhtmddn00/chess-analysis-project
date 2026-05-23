@@ -231,26 +231,49 @@ public class PlayerSummaryService {
             player.ratings.put("bullet", bullet.path("last").path("rating").asInt());
         }
         
-        // Calculate aggregate record
+        // Per-time-control stats + aggregate record
+        player.timeControls = new HashMap<>();
         player.recordAll = new PlayerSummaryResponse.RecordAll();
         int totalWin = 0, totalDraw = 0, totalLoss = 0;
-        
-        for (String timeControl : Arrays.asList("chess_blitz", "chess_rapid", "chess_bullet")) {
-            JsonNode tc = stats.path(timeControl);
+
+        Map<String, String> tcMapping = Map.of(
+            "chess_blitz",  "blitz",
+            "chess_rapid",  "rapid",
+            "chess_bullet", "bullet"
+        );
+
+        for (Map.Entry<String, String> entry : tcMapping.entrySet()) {
+            JsonNode tc = stats.path(entry.getKey());
             if (tc.has("record")) {
-                totalWin += tc.path("record").path("win").asInt(0);
-                totalDraw += tc.path("record").path("draw").asInt(0);
-                totalLoss += tc.path("record").path("loss").asInt(0);
+                int w = tc.path("record").path("win").asInt(0);
+                int d = tc.path("record").path("draw").asInt(0);
+                int l = tc.path("record").path("loss").asInt(0);
+                totalWin  += w;
+                totalDraw += d;
+                totalLoss += l;
+
+                PlayerSummaryResponse.TimeControlStats tcStats = new PlayerSummaryResponse.TimeControlStats();
+                tcStats.win  = w;
+                tcStats.draw = d;
+                tcStats.loss = l;
+                tcStats.games   = w + d + l;
+                tcStats.winrate = tcStats.games > 0 ? (double) w / tcStats.games : 0.0;
+                if (tc.has("last")) {
+                    tcStats.rating = tc.path("last").path("rating").asInt(0);
+                }
+                if (tcStats.games > 0) {
+                    player.timeControls.put(entry.getValue(), tcStats);
+                }
             }
         }
-        
-        player.recordAll.win = totalWin;
-        player.recordAll.draw = totalDraw;
-        player.recordAll.loss = totalLoss;
+
+        player.recordAll.win   = totalWin;
+        player.recordAll.draw  = totalDraw;
+        player.recordAll.loss  = totalLoss;
         player.recordAll.games = totalWin + totalDraw + totalLoss;
-        player.recordAll.winrate = player.recordAll.games > 0 ? 
+        player.recordAll.winrate = player.recordAll.games > 0 ?
             (double) totalWin / player.recordAll.games : 0.0;
-        
+
         return player;
     }
     

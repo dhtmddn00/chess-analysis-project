@@ -298,7 +298,7 @@ export default function UnifiedAnalyzePage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Player summary hook
-  const { summary, isLoading: summaryLoading, error: summaryError, refetch } = usePlayerSummary(
+  const { summary, isLoading: summaryLoading, error: summaryError, notFound: playerNotFound, refetch } = usePlayerSummary(
     hasSearched ? searchForm.platform : null,
     hasSearched ? searchForm.username : null,
     hasSearched
@@ -563,8 +563,29 @@ export default function UnifiedAnalyzePage() {
           </div>
         )}
 
-        {/* Error */}
-        {summaryError && (
+        {/* Player not found */}
+        {playerNotFound && (
+          <div className="flex flex-col items-center justify-center py-16 mb-8">
+            <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
+              <span className="text-4xl">♟</span>
+            </div>
+            <h2 className="text-xl font-black text-zinc-800 mb-1">
+              &ldquo;{searchForm.username}&rdquo; 플레이어를 찾을 수 없습니다
+            </h2>
+            <p className="text-sm text-zinc-400 mb-5">
+              아이디를 다시 확인해주세요. 대소문자도 구분됩니다.
+            </p>
+            <button
+              onClick={() => setSearchForm({ ...searchForm, username: '' })}
+              className="px-5 py-2 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:bg-zinc-700 transition"
+            >
+              다시 검색
+            </button>
+          </div>
+        )}
+
+        {/* Generic error (non-404) */}
+        {summaryError && !playerNotFound && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
             <div className="text-red-800 font-medium">플레이어 정보를 가져올 수 없습니다</div>
             <div className="text-red-700 text-sm mt-1">{summaryError}</div>

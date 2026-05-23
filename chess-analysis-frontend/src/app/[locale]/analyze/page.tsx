@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter as useIntlRouter } from '../../../i18n/navigation';
 import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../../hooks/useAnalysis';
+import { PlayerProfileCard } from '../../../components/PlayerProfileCard';
 
 interface PlayerSummary {
   player: {
@@ -322,21 +323,21 @@ export default function UnifiedAnalyzePage() {
   const modeMeta = {
     fast: {
       label: t('modeFastLabel'),
-      maxGames: 20,
+      maxGames: 50,
       estimate: t('modeFastEstimate'),
       cost: t('modeFastCost'),
       description: t('modeFastDesc'),
     },
     balanced: {
       label: t('modeBalancedLabel'),
-      maxGames: 20,
+      maxGames: 30,
       estimate: t('modeBalancedEstimate'),
       cost: t('modeBalancedCost'),
       description: t('modeBalancedDesc'),
     },
     precise: {
       label: t('modePreciseLabel'),
-      maxGames: 10,
+      maxGames: 20,
       estimate: t('modePreciseEstimate'),
       cost: t('modePreciseCost'),
       description: t('modePreciseDesc'),
@@ -509,134 +510,36 @@ export default function UnifiedAnalyzePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search form */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8 chess-panel">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="chess-icon-tile">♘</div>
-            <div>
-              <h2 className="text-lg font-bold text-zinc-950">플레이어 검색</h2>
-              <p className="text-sm text-zinc-500">사용자명만 입력하면 최근 게임 요약부터 확인합니다</p>
-            </div>
-          </div>
-          <form onSubmit={handleSearch}>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">플랫폼</label>
-                <select
-                  value={searchForm.platform}
-                  onChange={(e) => setSearchForm({...searchForm, platform: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="chess.com">Chess.com</option>
-                  <option value="lichess" disabled>Lichess (준비 중)</option>
-                </select>
-              </div>
-              
-              <div className="md:col-span-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">사용자명</label>
-                <input
-                  type="text"
-                  value={searchForm.username}
-                  onChange={(e) => setSearchForm({...searchForm, username: e.target.value})}
-                  placeholder={tCommon('usernamePlaceholder')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">게임 수</label>
-                <select
-                  value={searchForm.n}
-                  onChange={(e) => setSearchForm({...searchForm, n: parseInt(e.target.value)})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value={5}>5게임</option>
-                  <option value={10}>10게임</option>
-                  <option value={20} disabled={selectedMode.maxGames < 20}>20게임</option>
-                </select>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">시간 제어</label>
-                <select
-                  value={searchForm.timeControl}
-                  onChange={(e) => setSearchForm({...searchForm, timeControl: e.target.value as 'all' | 'rapid' | 'blitz' | 'bullet'})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">모든 게임</option>
-                  <option value="rapid">래피드</option>
-                  <option value="blitz">블리츠</option>
-                  <option value="bullet">불릿</option>
-                </select>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">분석 모드</label>
-                <select
-                  value={searchForm.priority}
-                  onChange={(e) => setSearchForm({...searchForm, priority: e.target.value as 'fast' | 'balanced' | 'precise'})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="fast">빠르게</option>
-                  <option value="balanced">균형</option>
-                  <option value="precise">정밀하게</option>
-                </select>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">&nbsp;</label>
-                <button
-                  type="submit"
-                  disabled={summaryLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2"
-                >
-                  {summaryLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Search className="w-5 h-5" />
-                      <span>검색</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-              {(Object.keys(modeMeta) as Array<keyof typeof modeMeta>).map((mode) => {
-                const meta = modeMeta[mode];
-                const active = searchForm.priority === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSearchForm((previous) => ({
-                      ...previous,
-                      priority: mode,
-                      n: Math.min(previous.n, meta.maxGames),
-                    }))}
-                    className={`rounded-lg border px-4 py-3 text-left transition ${
-                      active
-                        ? 'border-zinc-950 bg-zinc-950 text-white'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-zinc-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-black">{meta.label}</div>
-                      <div className={`rounded-full px-2 py-0.5 text-xs font-bold ${active ? 'bg-white text-zinc-950' : 'bg-white text-zinc-600'}`}>
-                        {meta.cost}
-                      </div>
-                    </div>
-                    <div className={`mt-1 text-xs font-semibold ${active ? 'text-zinc-200' : 'text-zinc-500'}`}>
-                      최대 {meta.maxGames}게임 · {meta.estimate}
-                    </div>
-                    <div className={`mt-2 text-xs leading-5 ${active ? 'text-zinc-200' : 'text-zinc-600'}`}>
-                      {meta.description}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        {/* Search */}
+        <div className="bg-white rounded-xl shadow-sm border border-zinc-200 p-4 mb-5">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <select
+              value={searchForm.platform}
+              onChange={(e) => setSearchForm({ ...searchForm, platform: e.target.value })}
+              className="border border-zinc-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 bg-white"
+            >
+              <option value="chess.com">Chess.com</option>
+            </select>
+            <input
+              type="text"
+              value={searchForm.username}
+              onChange={(e) => setSearchForm({ ...searchForm, username: e.target.value })}
+              placeholder={tCommon('usernamePlaceholder')}
+              className="flex-1 border border-zinc-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900"
+              required
+            />
+            <button
+              type="submit"
+              disabled={summaryLoading}
+              className="bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-400 text-white font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 text-sm flex-shrink-0"
+            >
+              {summaryLoading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+              {tCommon('search')}
+            </button>
           </form>
         </div>
 
@@ -674,160 +577,167 @@ export default function UnifiedAnalyzePage() {
           </div>
         )}
 
-        {/* Instant Summary */}
-        {summary && summary.player && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 chess-panel">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                {/* Avatar */}
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200">
-                  {summary.player.avatar ? (
-                    <img 
-                      src={summary.player.avatar} 
-                      alt={summary.player.username}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-500">
-                      {summary.player?.username?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                  )}
+        {/* Player Profile (op.gg style) + Analysis Config */}
+        {summary && summary.player && !analysisStarted && (
+          <>
+            <PlayerProfileCard summary={summary} />
+
+            {/* Analysis config panel */}
+            <div className="bg-white rounded-xl shadow-sm border border-zinc-200 p-5 mb-6">
+              <div className="mb-5">
+                <h2 className="text-base font-black text-zinc-950">심층 Stockfish 분석</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">게임 수와 분석 모드를 선택하고 시작하세요</p>
+              </div>
+
+              {analysisError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {analysisError}
                 </div>
-                
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{summary.player.username}</h2>
-                  <div className="flex items-center space-x-3 text-gray-600">
-                    <div className="flex items-center">
-                      <Globe className="w-4 h-4 mr-1" />
-                      {summary.player.country || 'Unknown'}
-                    </div>
-                    <div className="flex items-center">
-                      <Trophy className="w-4 h-4 mr-1" />
-                      {((summary.player.record_all?.winrate || 0) * 100).toFixed(1)}% 승률
-                    </div>
-                  </div>
+              )}
+
+              {/* Game count */}
+              <div className="mb-5">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
+                  게임 수
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {[10, 20, 30, 50].map((n) => {
+                    const max = modeMeta[searchForm.priority].maxGames;
+                    const isDisabled = n > max;
+                    const isActive = searchForm.n === n;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => !isDisabled && setSearchForm({ ...searchForm, n })}
+                        disabled={isDisabled}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${
+                          isActive
+                            ? 'bg-zinc-950 text-white border-zinc-950'
+                            : isDisabled
+                              ? 'bg-zinc-50 text-zinc-300 border-zinc-100 cursor-not-allowed'
+                              : 'bg-white text-zinc-700 border-zinc-300 hover:border-zinc-700'
+                        }`}
+                      >
+                        {n}게임
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              
-              {!analysisStarted && (
-                <button
-                  onClick={handleStartAnalysis}
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2"
-                >
-                  <Zap className="w-5 h-5" />
-                  <span>상세 분석 시작</span>
-                </button>
+
+              {/* Mode */}
+              <div className="mb-5">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
+                  분석 모드
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {(Object.keys(modeMeta) as Array<keyof typeof modeMeta>).map((mode) => {
+                    const meta = modeMeta[mode];
+                    const isActive = searchForm.priority === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() =>
+                          setSearchForm((prev) => ({
+                            ...prev,
+                            priority: mode,
+                            n: Math.min(prev.n, meta.maxGames),
+                          }))
+                        }
+                        className={`rounded-lg border px-4 py-3 text-left transition ${
+                          isActive
+                            ? 'border-zinc-950 bg-zinc-950 text-white'
+                            : 'border-zinc-200 bg-zinc-50 hover:border-zinc-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black">{meta.label}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                              isActive ? 'bg-white text-zinc-950' : 'bg-white text-zinc-500'
+                            }`}
+                          >
+                            {meta.cost}
+                          </span>
+                        </div>
+                        <div
+                          className={`mt-1 text-xs font-semibold ${
+                            isActive ? 'text-zinc-300' : 'text-zinc-500'
+                          }`}
+                        >
+                          최대 {meta.maxGames}게임 · {meta.estimate}
+                        </div>
+                        <div
+                          className={`mt-1 text-xs leading-relaxed ${
+                            isActive ? 'text-zinc-400' : 'text-zinc-500'
+                          }`}
+                        >
+                          {meta.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Time control (compact) */}
+              <div className="mb-5">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
+                  시간 제어
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['all', 'rapid', 'blitz', 'bullet'] as const).map((tc) => {
+                    const labels = { all: '전체', rapid: '래피드', blitz: '블리츠', bullet: '불릿' };
+                    const isActive = searchForm.timeControl === tc;
+                    return (
+                      <button
+                        key={tc}
+                        type="button"
+                        onClick={() => setSearchForm({ ...searchForm, timeControl: tc })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          isActive
+                            ? 'bg-zinc-950 text-white border-zinc-950'
+                            : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-600'
+                        }`}
+                      >
+                        {labels[tc]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={handleStartAnalysis}
+                className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-black py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 transition"
+              >
+                <Zap className="w-4 h-4" />
+                {searchForm.n}게임 심층 분석 시작
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Compact player header while analysis is running */}
+        {summary && summary.player && analysisStarted && (
+          <div className="bg-white rounded-xl border border-zinc-200 px-5 py-3 mb-5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-200 flex-shrink-0">
+              {summary.player.avatar ? (
+                <img src={summary.player.avatar} alt={summary.player.username} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm font-black text-zinc-500">
+                  {summary.player.username.charAt(0).toUpperCase()}
+                </div>
               )}
             </div>
-
-            {analysisError && (
-              <div className="mb-6 rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-800">
-                {analysisError}
-              </div>
-            )}
-
-            {/* Ratings by Time Control */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {summary.player.ratings?.rapid ?? summary.player.time_controls?.rapid?.rating ?? '-'}
-                </div>
-                <div className="text-sm text-gray-600">♙ 래피드</div>
-                {summary.player.time_controls?.rapid && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {((summary.player.time_controls.rapid.winrate || 0) * 100).toFixed(1)}% 승률
-                  </div>
-                )}
-              </div>
-              
-              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="text-2xl font-bold text-green-600">
-                  {summary.player.ratings?.blitz ?? summary.player.time_controls?.blitz?.rating ?? '-'}
-                </div>
-                <div className="text-sm text-gray-600">♞ 블리츠</div>
-                {summary.player.time_controls?.blitz && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {((summary.player.time_controls.blitz.winrate || 0) * 100).toFixed(1)}% 승률
-                  </div>
-                )}
-              </div>
-              
-              <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
-                <div className="text-2xl font-bold text-red-600">
-                  {summary.player.ratings?.bullet ?? summary.player.time_controls?.bullet?.rating ?? '-'}
-                </div>
-                <div className="text-sm text-gray-600">♜ 불릿</div>
-                {summary.player.time_controls?.bullet && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {((summary.player.time_controls.bullet.winrate || 0) * 100).toFixed(1)}% 승률
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Overall Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-900">
-                  {summary.player.record_all?.games?.toLocaleString() || '0'}
-                </div>
-                <div className="text-sm text-gray-600">총 게임 수</div>
-              </div>
-              
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {summary.player.record_all?.win || '0'}
-                </div>
-                <div className="text-sm text-gray-600">승리</div>
-              </div>
-              
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">
-                  {summary.player.record_all?.loss || '0'}
-                </div>
-                <div className="text-sm text-gray-600">패배</div>
-              </div>
-              
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {((summary.player.record_all?.winrate || 0) * 100).toFixed(1)}%
-                </div>
-                <div className="text-sm text-gray-600">전체 승률</div>
-              </div>
-            </div>
-
-            {/* Recent 10 Games */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">최근 10게임 전적</h3>
-              <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
-                {(summary.recent10 || []).map((game, index) => (
-                  <div
-                    key={index}
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-sm font-bold ${getResultColor(game.result)}`}
-                    title={`vs ${game.opponent} (${game.opp_rating}) - ${game.time_control}`}
-                  >
-                    {getResultText(game.result)}
-                  </div>
-                ))}
-                {(!summary.recent10 || summary.recent10.length === 0) && (
-                  <div className="col-span-full text-center text-gray-500 py-4">
-                    최근 게임 정보가 없습니다
-                  </div>
-                )}
+              <div className="font-bold text-sm text-zinc-950">{summary.player.username}</div>
+              <div className="text-xs text-zinc-400">
+                {searchForm.n}게임 · {modeMeta[searchForm.priority].label} 모드
               </div>
             </div>
-
-            {/* Cohort Info */}
-            {summary.cohort_hint && (
-              <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="text-sm font-medium text-purple-800">
-                  코호트: {summary.cohort_hint.band}
-                </div>
-                <div className="text-xs text-purple-700 mt-1">
-                  {summary.cohort_hint.note}
-                </div>
-              </div>
-            )}
           </div>
         )}
 

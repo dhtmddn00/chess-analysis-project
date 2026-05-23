@@ -16,7 +16,7 @@ public class AnalysisRequestDto {
     
     @NotNull(message = "Game count is required")
     @Min(value = 5, message = "Minimum 5 games required")
-    @Max(value = 50, message = "Maximum 50 games allowed")
+    @Max(value = 50, message = "Maximum 50 games allowed (fast: 50, balanced: 30, precise: 20)")
     private Integer gameCount = 20;
     
     @Pattern(regexp = "all|rapid|blitz|bullet", message = "Time control must be all, rapid, blitz, or bullet")

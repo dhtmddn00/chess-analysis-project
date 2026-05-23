@@ -38,9 +38,9 @@ public class AnalysisService {
     private static final Duration ANALYSIS_CREATE_LOCK_TTL = Duration.ofSeconds(30);
     private static final Duration PENDING_STALE_AFTER = Duration.ofMinutes(45);
     private static final Duration IN_PROGRESS_STALE_AFTER = Duration.ofMinutes(30);
-    private static final int FAST_MAX_GAMES = 20;
-    private static final int BALANCED_MAX_GAMES = 20;
-    private static final int PRECISE_MAX_GAMES = 10;
+    private static final int FAST_MAX_GAMES = 50;
+    private static final int BALANCED_MAX_GAMES = 30;
+    private static final int PRECISE_MAX_GAMES = 20;
     
     public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp) {
         String normalizedUsername = request.getUsername() == null ? "" : request.getUsername().trim();

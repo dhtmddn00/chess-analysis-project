@@ -18,13 +18,22 @@ const TAB_META: { key: Tab; icon: string; label: string }[] = [
   { key: 'bullet', icon: '♜', label: 'Bullet' },
 ];
 
-/** chess.com time_control 초 값 → 종류 추론 */
-function tcLabel(raw: string): string {
+/**
+ * chess.com time_control 초 값 → Tab 키 추론
+ * chess.com 기준: Rapid ≥ 600s (10 min), Blitz 180-599s, Bullet < 180s
+ */
+function tcToTab(raw: string): Exclude<Tab, 'all'> {
   const secs = parseInt(raw.split('+')[0] ?? '0', 10);
-  if (secs >= 1800) return 'Rapid';
-  if (secs >= 180)  return 'Blitz';
-  return 'Bullet';
+  if (secs >= 600) return 'rapid';
+  if (secs >= 180) return 'blitz';
+  return 'bullet';
 }
+
+const TAB_CHIP: Record<Exclude<Tab, 'all'>, string> = {
+  rapid:  'Rapid',
+  blitz:  'Blitz',
+  bullet: 'Bullet',
+};
 
 export function PlayerProfileCard({ summary }: Props) {
   const t = useTranslations('PlayerSummaryCard');
@@ -49,6 +58,11 @@ export function PlayerProfileCard({ summary }: Props) {
   /* ── tabs that have data ──────────────────────── */
   const availableTabs = TAB_META.filter(
     ({ key }) => key === 'all' || statsMap[key] !== null,
+  );
+
+  /* ── filtered recent games ────────────────────── */
+  const filteredGames = (recent10 || []).filter(
+    (g) => activeTab === 'all' || tcToTab(g.time_control) === activeTab,
   );
 
   /* ── recent game helper ───────────────────────── */
@@ -180,9 +194,9 @@ export function PlayerProfileCard({ summary }: Props) {
             {t('recentGames')}
           </h3>
           <div className="space-y-0.5">
-            {(recent10 || []).slice(0, 10).map((game, i) => {
+            {filteredGames.slice(0, 10).map((game, i) => {
               const rs = resultStyle(game.result);
-              const tcTag = tcLabel(game.time_control);
+              const tcKey = tcToTab(game.time_control);
               return (
                 <div
                   key={i}
@@ -218,10 +232,12 @@ export function PlayerProfileCard({ summary }: Props) {
                     </div>
                   </div>
 
-                  {/* Time control chip */}
-                  <span className="text-[10px] font-semibold text-zinc-400 flex-shrink-0 bg-zinc-100 rounded px-1.5 py-0.5">
-                    {tcTag}
-                  </span>
+                  {/* Time control chip — hidden when already filtering by that TC */}
+                  {activeTab === 'all' && (
+                    <span className="text-[10px] font-semibold text-zinc-400 flex-shrink-0 bg-zinc-100 rounded px-1.5 py-0.5">
+                      {TAB_CHIP[tcKey]}
+                    </span>
+                  )}
 
                   {/* Color indicator */}
                   <div
@@ -235,8 +251,10 @@ export function PlayerProfileCard({ summary }: Props) {
                 </div>
               );
             })}
-            {(!recent10 || recent10.length === 0) && (
-              <p className="text-center text-sm text-zinc-400 py-6">최근 게임 없음</p>
+            {filteredGames.length === 0 && (
+              <p className="text-center text-sm text-zinc-400 py-6">
+                {activeTab === 'all' ? '최근 게임 없음' : `최근 ${TAB_CHIP[activeTab as Exclude<Tab,'all'>]} 게임 없음`}
+              </p>
             )}
           </div>
         </div>

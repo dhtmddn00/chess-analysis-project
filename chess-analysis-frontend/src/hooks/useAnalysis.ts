@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR from 'swr';
 
 export interface CreateAnalysisRequest {
@@ -100,24 +100,44 @@ const fetcher = (url: string) => fetch(url).then(res => {
 export function useAnalysis(): UseAnalysisResult {
   const [jobId, setJobId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  
+
+  // Adaptive polling: track progress stalls to slow down when nothing is moving
+  const prevProgressRef = useRef<number>(0);
+  const stallCountRef   = useRef<number>(0);
+
   // Poll job status when we have a jobId and job is not done
-  const shouldPoll = jobId !== null; // will be refined based on status
+  const shouldPoll = jobId !== null;
   const { data: status, error, mutate } = useSWR<AnalysisJobStatus>(
     shouldPoll ? `/api/v1/analysis/${jobId}/status` : null,
     fetcher,
     {
+      /**
+       * Adaptive refresh interval:
+       *  - completed / failed  → stop (0)
+       *  - pending             → 4 s  (job not started yet, no need to rush)
+       *  - in_progress, moving → 2 s  (active progress, poll fast)
+       *  - in_progress, stall ×2 → 5 s
+       *  - in_progress, stall ×4 → 10 s (engine is busy, back off)
+       */
       refreshInterval: (data) => {
-        // Stop polling when done or failed
-        if (data?.status === 'completed' || data?.status === 'failed') {
+        if (!data || data.status === 'completed' || data.status === 'failed') {
+          stallCountRef.current = 0;
           return 0;
         }
-        // Poll every 2 seconds for running jobs
-        if (data?.status === 'in_progress') {
-          return 2000;
+        if (data.status === 'pending') {
+          return 4000;
         }
-        // Poll every 3 seconds for pending jobs
-        return 3000;
+        // in_progress — compare with previous progress value
+        const current = data.progress ?? 0;
+        if (current !== prevProgressRef.current) {
+          prevProgressRef.current = current;
+          stallCountRef.current   = 0;
+        } else {
+          stallCountRef.current += 1;
+        }
+        if (stallCountRef.current >= 4) return 10_000;
+        if (stallCountRef.current >= 2) return 5_000;
+        return 2_000;
       },
       revalidateOnFocus: false,
       dedupingInterval: 1000,

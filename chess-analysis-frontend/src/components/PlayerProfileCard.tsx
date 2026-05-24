@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Globe } from 'lucide-react';
+import { Globe, ExternalLink } from 'lucide-react';
 import { PlayerSummary, TimeControlStats } from '../hooks/usePlayerSummary';
 
 interface Props {
@@ -194,13 +194,24 @@ export function PlayerProfileCard({ summary }: Props) {
             {t('recentGames')}
           </h3>
           <div className="space-y-0.5">
-            {filteredGames.slice(0, 10).map((game, i) => {
+            {filteredGames.slice(0, 10).map((game) => {
               const rs = resultStyle(game.result);
               const tcKey = tcToTab(game.time_control);
+              // game_id에는 Chess.com 게임 전체 URL이 저장돼 있음
+              const gameUrl = game.game_id || null;
+
               return (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-50 transition-colors"
+                <a
+                  key={game.game_id || `${game.opponent}-${game.ended_at}`}
+                  href={gameUrl ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-colors group ${
+                    gameUrl
+                      ? 'hover:bg-zinc-50 cursor-pointer'
+                      : 'cursor-default'
+                  }`}
+                  onClick={gameUrl ? undefined : (e) => e.preventDefault()}
                 >
                   {/* W/L/D badge */}
                   <span
@@ -248,7 +259,12 @@ export function PlayerProfileCard({ summary }: Props) {
                     }`}
                     title={game.color === 'white' ? '백' : '흑'}
                   />
-                </div>
+
+                  {/* External link icon — only visible on hover */}
+                  {gameUrl && (
+                    <ExternalLink className="w-3 h-3 text-zinc-300 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </a>
               );
             })}
             {filteredGames.length === 0 && (

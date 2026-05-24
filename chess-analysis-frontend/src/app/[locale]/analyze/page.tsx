@@ -8,6 +8,7 @@ import { useRouter as useIntlRouter } from '../../../i18n/navigation';
 import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../../hooks/useAnalysis';
 import { PlayerProfileCard } from '../../../components/PlayerProfileCard';
+import { AnalysisResultErrorBoundary } from '../../../components/AnalysisResultErrorBoundary';
 
 interface PlayerSummary {
   player: {
@@ -858,6 +859,7 @@ export default function UnifiedAnalyzePage() {
 
             {/* Comprehensive Analysis Results */}
             {detailedResult && (
+              <AnalysisResultErrorBoundary>
               <div className="space-y-8">
                 {/* Executive Summary */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg p-6 chess-result-hero">
@@ -1510,6 +1512,7 @@ export default function UnifiedAnalyzePage() {
                   </div>
                 </div>
               </div>
+              </AnalysisResultErrorBoundary>
             )}
             {isDone && !detailedResult && resultError && (
               <div className="rounded-xl border border-zinc-300 bg-white p-6 shadow-lg chess-panel">

@@ -61,6 +61,7 @@ interface UseAnalysisResult {
 
   // Current job status
   jobId: string | null;
+  shortLink: string | null;
   status: AnalysisJobStatus | null;
   isPolling: boolean;
 
@@ -99,6 +100,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
 
 export function useAnalysis(): UseAnalysisResult {
   const [jobId, setJobId] = useState<string | null>(null);
+  const [shortLink, setShortLink] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   // Adaptive polling: track progress stalls to slow down when nothing is moving
@@ -186,6 +188,7 @@ export function useAnalysis(): UseAnalysisResult {
       
       const data = await response.json();
       setJobId(data.id);
+      if (data.shortLink) setShortLink(data.shortLink);
       
       // Force immediate poll
       mutate();
@@ -240,6 +243,7 @@ export function useAnalysis(): UseAnalysisResult {
 
   const reset = useCallback(() => {
     setJobId(null);
+    setShortLink(null);
     etaTrackRef.current = null;
     setEtaRemaining(null);
     mutate(undefined, false); // Clear SWR cache
@@ -266,6 +270,7 @@ export function useAnalysis(): UseAnalysisResult {
     
     // Current job status
     jobId,
+    shortLink,
     status: statusData,
     isPolling,
     

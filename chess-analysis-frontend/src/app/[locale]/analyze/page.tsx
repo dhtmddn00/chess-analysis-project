@@ -9,6 +9,7 @@ import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../../hooks/useAnalysis';
 import { PlayerProfileCard } from '../../../components/PlayerProfileCard';
 import { AnalysisResultErrorBoundary } from '../../../components/AnalysisResultErrorBoundary';
+import { ShareResultCard } from '../../../components/ShareResultCard';
 
 interface PlayerSummary {
   player: {
@@ -343,6 +344,7 @@ export default function UnifiedAnalyzePage() {
     createJob,
     cancelJob,
     jobId,
+    shortLink,
     status,
     isDone,
     isFailed,
@@ -1539,19 +1541,18 @@ export default function UnifiedAnalyzePage() {
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="text-center space-y-4">
-                  <button
-                    onClick={() => window.location.href = `/analysis/${detailedResult.analysisId}`}
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 rounded-lg font-medium text-lg shadow-lg"
-                  >
-                    📋 전체 상세 보고서 보기
-                  </button>
-                  
-                  <div className="text-sm text-gray-500">
-                    분석 ID: {detailedResult.analysisId}
-                  </div>
-                </div>
+                {/* Share */}
+                <ShareResultCard
+                  username={detailedResult.username}
+                  gameCount={detailedResult.totalGames}
+                  averageAccuracy={detailedResult.averageAccuracy ?? 0}
+                  averageCentipawnLoss={detailedResult.averageCentipawnLoss ?? 0}
+                  totalBlunders={detailedResult.totalBlunders ?? 0}
+                  playingStyle={detailedResult.styleProfile?.playingStyle ?? ''}
+                  winrate={summary?.player?.record_all?.winrate}
+                  shortLink={shortLink}
+                  jobId={jobId}
+                />
               </div>
               </AnalysisResultErrorBoundary>
             )}

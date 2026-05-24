@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, ShieldCheck } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
 import { useTranslations } from 'next-intl';
@@ -283,6 +283,39 @@ interface OpponentBucket {
   scoreRate: number;
 }
 
+// ── Static constants — defined outside the component so they are never re-created ──
+
+/** maxGames per mode (pure data, no translations needed) */
+const MODE_MAX_GAMES = { fast: 50, balanced: 30, precise: 20 } as const;
+
+/** Keys of AnalysisResult['styleProfile'] that hold numeric scores */
+type StyleNumericKey =
+  | 'tacticalRating' | 'positionalRating' | 'endgameRating'
+  | 'timeManagementRating' | 'aggressionRating' | 'consistency'
+  | 'riskTolerance' | 'exchangePreference' | 'openingVariety'
+  | 'leadConversion' | 'swindleResistance' | 'blunderTendency';
+
+const STYLE_DIMENSIONS: { name: string; key: StyleNumericKey; icon: string }[] = [
+  { name: '전술적 감각', key: 'tacticalRating',        icon: '♞' },
+  { name: '포지셔널',    key: 'positionalRating',       icon: '♗' },
+  { name: '엔드게임',   key: 'endgameRating',           icon: '♔' },
+  { name: '시간 관리',  key: 'timeManagementRating',    icon: '♟' },
+  { name: '공격성',     key: 'aggressionRating',        icon: '♛' },
+  { name: '일관성',     key: 'consistency',             icon: '♖' },
+  { name: '리스크 감수', key: 'riskTolerance',          icon: '♘' },
+  { name: '교환 선호도', key: 'exchangePreference',     icon: '♜' },
+  { name: '오프닝 다양성', key: 'openingVariety',       icon: '♙' },
+  { name: '우세 변환력', key: 'leadConversion',         icon: '♕' },
+  { name: '역전 저항력', key: 'swindleResistance',      icon: '♚' },
+  { name: '블런더 경향', key: 'blunderTendency',        icon: '♟' },
+];
+
+/** Format seconds into a short Korean ETA string */
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `약 ${seconds}초`;
+  return `약 ${Math.round(seconds / 60)}분`;
+}
+
 export default function UnifiedAnalyzePage() {
   const t = useTranslations('Analyze');
   const tCommon = useTranslations('Common');
@@ -308,10 +341,14 @@ export default function UnifiedAnalyzePage() {
   // Analysis job hook
   const {
     createJob,
+    cancelJob,
     jobId,
     status,
     isDone,
     isFailed,
+    isRunning,
+    isQueued,
+    etaRemaining,
     tacticsReady,
     swingMomentsReady,
     endgameReady,
@@ -321,29 +358,30 @@ export default function UnifiedAnalyzePage() {
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
 
-  const modeMeta = {
+  // modeMeta 는 번역 함수(t)가 바뀔 때만 재생성 — 실제로는 거의 불변
+  const modeMeta = useMemo(() => ({
     fast: {
       label: t('modeFastLabel'),
-      maxGames: 50,
+      maxGames: MODE_MAX_GAMES.fast,
       estimate: t('modeFastEstimate'),
       cost: t('modeFastCost'),
       description: t('modeFastDesc'),
     },
     balanced: {
       label: t('modeBalancedLabel'),
-      maxGames: 30,
+      maxGames: MODE_MAX_GAMES.balanced,
       estimate: t('modeBalancedEstimate'),
       cost: t('modeBalancedCost'),
       description: t('modeBalancedDesc'),
     },
     precise: {
       label: t('modePreciseLabel'),
-      maxGames: 20,
+      maxGames: MODE_MAX_GAMES.precise,
       estimate: t('modePreciseEstimate'),
       cost: t('modePreciseCost'),
       description: t('modePreciseDesc'),
     },
-  } as const;
+  }), [t]);
 
   const selectedMode = modeMeta[searchForm.priority];
 
@@ -444,7 +482,7 @@ export default function UnifiedAnalyzePage() {
   }, [isDone, jobId]);
 
   useEffect(() => {
-    const maxGames = modeMeta[searchForm.priority].maxGames;
+    const maxGames = MODE_MAX_GAMES[searchForm.priority];
     if (searchForm.n > maxGames) {
       setSearchForm((previous) => ({ ...previous, n: maxGames }));
     }
@@ -807,24 +845,38 @@ export default function UnifiedAnalyzePage() {
             {/* Progress Indicator */}
             {!isDone && !isFailed && (
               <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">분석 진행 중...</h3>
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <h3 className="text-xl font-bold text-gray-900">분석 진행 중...</h3>
+                  <button
+                    type="button"
+                    onClick={cancelJob}
+                    className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-bold text-zinc-600 hover:border-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+                  >
+                    취소
+                  </button>
+                </div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">전체 진행률</span>
-                  <span className="text-sm text-gray-600">{Math.round(status.progress || 0)}%</span>
+                  <span className="text-sm text-gray-600 tabular-nums">
+                    {Math.round(status.progress || 0)}%
+                    {isRunning && etaRemaining != null && (
+                      <span className="ml-2 text-zinc-400">· {formatEta(etaRemaining)} 남음</span>
+                    )}
+                  </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div 
+                  <div
                     className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${Math.min(status.progress || 0, 100)}%` }}
                   />
                 </div>
-                
+
                 {status.currentStep && (
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
                     <span className="font-medium">현재 단계:</span> {status.currentStep}
                   </div>
                 )}
-                {typeof status.queuePosition === 'number' && typeof status.queueSize === 'number' && (
+                {isQueued && typeof status.queuePosition === 'number' && typeof status.queueSize === 'number' && (
                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
                     대기열 {status.queuePosition}번째 · 총 {status.queueSize}개 대기 중입니다. 오래 걸리면 빠르게 모드와 5-10게임이 가장 안정적입니다.
                   </div>
@@ -1341,21 +1393,8 @@ export default function UnifiedAnalyzePage() {
                   
                   {/* All 12 Dimensions */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {[
-                      { name: '전술적 감각', key: 'tacticalRating', icon: '♞' },
-                      { name: '포지셔널', key: 'positionalRating', icon: '♗' },
-                      { name: '엔드게임', key: 'endgameRating', icon: '♔' },
-                      { name: '시간 관리', key: 'timeManagementRating', icon: '♟' },
-                      { name: '공격성', key: 'aggressionRating', icon: '♛' },
-                      { name: '일관성', key: 'consistency', icon: '♖' },
-                      { name: '리스크 감수', key: 'riskTolerance', icon: '♘' },
-                      { name: '교환 선호도', key: 'exchangePreference', icon: '♜' },
-                      { name: '오프닝 다양성', key: 'openingVariety', icon: '♙' },
-                      { name: '우세 변환력', key: 'leadConversion', icon: '♕' },
-                      { name: '역전 저항력', key: 'swindleResistance', icon: '♚' },
-                      { name: '블런더 경향', key: 'blunderTendency', icon: '♟' }
-                    ].map((dimension) => {
-                      const score = detailedResult.styleProfile?.[dimension.key as keyof typeof detailedResult.styleProfile] as number || 0;
+                    {STYLE_DIMENSIONS.map((dimension) => {
+                      const score = detailedResult.styleProfile?.[dimension.key] ?? 0;
                       return (
                         <div key={dimension.key} className="text-center p-3 bg-gray-50 rounded-lg border hover:shadow-md transition-shadow">
                           <div className="text-lg mb-1">{dimension.icon}</div>
@@ -1380,8 +1419,10 @@ export default function UnifiedAnalyzePage() {
                       <h5 className="font-semibold text-gray-900 mb-3">📝 차원별 상세 분석</h5>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(detailedResult.styleProfile.dimensionExplanations)
-                          .filter(([key]) => key !== 'overallStyleAnalysis')
+                        {(Object.entries(detailedResult.styleProfile.dimensionExplanations) as [string, string | undefined][])
+                          .filter((entry): entry is [string, string] =>
+                            entry[0] !== 'overallStyleAnalysis' && typeof entry[1] === 'string'
+                          )
                           .map(([key, explanation]) => (
                             <div key={key} className="p-3 bg-gray-50 rounded-lg border text-sm">
                               <div className="font-medium text-gray-800 mb-1">

@@ -20,25 +20,25 @@ export interface AnalysisJobStatus {
   queuePosition?: number | null;
   queueSize?: number | null;
   partials?: {
-    tactics?: { 
-      ready: boolean; 
-      missed?: number; 
-      converted?: number; 
-      examples?: any[] 
+    tactics?: {
+      ready: boolean;
+      missed?: number;
+      converted?: number;
+      examples?: unknown[];
     };
-    swing_moments?: { 
-      ready: boolean; 
-      top?: any[] 
+    swing_moments?: {
+      ready: boolean;
+      top?: unknown[];
     };
-    endgame?: { 
+    endgame?: {
       ready: boolean;
       score?: number;
-      examples?: any[]
+      examples?: unknown[];
     };
-    time_mgmt?: { 
+    time_mgmt?: {
       ready: boolean;
       score?: number;
-      patterns?: any[]
+      patterns?: unknown[];
     };
     style_profile?: {
       ready: boolean;
@@ -47,44 +47,44 @@ export interface AnalysisJobStatus {
     };
     training_plan?: {
       ready: boolean;
-      recommendations?: any[];
+      recommendations?: unknown[];
     };
   };
-  summary?: any;
-  profile?: any;
-  plan?: any;
+  summary?: unknown;
+  profile?: unknown;
+  plan?: unknown;
 }
 
 interface UseAnalysisResult {
   // Job creation
   createJob: (request: CreateAnalysisRequest) => Promise<string>;
-  
+
   // Current job status
   jobId: string | null;
   status: AnalysisJobStatus | null;
   isPolling: boolean;
-  
+
   // Computed states
   isQueued: boolean;
   isRunning: boolean;
   isDone: boolean;
   isFailed: boolean;
-  
+
   // Progress and ETA
   progress: number;
   etaRemaining: number | null;
-  
+
   // Partial results (available as they complete)
   tacticsReady: boolean;
   swingMomentsReady: boolean;
   endgameReady: boolean;
   timeMgmtReady: boolean;
-  
+
   // Final results (when done)
-  summary: any;
-  profile: any;
-  plan: any;
-  
+  summary: unknown;
+  profile: unknown;
+  plan: unknown;
+
   // Actions
   cancelJob: () => void;
   reset: () => void;
@@ -104,6 +104,10 @@ export function useAnalysis(): UseAnalysisResult {
   // Adaptive polling: track progress stalls to slow down when nothing is moving
   const prevProgressRef = useRef<number>(0);
   const stallCountRef   = useRef<number>(0);
+
+  // ETA estimation: record when in_progress started and at what progress level
+  const [etaRemaining, setEtaRemaining] = useState<number | null>(null);
+  const etaTrackRef = useRef<{ startTime: number; startProgress: number } | null>(null);
 
   // Poll job status when we have a jobId and job is not done
   const shouldPoll = jobId !== null;
@@ -195,15 +199,49 @@ export function useAnalysis(): UseAnalysisResult {
     }
   }, [mutate]);
 
-  const cancelJob = useCallback(() => {
-    if (jobId) {
-      // TODO: Implement API call to cancel job
-      console.log('Cancelling job:', jobId);
+  // ETA: update estimate each time status arrives
+  useEffect(() => {
+    if (!statusData) return;
+
+    // Backend sends etaRemainingSec → use it directly
+    if (statusData.etaRemainingSec != null) {
+      setEtaRemaining(statusData.etaRemainingSec);
+      return;
     }
-  }, [jobId]);
+
+    const progress = statusData.progress ?? 0;
+
+    if (statusData.status === 'in_progress' && progress > 0) {
+      if (!etaTrackRef.current) {
+        // First in_progress tick — record baseline
+        etaTrackRef.current = { startTime: Date.now(), startProgress: progress };
+        return;
+      }
+      const elapsed = (Date.now() - etaTrackRef.current.startTime) / 1000; // seconds
+      const progressDone = progress - etaTrackRef.current.startProgress;
+      if (progressDone > 0 && elapsed > 0) {
+        const rate = progressDone / elapsed; // % per second
+        const eta = Math.round((100 - progress) / rate);
+        setEtaRemaining(eta > 0 ? eta : null);
+      }
+    } else {
+      // Reset when not running
+      etaTrackRef.current = null;
+      setEtaRemaining(null);
+    }
+  }, [statusData]);
+
+  const cancelJob = useCallback(() => {
+    if (!jobId) return;
+    fetch(`/api/v1/analysis/${jobId}`, { method: 'DELETE' })
+      .then(() => mutate())
+      .catch((err) => console.error('Failed to cancel job:', err));
+  }, [jobId, mutate]);
 
   const reset = useCallback(() => {
     setJobId(null);
+    etaTrackRef.current = null;
+    setEtaRemaining(null);
     mutate(undefined, false); // Clear SWR cache
   }, [mutate]);
 
@@ -215,7 +253,6 @@ export function useAnalysis(): UseAnalysisResult {
   const isPolling = shouldPoll && !isDone && !isFailed && !error;
 
   const progress = statusData?.progress || 0;
-  const etaRemaining = null; // Not implemented in current backend
 
   // Partial readiness flags
   const tacticsReady = statusData?.partials?.tactics?.ready || false;

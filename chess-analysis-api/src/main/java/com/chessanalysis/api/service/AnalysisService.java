@@ -312,6 +312,31 @@ public class AnalysisService {
     public Long getQueueSize() {
         return queueService.getQueueSize();
     }
+
+    /**
+     * 사용자가 요청한 분석을 취소한다.
+     * PENDING 또는 IN_PROGRESS 상태일 때만 취소 가능하며, FAILED로 전환한다.
+     * 이미 완료/실패된 분석에 대해 호출하면 아무 동작도 하지 않는다.
+     */
+    @Transactional
+    public boolean cancelAnalysis(UUID analysisId) {
+        Optional<Analysis> opt = analysisRepository.findById(analysisId);
+        if (opt.isEmpty()) {
+            return false;
+        }
+        Analysis analysis = opt.get();
+        if (analysis.getStatus() == Analysis.AnalysisStatus.PENDING
+                || analysis.getStatus() == Analysis.AnalysisStatus.IN_PROGRESS) {
+            analysis.setStatus(Analysis.AnalysisStatus.FAILED);
+            analysis.setCurrentStep("사용자가 취소했습니다");
+            analysis.setErrorMessage("사용자가 취소했습니다");
+            analysisRepository.save(analysis);
+            log.info("Analysis {} cancelled by user", analysisId);
+            return true;
+        }
+        // 이미 완료·실패된 경우 — 멱등성 보장
+        return false;
+    }
     
     @Transactional(readOnly = true)
     public Map<String, Object> getAnalysisResult(UUID analysisId) {

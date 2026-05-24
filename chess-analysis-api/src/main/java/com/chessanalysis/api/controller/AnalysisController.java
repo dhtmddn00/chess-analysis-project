@@ -144,6 +144,23 @@ public class AnalysisController {
         }
     }
     
+    /**
+     * 분석 취소 — PENDING / IN_PROGRESS 상태를 FAILED로 전환한다.
+     * 이미 완료·실패된 분석이거나 ID가 없으면 404를 반환한다.
+     */
+    @DeleteMapping("/{analysisId}")
+    public ResponseEntity<Void> cancelAnalysis(@PathVariable UUID analysisId) {
+        try {
+            boolean cancelled = analysisService.cancelAnalysis(analysisId);
+            return cancelled
+                    ? ResponseEntity.noContent().build()
+                    : ResponseEntity.notFound().<Void>build();
+        } catch (Exception e) {
+            log.warn("Failed to cancel analysis {}: {}", analysisId, e.getMessage());
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{analysisId}/games")
     public ResponseEntity<List<Map<String, Object>>> getAnalysisGames(@PathVariable UUID analysisId) {
         try {

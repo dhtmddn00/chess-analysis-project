@@ -33,6 +33,11 @@ export default function Home() {
   const [gameCount, setGameCount] = useState(10);
   const [priority, setPriority] = useState<'fast' | 'balanced' | 'precise'>('fast');
 
+  const MODE_MAX_GAMES = { fast: 50, balanced: 30, precise: 20 } as const;
+  const availableGameCounts = ([10, 20, 30, 50] as const).filter(
+    (n) => n <= MODE_MAX_GAMES[priority],
+  );
+
   const featureRows = [
     { icon: Gauge, title: t('feature0Title'), description: t('feature0Desc') },
     { icon: GitBranch, title: t('feature1Title'), description: t('feature1Desc') },
@@ -124,14 +129,21 @@ export default function Home() {
                   onChange={(e) => setGameCount(Number(e.target.value))}
                   className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
                 >
-                  <option value={5}>5 games</option>
-                  <option value={10}>10 games</option>
-                  <option value={20}>20 games</option>
+                  {availableGameCounts.map((n) => (
+                    <option key={n} value={n}>{n} games</option>
+                  ))}
                 </select>
 
                 <select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as 'fast' | 'balanced' | 'precise')}
+                  onChange={(e) => {
+                    const next = e.target.value as 'fast' | 'balanced' | 'precise';
+                    setPriority(next);
+                    // 선택된 게임 수가 새 모드의 최대치를 초과하면 클램프
+                    if (gameCount > MODE_MAX_GAMES[next]) {
+                      setGameCount(MODE_MAX_GAMES[next]);
+                    }
+                  }}
                   className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
                 >
                   <option value="fast">Fast</option>

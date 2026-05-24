@@ -197,7 +197,7 @@ export default function QuickAnalyzePage() {
               </div>
             )}
 
-            {isDone && profile && (
+            {isDone && Boolean(profile) && (
               <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-bold text-gray-900 mb-4">{t('analysisComplete')}</h3>
                 <p className="text-gray-700 mb-4">{t('analysisCompleteDesc')}</p>

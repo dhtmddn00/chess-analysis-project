@@ -28,6 +28,14 @@ public class PlayerSummaryService {
     private static final Logger logger = LoggerFactory.getLogger(PlayerSummaryService.class);
     private static final String CACHE_PREFIX = "summary:";
     private static final Duration CACHE_TTL = Duration.ofMinutes(15);
+
+    /** Chess.com 429 재시도 설정 */
+    private static final int   CHESS_COM_MAX_RETRIES       = 2;
+    private static final long  CHESS_COM_RETRY_DEFAULT_MS  = 5_000L;  // Retry-After 없을 때 기본 5초
+    private static final long  CHESS_COM_RETRY_MAX_MS      = 30_000L; // 최대 30초 대기
+
+    /** 최근 게임 조회 시 확인할 최대 아카이브 월 수 (안전 상한) */
+    private static final int   CHESS_COM_MAX_ARCHIVE_MONTHS = 12;
     
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
@@ -89,10 +97,10 @@ public class PlayerSummaryService {
         try {
             // Parallel fetching: player profile + stats + recent games
             CompletableFuture<JsonNode> profileFuture = CompletableFuture.supplyAsync(() ->
-                fetchWithTimeout("https://api.chess.com/pub/player/" + username, 3000));
-            
+                fetchWithRetry("https://api.chess.com/pub/player/" + username, 3000));
+
             CompletableFuture<JsonNode> statsFuture = CompletableFuture.supplyAsync(() ->
-                fetchWithTimeout("https://api.chess.com/pub/player/" + username + "/stats", 3000));
+                fetchWithRetry("https://api.chess.com/pub/player/" + username + "/stats", 3000));
             
             CompletableFuture<List<PlayerSummaryResponse.RecentGame>> gamesFuture = 
                 CompletableFuture.supplyAsync(() -> fetchRecentChessComGames(username, 10));
@@ -128,7 +136,36 @@ public class PlayerSummaryService {
         return response;
     }
     
-    private JsonNode fetchWithTimeout(String url, int timeoutMs) {
+    /**
+     * Chess.com API를 최대 CHESS_COM_MAX_RETRIES 회 재시도한다.
+     * 429 응답 시 Retry-After 헤더를 읽어 대기 후 재시도하며,
+     * 헤더가 없으면 CHESS_COM_RETRY_DEFAULT_MS 만큼 대기한다.
+     */
+    private JsonNode fetchWithRetry(String url, int timeoutMs) {
+        for (int attempt = 0; attempt <= CHESS_COM_MAX_RETRIES; attempt++) {
+            try {
+                return fetchOnce(url, timeoutMs);
+            } catch (ChessComRateLimitException e) {
+                if (attempt == CHESS_COM_MAX_RETRIES) {
+                    logger.warn("Chess.com rate limit hit after {} retries for {}", CHESS_COM_MAX_RETRIES, url);
+                    throw new RuntimeException("Chess.com API rate limit: 잠시 후 다시 시도해주세요", e);
+                }
+                long waitMs = Math.min(e.getRetryAfterMs(), CHESS_COM_RETRY_MAX_MS);
+                logger.info("Chess.com 429 — {}ms 대기 후 재시도 {}/{}: {}",
+                        waitMs, attempt + 1, CHESS_COM_MAX_RETRIES, url);
+                try {
+                    Thread.sleep(waitMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Rate-limit 대기 중 인터럽트", ie);
+                }
+            }
+        }
+        throw new RuntimeException("unreachable");
+    }
+
+    /** 단일 HTTP 요청. 429는 ChessComRateLimitException, 404는 PlayerNotFoundException으로 변환한다. */
+    private JsonNode fetchOnce(String url, int timeoutMs) {
         try {
             RestTemplate customRestTemplate = createRestTemplate(timeoutMs);
             String response = customRestTemplate.getForObject(url, String.class);
@@ -137,7 +174,11 @@ public class PlayerSummaryService {
             if (e.getStatusCode().value() == 404) {
                 throw new PlayerNotFoundException("플레이어를 찾을 수 없습니다");
             }
-            logger.error("Error fetching {}: {}", url, e.getMessage());
+            if (e.getStatusCode().value() == 429) {
+                long retryAfterMs = parseRetryAfterMs(e);
+                throw new ChessComRateLimitException(retryAfterMs);
+            }
+            logger.error("HTTP error fetching {}: {}", url, e.getMessage());
             throw new RuntimeException("API error: " + url, e);
         } catch (ResourceAccessException e) {
             logger.warn("Timeout fetching {}: {}", url, e.getMessage());
@@ -146,6 +187,21 @@ public class PlayerSummaryService {
             logger.error("Error fetching {}: {}", url, e.getMessage());
             throw new RuntimeException("API error: " + url, e);
         }
+    }
+
+    /** Retry-After 헤더(초)를 밀리초로 파싱. 없거나 잘못된 형식이면 기본값 반환. */
+    private long parseRetryAfterMs(HttpClientErrorException e) {
+        try {
+            if (e.getResponseHeaders() != null) {
+                String retryAfter = e.getResponseHeaders().getFirst("Retry-After");
+                if (retryAfter != null && !retryAfter.isBlank()) {
+                    return Long.parseLong(retryAfter.trim()) * 1_000L;
+                }
+            }
+        } catch (NumberFormatException ignored) {
+            logger.debug("Retry-After 헤더 파싱 실패: {}", e.getMessage());
+        }
+        return CHESS_COM_RETRY_DEFAULT_MS;
     }
 
     private static RestTemplate createRestTemplate(int timeoutMs) {
@@ -167,37 +223,43 @@ public class PlayerSummaryService {
         
         try {
             // Get archives list
-            JsonNode archives = fetchWithTimeout("https://api.chess.com/pub/player/" + username + "/games/archives", 3000);
-            
+            JsonNode archives = fetchWithRetry("https://api.chess.com/pub/player/" + username + "/games/archives", 3000);
+
             if (archives.has("archives") && archives.get("archives").isArray()) {
                 List<String> archiveUrls = new ArrayList<>();
                 for (JsonNode archive : archives.get("archives")) {
                     archiveUrls.add(archive.asText());
                 }
-                
-                // Start from most recent archives
+
+                // 최신 월부터 탐색
                 Collections.reverse(archiveUrls);
-                
-                for (String archiveUrl : archiveUrls.subList(0, Math.min(2, archiveUrls.size()))) {
-                    JsonNode monthGames = fetchWithTimeout(archiveUrl, 5000);
-                    
+
+                // 안전 상한(12개월)을 적용하되, count 달성 시 조기 종료
+                int archivesChecked = 0;
+                for (String archiveUrl : archiveUrls) {
+                    if (games.size() >= count) break;
+                    if (archivesChecked >= CHESS_COM_MAX_ARCHIVE_MONTHS) {
+                        logger.debug("{}개월 탐색 후 {}게임 수집 완료 (목표 {})", archivesChecked, games.size(), count);
+                        break;
+                    }
+                    archivesChecked++;
+
+                    JsonNode monthGames = fetchWithRetry(archiveUrl, 5000);
+
                     if (monthGames.has("games")) {
                         List<JsonNode> monthGamesList = new ArrayList<>();
                         monthGames.get("games").forEach(monthGamesList::add);
-                        
-                        // Reverse to get most recent first
+
+                        // 최신 게임이 앞으로 오도록 역순
                         Collections.reverse(monthGamesList);
-                        
+
                         for (JsonNode game : monthGamesList) {
                             if (games.size() >= count) break;
-                            
                             PlayerSummaryResponse.RecentGame recentGame = parseChessComGame(game, username);
                             if (recentGame != null) {
                                 games.add(recentGame);
                             }
                         }
-                        
-                        if (games.size() >= count) break;
                     }
                 }
             }

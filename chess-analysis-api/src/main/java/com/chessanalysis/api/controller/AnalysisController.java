@@ -59,29 +59,38 @@ public class AnalysisController {
         }
     }
 
+    /**
+     * 클라이언트 실제 IP를 안전하게 결정한다.
+     *
+     * <p>우선순위:
+     * <ol>
+     *   <li>{@code Fly-Client-IP} — Fly.io 엣지가 직접 주입하는 헤더로, 클라이언트가 위조 불가.</li>
+     *   <li>{@code X-Real-IP} — nginx 등 신뢰된 내부 프록시가 설정한 헤더.</li>
+     *   <li>{@code getRemoteAddr()} — 직접 연결 (로컬 개발 환경).</li>
+     * </ol>
+     *
+     * <p>{@code X-Forwarded-For}는 의도적으로 사용하지 않는다. 클라이언트가 임의 값을 주입해
+     * IP 기반 rate limit을 우회할 수 있기 때문이다.
+     */
     private String resolveClientIp(HttpServletRequest request) {
-        // X-Forwarded-For는 클라이언트가 임의로 위조할 수 있으므로 신뢰된 프록시(Fly.io 등)를
-        // 거친 경우에만 사용해야 한다. 현재는 헤더 존재 여부만 확인하며 검증 없이 사용 중이므로
-        // IP 기반 rate limit이 우회될 수 있다. 신뢰 프록시 IP 범위 검증을 권장한다.
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            String candidate = forwardedFor.split(",")[0].trim();
-            if (IP_PATTERN.matcher(candidate).matches()) {
-                return candidate;
-            }
-            log.debug("Ignoring invalid X-Forwarded-For value: {}", candidate);
+        // 1. Fly.io 엣지 헤더 — 클라이언트가 위조할 수 없음
+        String flyIp = request.getHeader("Fly-Client-IP");
+        if (isValidIp(flyIp)) {
+            return flyIp.trim();
         }
 
+        // 2. X-Real-IP — 신뢰된 내부 프록시가 설정한 경우
         String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            String candidate = realIp.trim();
-            if (IP_PATTERN.matcher(candidate).matches()) {
-                return candidate;
-            }
-            log.debug("Ignoring invalid X-Real-IP value: {}", candidate);
+        if (isValidIp(realIp)) {
+            return realIp.trim();
         }
 
+        // 3. 직접 연결 (로컬 개발 / 프록시 없는 환경)
         return request.getRemoteAddr();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip != null && !ip.isBlank() && IP_PATTERN.matcher(ip.trim()).matches();
     }
     
     @GetMapping("/{analysisId}")

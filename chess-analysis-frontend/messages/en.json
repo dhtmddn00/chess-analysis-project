@@ -45,7 +45,14 @@
     "feature2Title": "12-Dimensional Style",
     "feature2Desc": "Quantify your playing tendencies from aggression to endgame and time management.",
     "feature3Title": "Cost-Protection Beta",
-    "feature3Desc": "Redis-based daily and queue limits keep public beta costs under control."
+    "feature3Desc": "Redis-based daily and queue limits keep public beta costs under control.",
+    "recentSearches": "Recent searches",
+    "recentAnalyses": "Recent analyses",
+    "reanalyze": "Re-analyze",
+    "removeEntry": "Remove",
+    "clearHistory": "Clear all history",
+    "gamesCount": "{count} games",
+    "noRecentAnalyses": "No analysis history yet"
   },
   "Analyze": {
     "title": "Chess Player Analysis",

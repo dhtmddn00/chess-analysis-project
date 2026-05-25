@@ -6,13 +6,18 @@ Import `start_metrics_server()` from main.py once at startup, then use the
 module-level metric objects anywhere in the codebase.
 """
 
+import asyncio
+import logging
 import os
+
 from prometheus_client import (
     Counter,
     Histogram,
     Gauge,
     start_http_server,
 )
+
+_log = logging.getLogger(__name__)
 
 # ── Job-level counters ───────────────────────────────────────────────────────
 
@@ -46,6 +51,13 @@ JOBS_IN_FLIGHT = Gauge(
     "Number of analysis jobs currently being processed",
 )
 
+# ── Redis queue depth ─────────────────────────────────────────────────────────
+
+QUEUE_LENGTH = Gauge(
+    "worker_queue_length",
+    "Number of pending jobs waiting in the Redis analysis queue",
+)
+
 # ── Games processed per job ──────────────────────────────────────────────────
 
 GAMES_PER_JOB = Histogram(
@@ -63,6 +75,26 @@ def start_metrics_server() -> None:
     """
     port = int(os.getenv("METRICS_PORT", "8001"))
     start_http_server(port)
-    # loguru not imported here to avoid circular imports — use stdlib logging
-    import logging
-    logging.getLogger(__name__).info(f"Prometheus metrics server started on :{port}")
+    _log.info(f"Prometheus metrics server started on :{port}")
+
+
+async def poll_queue_length(
+    redis_client,
+    queue_name: str = "chess-analysis-queue",
+    interval: float = 15.0,
+) -> None:
+    """Background asyncio task — polls Redis LLEN every `interval` seconds.
+
+    Distinguishes two kinds of queue backlog:
+    - Jobs waiting in the queue  (LLEN)
+    - Jobs being processed       (JOBS_IN_FLIGHT gauge)
+
+    Together they answer "is the bottleneck inside the worker or before it?"
+    """
+    while True:
+        try:
+            length = redis_client.llen(queue_name)
+            QUEUE_LENGTH.set(length)
+        except Exception as exc:
+            _log.warning(f"Queue length poll failed: {exc}")
+        await asyncio.sleep(interval)

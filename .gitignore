@@ -58,3 +58,4 @@ MEMORY.md
 engines/
 .vercel
 .env*.local
+.env.monitoring

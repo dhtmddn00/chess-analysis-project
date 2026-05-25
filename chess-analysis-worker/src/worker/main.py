@@ -30,6 +30,7 @@ from .metrics import (
     JOBS_IN_FLIGHT,
     GAMES_PER_JOB,
     start_metrics_server,
+    poll_queue_length,
 )
 
 
@@ -1115,7 +1116,15 @@ class ChessAnalysisWorker:
         """Main worker loop"""
         self.running = True
         logger.info("Chess Analysis Worker started")
-        
+
+        # Start Redis queue-depth poller as a background task.
+        # Runs every 15 s; lets us distinguish "stuck inside worker" vs
+        # "jobs piling up before they're even picked up".
+        asyncio.create_task(
+            poll_queue_length(self.redis_client, self.queue_name),
+            name="queue-length-poller",
+        )
+
         while self.running:
             try:
                 # Pop job from Redis queue (blocking with timeout)

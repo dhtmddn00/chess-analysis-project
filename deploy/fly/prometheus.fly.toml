@@ -4,22 +4,49 @@ primary_region = "nrt"
 [build]
   image = "prom/prometheus:v2.51.2"
 
-[env]
-  # prometheus.yml은 [files] 또는 fly secrets mount로 주입 필요
+# ── Override the default entrypoint to supply our config ──────────────────────
+# prometheus.yml is baked into the image at /etc/prometheus/prometheus.yml.
+# We mount a Fly volume at /prometheus for persistent TSDB storage and
+# pass config overrides via CMD args.
+[processes]
+  app = """
+    --config.file=/etc/prometheus/prometheus.yml
+    --storage.tsdb.path=/prometheus
+    --storage.tsdb.retention.time=30d
+    --web.enable-lifecycle
+    --web.enable-admin-api
+  """
 
+# ── Persistent storage (run once: fly volumes create prometheus_data --size 10 --region nrt) ──
+[[mounts]]
+  source      = "prometheus_data"
+  destination = "/prometheus"
+
+# ── Internal HTTP — only reachable via Fly private network (.internal) ────────
 [[services]]
   internal_port = 9090
-  protocol = "tcp"
+  protocol      = "tcp"
 
-  [[services.ports]]
-    port = 9090
+  # No public port — access via `fly proxy 9090 -a chess-analysis-prometheus`
+  # or from other apps on the same org via `chess-analysis-prometheus.internal:9090`
+  [[services.tcp_checks]]
+    interval    = "15s"
+    timeout     = "2s"
+    grace_period = "10s"
 
-# Prometheus config file — mount via `fly deploy --config`
-# or store in a Fly Volume and reference via CMD override.
-# Recommended: use fly.io volumes or secrets to supply the config.
+# ── Deploy resources ──────────────────────────────────────────────────────────
+[vm]
+  cpu_kind = "shared"
+  cpus     = 1
+  memory_mb = 512
+
+# ── prometheus.yml must be supplied at deploy time via:
+#      fly deploy --config deploy/fly/prometheus.fly.toml \
+#                 --build-arg PROM_CONFIG="$(cat monitoring/prometheus.yml)"
+#    OR bake it into a custom Docker image:
+#      FROM prom/prometheus:v2.51.2
+#      COPY monitoring/prometheus.yml /etc/prometheus/prometheus.yml
+#      COPY monitoring/prometheus_alerts.yml /etc/prometheus/prometheus_alerts.yml
 #
-# fly volumes create prometheus_data --size 5 --region nrt
-# Then mount in [mounts] section:
-# [[mounts]]
-#   source = "prometheus_data"
-#   destination = "/prometheus"
+# Recommended: build a tiny custom image so the scrape config is version-controlled.
+# See deploy/fly/Dockerfile.prometheus (create when ready to deploy to prod).

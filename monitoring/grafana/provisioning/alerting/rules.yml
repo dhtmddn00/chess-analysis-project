@@ -1,0 +1,186 @@
+apiVersion: 1
+
+# Contact points — Grafana가 알람을 어디로 보낼지 정의.
+# 지금은 로그만 출력(기본 이메일 비활성화). 실제 운영 전에
+# Slack / PagerDuty / email 을 추가하세요.
+contactPoints:
+  - orgId: 1
+    name: default-receiver
+    receivers:
+      - uid: default-log
+        type: prometheus-alertmanager
+        settings:
+          url: ""          # Alertmanager 없이 Grafana 자체 알림 사용
+        disableResolveMessage: false
+
+# Notification policies — 어떤 알람을 어떤 contact point로 보낼지.
+policies:
+  - orgId: 1
+    receiver: default-receiver
+    group_by: ["alertname", "severity"]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      - receiver: default-receiver
+        matchers:
+          - severity = critical
+        group_wait: 10s
+        repeat_interval: 1h
+
+# Alert rule groups — Grafana Alerting UI에서 바로 보인다.
+groups:
+  - orgId: 1
+    name: Worker Alerts
+    folder: Chess Analysis
+    interval: 1m
+    rules:
+
+      - uid: worker-stockfish-slow
+        title: "Stockfish Phase Slow (p95 > 5 min)"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: >
+                histogram_quantile(0.95,
+                  sum(rate(worker_phase_duration_seconds_bucket{phase="stockfish"}[10m])) by (le)
+                )
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [300]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stockfish analysis p95 exceeded 5 minutes"
+          description: "Check engine pool size and server CPU."
+
+      - uid: worker-high-failure-rate
+        title: "Job Failure Rate > 10%"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: >
+                sum(rate(worker_jobs_total{status=~"failed_.*"}[5m]))
+                /
+                sum(rate(worker_jobs_total[5m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [0.10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 10% of jobs are failing"
+          description: "Check worker logs for FatalAnalysisError or TransientAnalysisError."
+
+      - uid: worker-queue-backlog
+        title: "Queue Backlog > 10 jobs"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: worker_queue_length
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis analysis queue has {{ $values.A }} pending jobs"
+          description: "Consider scaling up worker replicas."
+
+      - uid: worker-stalled
+        title: "Worker Stalled (in-flight but no completions)"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: >
+                worker_jobs_in_flight > 0
+                and
+                increase(worker_jobs_total[15m]) == 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+        noDataState: NoData
+        execErrState: Alerting
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker is in-flight but has made no completions in 15 min"
+          description: "Possible deadlock or silent Stockfish engine crash."

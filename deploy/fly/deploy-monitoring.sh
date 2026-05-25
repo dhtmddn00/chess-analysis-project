@@ -23,7 +23,7 @@ fly apps create "$PROMETHEUS_APP" --org personal 2>/dev/null || echo "  (이미 
 
 echo "▶ Step 2: Prometheus 볼륨 생성 (최초 1회만)"
 fly volumes create prometheus_data \
-  --size 10 \
+  --size 3 \
   --region "$REGION" \
   --app "$PROMETHEUS_APP" \
   --count 1 2>/dev/null || echo "  (이미 존재 — skip)"

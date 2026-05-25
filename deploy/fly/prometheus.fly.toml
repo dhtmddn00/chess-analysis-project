@@ -6,7 +6,7 @@ primary_region = "nrt"
   dockerfile = "deploy/fly/Dockerfile.prometheus"
 
 # 데이터 영속성 — 볼륨 먼저 생성 필요:
-#   fly volumes create prometheus_data --size 10 --region nrt --app chess-analysis-prometheus
+#   fly volumes create prometheus_data --size 3 --region nrt --app chess-analysis-prometheus
 [[mounts]]
   source      = "prometheus_data"
   destination = "/prometheus"
@@ -24,7 +24,11 @@ primary_region = "nrt"
     timeout      = "5s"
     grace_period = "15s"
 
+# 보존 기간 7일 + 3GB 볼륨 크기 제한 (무료 한도 내)
+[processes]
+  app = "--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d --storage.tsdb.retention.size=2GB --web.enable-lifecycle"
+
 [vm]
   cpu_kind  = "shared"
   cpus      = 1
-  memory_mb = 512
+  memory_mb = 256

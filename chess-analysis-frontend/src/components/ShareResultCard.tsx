@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Copy, Download, Check, Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 
 interface ShareResultCardProps {
   username: string;
@@ -20,6 +21,12 @@ interface ShareResultCardProps {
  * 분석 결과 공유 카드
  * - 링크 복사: 단축 링크 또는 분석 페이지 직접 링크를 클립보드에 복사
  * - 이미지 저장: html2canvas로 카드 캡처 후 PNG 다운로드
+ *
+ * NOTE: shareUrl은 window 접근이 필요하므로 useEffect에서 초기화합니다.
+ *
+ * NOTE(이미지): Tailwind v4가 oklch 색상 변수를 사용하므로, html2canvas 호출 전에
+ * getComputedStyle()로 모든 색상을 rgb() 형식으로 인라인 스타일에 적용한 뒤
+ * 캡처 후 원상복구합니다.
  */
 export function ShareResultCard({
   username,
@@ -34,25 +41,31 @@ export function ShareResultCard({
 }: ShareResultCardProps) {
   const t = useTranslations('ShareResultCard');
   const tCommon = useTranslations('Common');
+  const locale = useLocale();
 
   const cardRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
 
-  /** 공유할 URL: 단축 링크 있으면 우선, 없으면 분석 결과 직접 링크 */
-  const shareUrl = shortLink
-    ? `${window.location.origin}/s/${extractShortCode(shortLink)}`
-    : jobId
-    ? `${window.location.origin}/ko/analysis/${jobId}`
-    : window.location.href;
+  /** shareUrl — window 접근은 클라이언트에서만 가능하므로 useEffect에서 설정 */
+  const [shareUrl, setShareUrl] = useState('');
+  useEffect(() => {
+    const url = shortLink
+      ? `${window.location.origin}/s/${extractShortCode(shortLink)}`
+      : jobId
+      ? `${window.location.origin}/${locale}/analysis/${jobId}`
+      : window.location.href;
+    setShareUrl(url);
+  }, [shortLink, jobId, locale]);
 
   const handleCopyLink = async () => {
+    if (!shareUrl) return;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback for older browsers
+      // fallback for browsers without Clipboard API
       const ta = document.createElement('textarea');
       ta.value = shareUrl;
       document.body.appendChild(ta);
@@ -64,14 +77,39 @@ export function ShareResultCard({
     }
   };
 
+  /**
+   * html2canvas는 Tailwind v4의 oklch 색상 변수를 파싱하지 못한다.
+   * 캡처 전에 대상 요소 트리 전체의 색상 속성을 getComputedStyle()로 읽어
+   * inline style로 덮어쓴다 (브라우저는 oklch → rgb로 변환해 반환).
+   * 캡처 후 원래 inline style을 복원한다.
+   */
   const handleDownloadImage = async () => {
     if (!cardRef.current || capturing) return;
     setCapturing(true);
+
+    const root = cardRef.current;
+    const allEls = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
+    // 1) 원래 inline style 저장
+    const savedStyles = allEls.map((el) => el.style.cssText);
+
+    // 2) computed 색상을 inline style로 적용 (oklch → rgb)
+    allEls.forEach((el) => {
+      const cs = window.getComputedStyle(el);
+      el.style.backgroundColor = cs.backgroundColor;
+      el.style.color = cs.color;
+      el.style.borderColor = cs.borderColor;
+      el.style.borderTopColor = cs.borderTopColor;
+      el.style.borderRightColor = cs.borderRightColor;
+      el.style.borderBottomColor = cs.borderBottomColor;
+      el.style.borderLeftColor = cs.borderLeftColor;
+    });
+
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(cardRef.current, {
+      const canvas = await html2canvas(root, {
         backgroundColor: '#09090b', // zinc-950
-        scale: 2,                   // 2× for retina
+        scale: 2,
         useCORS: true,
         logging: false,
       });
@@ -82,6 +120,10 @@ export function ShareResultCard({
     } catch (err) {
       console.error('Image capture failed:', err);
     } finally {
+      // 3) inline style 복원
+      allEls.forEach((el, i) => {
+        el.style.cssText = savedStyles[i];
+      });
       setCapturing(false);
     }
   };
@@ -140,7 +182,8 @@ export function ShareResultCard({
         <button
           type="button"
           onClick={handleCopyLink}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition ${
+          disabled={!shareUrl}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition disabled:opacity-40 ${
             copied
               ? 'border-green-300 bg-green-50 text-green-700'
               : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500'
@@ -176,7 +219,7 @@ export function ShareResultCard({
 
       {/* Shareable URL preview */}
       <p className="mt-2 truncate rounded bg-zinc-50 px-3 py-1.5 text-xs text-zinc-400 font-mono">
-        {shareUrl}
+        {shareUrl || '…'}
       </p>
     </div>
   );

@@ -1,9 +1,13 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
-interface Props {
+interface ClassProps {
   children: React.ReactNode;
+  errorTitle: string;
+  errorMessage: string;
+  retryLabel: string;
 }
 
 interface State {
@@ -18,7 +22,7 @@ interface State {
  * 주요 원인: 백엔드가 null을 보냈을 때 중첩된 optional chaining 없이
  * 프로퍼티를 읽으면 발생하는 TypeError.
  */
-export class AnalysisResultErrorBoundary extends React.Component<Props, State> {
+class AnalysisResultErrorBoundaryClass extends React.Component<ClassProps, State> {
   state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {
@@ -26,7 +30,7 @@ export class AnalysisResultErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[AnalysisResult] 렌더링 오류:', error.message, info.componentStack);
+    console.error('[AnalysisResult] render error:', error.message, info.componentStack);
   }
 
   private handleRetry = () => {
@@ -38,16 +42,18 @@ export class AnalysisResultErrorBoundary extends React.Component<Props, State> {
       return this.props.children;
     }
 
+    const { errorTitle, errorMessage, retryLabel } = this.props;
+
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-2xl">
           ⚠
         </div>
         <h3 className="mb-2 text-base font-black text-zinc-800">
-          결과를 표시하지 못했습니다
+          {errorTitle}
         </h3>
         <p className="mb-1 text-sm text-zinc-500">
-          분석은 완료됐지만 일부 데이터를 렌더링하는 중 오류가 발생했습니다.
+          {errorMessage}
         </p>
         {this.state.error && (
           <p className="mb-4 text-xs text-zinc-400 font-mono">
@@ -59,9 +65,23 @@ export class AnalysisResultErrorBoundary extends React.Component<Props, State> {
           onClick={this.handleRetry}
           className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-bold text-white hover:bg-zinc-700 transition"
         >
-          다시 시도
+          {retryLabel}
         </button>
       </div>
     );
   }
+}
+
+/** Functional wrapper that provides translated strings to the class component */
+export function AnalysisResultErrorBoundary({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('AnalysisResultErrorBoundary');
+  return (
+    <AnalysisResultErrorBoundaryClass
+      errorTitle={t('title')}
+      errorMessage={t('message')}
+      retryLabel={t('retry')}
+    >
+      {children}
+    </AnalysisResultErrorBoundaryClass>
+  );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+
 import { Globe, ExternalLink } from 'lucide-react';
 import { PlayerSummary, TimeControlStats } from '../hooks/usePlayerSummary';
 
@@ -11,8 +12,8 @@ interface Props {
 
 type Tab = 'all' | 'rapid' | 'blitz' | 'bullet';
 
-const TAB_META: { key: Tab; icon: string; label: string }[] = [
-  { key: 'all',    icon: '◈', label: '전체'  },
+const TAB_META: { key: Tab; icon: string; label: string; i18nKey?: string }[] = [
+  { key: 'all',    icon: '◈', label: 'All',    i18nKey: 'all' },
   { key: 'rapid',  icon: '♙', label: 'Rapid'  },
   { key: 'blitz',  icon: '♞', label: 'Blitz'  },
   { key: 'bullet', icon: '♜', label: 'Bullet' },
@@ -37,6 +38,7 @@ const TAB_CHIP: Record<Exclude<Tab, 'all'>, string> = {
 
 export function PlayerProfileCard({ summary }: Props) {
   const t = useTranslations('PlayerSummaryCard');
+  const tCommon = useTranslations('Common');
   const { player, recent10, cohort_hint, openings } = summary;
 
   const [activeTab, setActiveTab] = useState<Tab>('all');
@@ -129,7 +131,7 @@ export function PlayerProfileCard({ summary }: Props) {
                   </div>
                   {tcStat && (
                     <div className="text-xs text-zinc-500 mt-0.5">
-                      {(tcStat.winrate * 100).toFixed(0)}% W · {tcStat.games.toLocaleString()}판
+                      {(tcStat.winrate * 100).toFixed(0)}% W · {tcStat.games.toLocaleString()} {tCommon('games')}
                     </div>
                   )}
                 </div>
@@ -143,7 +145,7 @@ export function PlayerProfileCard({ summary }: Props) {
       <div className="border-b border-zinc-100 bg-zinc-50">
         {/* Tab bar */}
         <div className="flex gap-0 px-5 pt-2">
-          {availableTabs.map(({ key, icon, label }) => {
+          {availableTabs.map(({ key, icon, label, i18nKey }) => {
             const tabStats = statsMap[key];
             const isActive = activeTab === key;
             return (
@@ -158,7 +160,7 @@ export function PlayerProfileCard({ summary }: Props) {
                 }`}
               >
                 <span>{icon}</span>
-                <span>{label}</span>
+                <span>{i18nKey ? tCommon(i18nKey as Parameters<typeof tCommon>[0]) : label}</span>
                 {tabStats && key !== 'all' && (
                   <span className="ml-1 text-[10px] text-zinc-400 tabular-nums font-normal">
                     {tabStats.games.toLocaleString()}
@@ -172,7 +174,7 @@ export function PlayerProfileCard({ summary }: Props) {
         {/* Stats strip */}
         <div className="px-5 py-2.5">
           <div className="flex items-center gap-4 text-sm flex-wrap">
-            <span className="font-bold text-zinc-800">{games.toLocaleString()}게임</span>
+            <span className="font-bold text-zinc-800">{games.toLocaleString()} {tCommon('games')}</span>
             <span className="font-black text-blue-600">{winRate}%</span>
             <span className="text-green-600 font-semibold">W {win.toLocaleString()}</span>
             <span className="text-zinc-400">D {draw.toLocaleString()}</span>
@@ -269,7 +271,9 @@ export function PlayerProfileCard({ summary }: Props) {
             })}
             {filteredGames.length === 0 && (
               <p className="text-center text-sm text-zinc-400 py-6">
-                {activeTab === 'all' ? '최근 게임 없음' : `최근 ${TAB_CHIP[activeTab as Exclude<Tab,'all'>]} 게임 없음`}
+                {activeTab === 'all'
+                  ? t('noGames')
+                  : t('noTCGames', { tc: TAB_CHIP[activeTab as Exclude<Tab, 'all'>] })}
               </p>
             )}
           </div>
@@ -288,7 +292,7 @@ export function PlayerProfileCard({ summary }: Props) {
                   <div className="min-w-0">
                     <p className="text-xs font-mono text-zinc-400">{op.eco}</p>
                     <p className="text-xs text-zinc-700 truncate leading-tight">{op.name}</p>
-                    <p className="text-[10px] text-zinc-400">{op.count}판</p>
+                    <p className="text-[10px] text-zinc-400">{op.count} {tCommon('games')}</p>
                   </div>
                   <span className="text-sm font-black text-blue-600 flex-shrink-0 tabular-nums">
                     {(op.winrate * 100).toFixed(0)}%
@@ -309,7 +313,7 @@ export function PlayerProfileCard({ summary }: Props) {
                   <div className="min-w-0">
                     <p className="text-xs font-mono text-zinc-400">{op.eco}</p>
                     <p className="text-xs text-zinc-700 truncate leading-tight">{op.name}</p>
-                    <p className="text-[10px] text-zinc-400">{op.count}판</p>
+                    <p className="text-[10px] text-zinc-400">{op.count} {tCommon('games')}</p>
                   </div>
                   <span className="text-sm font-black text-blue-600 flex-shrink-0 tabular-nums">
                     {(op.winrate * 100).toFixed(0)}%

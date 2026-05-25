@@ -18,7 +18,12 @@
     "failed": "Failed",
     "unknown": "Unknown",
     "error": "Error",
-    "vs": "vs"
+    "vs": "vs",
+    "copyLink": "Copy Link",
+    "copied": "Copied!",
+    "saveImage": "Save as Image",
+    "saving": "Saving...",
+    "all": "All"
   },
   "Nav": {
     "analyzeScreen": "Analyze",
@@ -170,11 +175,37 @@
     "eloGain": "+{eloGain} Elo expected",
     "playerInfo": "♔ Player Info",
     "country": "Country",
-    "title": "Title",
+    "playerTitle": "Title",
     "followers": "Followers",
     "viewFullReport": "📋 View Full Detailed Report",
     "comprehensiveResult": "Comprehensive Analysis",
-    "resultSummary": "Player: {username} • Games analyzed: {count}"
+    "resultSummary": "Player: {username} • Games analyzed: {count}",
+    "playerNotFound": "\"{username}\" not found",
+    "playerNotFoundHint": "Please double-check the username. Capitalization matters.",
+    "searchAgain": "Search Again",
+    "summaryFetchError": "Could not load player information",
+    "deepAnalysisTitle": "Deep Stockfish Analysis",
+    "deepAnalysisSubtitle": "Select game count and analysis mode to begin",
+    "maxGamesEstimate": "Up to {maxGames} games · {estimate}",
+    "gamesN": "{n} games",
+    "startAnalysisN": "Start {n}-game Deep Analysis",
+    "analysisHeaderMeta": "{n} games · {mode} mode",
+    "retryFastHint": "Please try again shortly in Fast mode.",
+    "etaSeconds": "~{n}s",
+    "etaMinutes": "~{n} min",
+    "tacticsPartial": "Tactics",
+    "swingPartial": "Key Moments",
+    "endgamePartial": "Endgame",
+    "timeMgmtPartial": "Time Mgmt",
+    "expectedRange": "Expected range {range}",
+    "criticalMoveSampleLabel": "{sample} samples · {label}",
+    "openingCountPct": "{count} games · {pct}%",
+    "openingHoleStats": "{count} games · Score {scoreRate}% · CPL {cpl}",
+    "tacticsPatternStats": "Accuracy: {accuracy} | Found: {found} | Missed: {missed}",
+    "resultLoadError": "Analysis complete but result could not be loaded",
+    "resultReload": "Reload Results",
+    "opponentPlanTitle": "How to Beat This Player",
+    "startAnalysisError": "Could not start deep analysis"
   },
   "QuickAnalyze": {
     "title": "Quick Chess Analysis",
@@ -318,7 +349,9 @@
     "blackLabel": "Black",
     "recentGames": "Recent Games",
     "deepAnalysisRunning": "Deep analysis in progress...",
-    "startDeepAnalysis": "Start Deep Analysis"
+    "startDeepAnalysis": "Start Deep Analysis",
+    "noGames": "No recent games",
+    "noTCGames": "No recent {tc} games"
   },
   "SiteFooter": {
     "builtBy": "Built by Seung Woo Oh",
@@ -333,5 +366,20 @@
     "title": "Failed to load page",
     "message": "An unexpected error occurred.",
     "retry": "Try Again"
+  },
+  "AnalysisResultErrorBoundary": {
+    "title": "Failed to display results",
+    "message": "Analysis complete but an error occurred while rendering some data.",
+    "retry": "Try Again"
+  },
+  "ShareResultCard": {
+    "title": "Share",
+    "gamesAnalyzed": "{count} games analyzed",
+    "accuracy": "Accuracy",
+    "avgCpl": "Avg CPL",
+    "blunders": "Blunders",
+    "winRate": "Win Rate",
+    "playingStyle": "Playing Style",
+    "analyzing": "Analyzing"
   }
 }

@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Copy, Download, Check, Share2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ShareResultCardProps {
   username: string;
@@ -31,6 +32,9 @@ export function ShareResultCard({
   shortLink,
   jobId,
 }: ShareResultCardProps) {
+  const t = useTranslations('ShareResultCard');
+  const tCommon = useTranslations('Common');
+
   const cardRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -86,7 +90,7 @@ export function ShareResultCard({
     <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <Share2 className="h-4 w-4 text-zinc-500" />
-        <h4 className="text-sm font-black text-zinc-700 uppercase tracking-widest">공유하기</h4>
+        <h4 className="text-sm font-black text-zinc-700 uppercase tracking-widest">{t('title')}</h4>
       </div>
 
       {/* ── Capture target card ─────────────────────────────────── */}
@@ -107,24 +111,24 @@ export function ShareResultCard({
             </div>
           </div>
           <span className="rounded-full border border-white/20 px-2.5 py-0.5 text-xs font-bold text-zinc-300">
-            {gameCount}게임 분석
+            {t('gamesAnalyzed', { count: gameCount })}
           </span>
         </div>
 
         {/* Stats grid */}
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatCell label="정확도" value={`${averageAccuracy.toFixed(1)}%`} highlight />
-          <StatCell label="평균 CPL" value={averageCentipawnLoss.toFixed(1)} />
-          <StatCell label="블런더" value={String(totalBlunders)} />
+          <StatCell label={t('accuracy')} value={`${averageAccuracy.toFixed(1)}%`} highlight />
+          <StatCell label={t('avgCpl')} value={averageCentipawnLoss.toFixed(1)} />
+          <StatCell label={t('blunders')} value={String(totalBlunders)} />
           {winrate != null && (
-            <StatCell label="승률" value={`${(winrate * 100).toFixed(1)}%`} />
+            <StatCell label={t('winRate')} value={`${(winrate * 100).toFixed(1)}%`} />
           )}
         </div>
 
         {/* Style banner */}
         <div className="rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-center">
-          <p className="text-xs font-bold text-zinc-400">플레이 스타일</p>
-          <p className="mt-0.5 text-lg font-black text-white">{playingStyle || '분석 중'}</p>
+          <p className="text-xs font-bold text-zinc-400">{t('playingStyle')}</p>
+          <p className="mt-0.5 text-lg font-black text-white">{playingStyle || t('analyzing')}</p>
         </div>
 
         {/* Footer */}
@@ -145,12 +149,12 @@ export function ShareResultCard({
           {copied ? (
             <>
               <Check className="h-4 w-4" />
-              복사됨
+              {tCommon('copied')}
             </>
           ) : (
             <>
               <Copy className="h-4 w-4" />
-              링크 복사
+              {tCommon('copyLink')}
             </>
           )}
         </button>
@@ -166,7 +170,7 @@ export function ShareResultCard({
           ) : (
             <Download className="h-4 w-4" />
           )}
-          {capturing ? '저장 중...' : '이미지 저장'}
+          {capturing ? tCommon('saving') : tCommon('saveImage')}
         </button>
       </div>
 

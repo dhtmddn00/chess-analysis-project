@@ -296,26 +296,20 @@ type StyleNumericKey =
   | 'riskTolerance' | 'exchangePreference' | 'openingVariety'
   | 'leadConversion' | 'swindleResistance' | 'blunderTendency';
 
-const STYLE_DIMENSIONS: { name: string; key: StyleNumericKey; icon: string }[] = [
-  { name: '전술적 감각', key: 'tacticalRating',        icon: '♞' },
-  { name: '포지셔널',    key: 'positionalRating',       icon: '♗' },
-  { name: '엔드게임',   key: 'endgameRating',           icon: '♔' },
-  { name: '시간 관리',  key: 'timeManagementRating',    icon: '♟' },
-  { name: '공격성',     key: 'aggressionRating',        icon: '♛' },
-  { name: '일관성',     key: 'consistency',             icon: '♖' },
-  { name: '리스크 감수', key: 'riskTolerance',          icon: '♘' },
-  { name: '교환 선호도', key: 'exchangePreference',     icon: '♜' },
-  { name: '오프닝 다양성', key: 'openingVariety',       icon: '♙' },
-  { name: '우세 변환력', key: 'leadConversion',         icon: '♕' },
-  { name: '역전 저항력', key: 'swindleResistance',      icon: '♚' },
-  { name: '블런더 경향', key: 'blunderTendency',        icon: '♟' },
+const STYLE_DIMENSIONS: { i18nKey: string; key: StyleNumericKey; icon: string }[] = [
+  { i18nKey: 'dimTactical',         key: 'tacticalRating',        icon: '♞' },
+  { i18nKey: 'dimPositional',       key: 'positionalRating',      icon: '♗' },
+  { i18nKey: 'dimEndgame',          key: 'endgameRating',         icon: '♔' },
+  { i18nKey: 'dimTimeManagement',   key: 'timeManagementRating',  icon: '♟' },
+  { i18nKey: 'dimAggression',       key: 'aggressionRating',      icon: '♛' },
+  { i18nKey: 'dimConsistency',      key: 'consistency',           icon: '♖' },
+  { i18nKey: 'dimRisk',             key: 'riskTolerance',         icon: '♘' },
+  { i18nKey: 'dimExchange',         key: 'exchangePreference',    icon: '♜' },
+  { i18nKey: 'dimOpeningVariety',   key: 'openingVariety',        icon: '♙' },
+  { i18nKey: 'dimLeadConversion',   key: 'leadConversion',        icon: '♕' },
+  { i18nKey: 'dimSwindleResistance',key: 'swindleResistance',     icon: '♚' },
+  { i18nKey: 'dimBlunderTendency',  key: 'blunderTendency',       icon: '♟' },
 ];
-
-/** Format seconds into a short Korean ETA string */
-function formatEta(seconds: number): string {
-  if (seconds < 60) return `약 ${seconds}초`;
-  return `약 ${Math.round(seconds / 60)}분`;
-}
 
 export default function UnifiedAnalyzePage() {
   const t = useTranslations('Analyze');
@@ -455,7 +449,7 @@ export default function UnifiedAnalyzePage() {
       });
     } catch (error) {
       console.error('Failed to start analysis:', error);
-      setAnalysisError(error instanceof Error ? error.message : '상세 분석을 시작할 수 없습니다.');
+      setAnalysisError(error instanceof Error ? error.message : t('startAnalysisError'));
     }
   };
 
@@ -471,11 +465,11 @@ export default function UnifiedAnalyzePage() {
             setDetailedResult(data);
           } else {
             const body = await response.text();
-            setResultError(body || `결과를 가져오지 못했습니다. HTTP ${response.status}`);
+            setResultError(body || t('resultLoadError'));
           }
         } catch (error) {
           console.error('Failed to fetch detailed results:', error);
-          setResultError(error instanceof Error ? error.message : '결과를 가져오지 못했습니다.');
+          setResultError(error instanceof Error ? error.message : t('resultLoadError'));
         }
       }
     };
@@ -538,8 +532,8 @@ export default function UnifiedAnalyzePage() {
                 <span className="text-base leading-none">♟</span>
                 Chess intelligence
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">체스 플레이어 분석</h1>
-              <p className="text-gray-600 mt-1">최근 게임을 읽고, 스타일과 약점을 빠르게 정리합니다</p>
+              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+              <p className="text-gray-600 mt-1">{t('subtitle')}</p>
             </div>
             <div className="hidden sm:grid chess-board-mini" aria-hidden="true">
               {['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜', '♙', '♙', '♙', '♙', '♟', '♟', '♟', '♟'].map((piece, index) => (
@@ -611,16 +605,16 @@ export default function UnifiedAnalyzePage() {
               <span className="text-4xl">♟</span>
             </div>
             <h2 className="text-xl font-black text-zinc-800 mb-1">
-              &ldquo;{searchForm.username}&rdquo; 플레이어를 찾을 수 없습니다
+              {t('playerNotFound', { username: searchForm.username })}
             </h2>
             <p className="text-sm text-zinc-400 mb-5">
-              아이디를 다시 확인해주세요. 대소문자도 구분됩니다.
+              {t('playerNotFoundHint')}
             </p>
             <button
               onClick={() => setSearchForm({ ...searchForm, username: '' })}
               className="px-5 py-2 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:bg-zinc-700 transition"
             >
-              다시 검색
+              {t('searchAgain')}
             </button>
           </div>
         )}
@@ -628,13 +622,13 @@ export default function UnifiedAnalyzePage() {
         {/* Generic error (non-404) */}
         {summaryError && !playerNotFound && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
-            <div className="text-red-800 font-medium">플레이어 정보를 가져올 수 없습니다</div>
+            <div className="text-red-800 font-medium">{t('summaryFetchError')}</div>
             <div className="text-red-700 text-sm mt-1">{summaryError}</div>
             <button
               onClick={refetch}
               className="mt-3 text-red-800 hover:text-red-900 underline"
             >
-              다시 시도
+              {tCommon('retry')}
             </button>
           </div>
         )}
@@ -647,8 +641,8 @@ export default function UnifiedAnalyzePage() {
             {/* Analysis config panel */}
             <div className="bg-white rounded-xl shadow-sm border border-zinc-200 p-5 mb-6">
               <div className="mb-5">
-                <h2 className="text-base font-black text-zinc-950">심층 Stockfish 분석</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">게임 수와 분석 모드를 선택하고 시작하세요</p>
+                <h2 className="text-base font-black text-zinc-950">{t('deepAnalysisTitle')}</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">{t('deepAnalysisSubtitle')}</p>
               </div>
 
               {analysisError && (
@@ -660,7 +654,7 @@ export default function UnifiedAnalyzePage() {
               {/* Game count */}
               <div className="mb-5">
                 <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
-                  게임 수
+                  {t('gamesLabel')}
                 </label>
                 <div className="flex gap-2 flex-wrap">
                   {[10, 20, 30, 50].map((n) => {
@@ -681,7 +675,7 @@ export default function UnifiedAnalyzePage() {
                               : 'bg-white text-zinc-700 border-zinc-300 hover:border-zinc-700'
                         }`}
                       >
-                        {n}게임
+                        {t('gamesN', { n })}
                       </button>
                     );
                   })}
@@ -691,7 +685,7 @@ export default function UnifiedAnalyzePage() {
               {/* Mode */}
               <div className="mb-5">
                 <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
-                  분석 모드
+                  {t('modeLabel')}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(Object.keys(modeMeta) as Array<keyof typeof modeMeta>).map((mode) => {
@@ -729,7 +723,7 @@ export default function UnifiedAnalyzePage() {
                             isActive ? 'text-zinc-300' : 'text-zinc-500'
                           }`}
                         >
-                          최대 {meta.maxGames}게임 · {meta.estimate}
+                          {t('maxGamesEstimate', { maxGames: meta.maxGames, estimate: meta.estimate })}
                         </div>
                         <div
                           className={`mt-1 text-xs leading-relaxed ${
@@ -747,11 +741,16 @@ export default function UnifiedAnalyzePage() {
               {/* Time control (compact) */}
               <div className="mb-5">
                 <label className="text-xs font-black text-zinc-500 uppercase tracking-widest block mb-2">
-                  시간 제어
+                  {t('timeControlLabel')}
                 </label>
                 <div className="flex gap-2 flex-wrap">
                   {(['all', 'rapid', 'blitz', 'bullet'] as const).map((tc) => {
-                    const labels = { all: '전체', rapid: '래피드', blitz: '블리츠', bullet: '불릿' };
+                    const labels = {
+                      all: t('timeControlAll'),
+                      rapid: t('timeControlRapid'),
+                      blitz: t('timeControlBlitz'),
+                      bullet: t('timeControlBullet'),
+                    };
                     const isActive = searchForm.timeControl === tc;
                     return (
                       <button
@@ -776,7 +775,7 @@ export default function UnifiedAnalyzePage() {
                 className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-black py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 transition"
               >
                 <Zap className="w-4 h-4" />
-                {searchForm.n}게임 심층 분석 시작
+                {t('startAnalysisN', { n: searchForm.n })}
               </button>
             </div>
           </>
@@ -797,7 +796,7 @@ export default function UnifiedAnalyzePage() {
             <div>
               <div className="font-bold text-sm text-zinc-950">{summary.player.username}</div>
               <div className="text-xs text-zinc-400">
-                {searchForm.n}게임 · {modeMeta[searchForm.priority].label} 모드
+                {t('analysisHeaderMeta', { n: searchForm.n, mode: modeMeta[searchForm.priority].label })}
               </div>
             </div>
           </div>
@@ -813,12 +812,12 @@ export default function UnifiedAnalyzePage() {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-zinc-950">분석이 중단되었습니다</h3>
-                    <p className="text-sm text-zinc-500">대기열, 외부 Chess.com 응답, 엔진 작업 중 하나에서 실패했을 수 있습니다.</p>
+                    <h3 className="text-xl font-bold text-zinc-950">{t('analysisFailed')}</h3>
+                    <p className="text-sm text-zinc-500">{t('analysisFailedDesc')}</p>
                   </div>
                 </div>
                 <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700">
-                  {status.errorMessage || status.currentStep || '잠시 후 빠르게 모드로 다시 시도해주세요.'}
+                  {status.errorMessage || status.currentStep || t('retryFastHint')}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
@@ -831,14 +830,14 @@ export default function UnifiedAnalyzePage() {
                     }}
                     className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800"
                   >
-                    빠르게 모드로 다시 준비
+                    {t('retryFast')}
                   </button>
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
                     className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
                   >
-                    상태 새로고침
+                    {t('refreshStatus')}
                   </button>
                 </div>
               </div>
@@ -848,21 +847,25 @@ export default function UnifiedAnalyzePage() {
             {!isDone && !isFailed && (
               <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
                 <div className="flex items-center justify-between mb-4 gap-3">
-                  <h3 className="text-xl font-bold text-gray-900">분석 진행 중...</h3>
+                  <h3 className="text-xl font-bold text-gray-900">{t('analysisRunning')}</h3>
                   <button
                     type="button"
                     onClick={cancelJob}
                     className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-bold text-zinc-600 hover:border-red-400 hover:text-red-600 transition-colors flex-shrink-0"
                   >
-                    취소
+                    {tCommon('cancel')}
                   </button>
                 </div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">전체 진행률</span>
+                  <span className="text-sm font-medium text-gray-700">{t('overallProgress')}</span>
                   <span className="text-sm text-gray-600 tabular-nums">
                     {Math.round(status.progress || 0)}%
                     {isRunning && etaRemaining != null && (
-                      <span className="ml-2 text-zinc-400">· {formatEta(etaRemaining)} 남음</span>
+                      <span className="ml-2 text-zinc-400">
+                        · {etaRemaining < 60
+                          ? t('etaSeconds', { n: etaRemaining })
+                          : t('etaMinutes', { n: Math.round(etaRemaining / 60) })}
+                      </span>
                     )}
                   </span>
                 </div>
@@ -875,22 +878,22 @@ export default function UnifiedAnalyzePage() {
 
                 {status.currentStep && (
                   <div className="mt-3 text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
-                    <span className="font-medium">현재 단계:</span> {status.currentStep}
+                    <span className="font-medium">{t('currentStep')}</span> {status.currentStep}
                   </div>
                 )}
                 {isQueued && typeof status.queuePosition === 'number' && typeof status.queueSize === 'number' && (
                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                    대기열 {status.queuePosition}번째 · 총 {status.queueSize}개 대기 중입니다. 오래 걸리면 빠르게 모드와 5-10게임이 가장 안정적입니다.
+                    {t('queueInfo', { position: status.queuePosition, size: status.queueSize })}
                   </div>
                 )}
 
                 {/* Partial Results Indicators */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                   {[
-                    { key: 'tactics', title: '전술 분석', ready: tacticsReady, icon: Target },
-                    { key: 'swing', title: '승부 전환점', ready: swingMomentsReady, icon: TrendingUp },
-                    { key: 'endgame', title: '엔드게임', ready: endgameReady, icon: Brain },
-                    { key: 'time', title: '시간 관리', ready: timeMgmtReady, icon: Clock }
+                    { key: 'tactics', title: t('tacticsPartial'), ready: tacticsReady, icon: Target },
+                    { key: 'swing', title: t('swingPartial'), ready: swingMomentsReady, icon: TrendingUp },
+                    { key: 'endgame', title: t('endgamePartial'), ready: endgameReady, icon: Brain },
+                    { key: 'time', title: t('timeMgmtPartial'), ready: timeMgmtReady, icon: Clock }
                   ].map(({ key, title, ready, icon: Icon }) => (
                     <div
                       key={key}
@@ -920,8 +923,8 @@ export default function UnifiedAnalyzePage() {
                   <div className="flex items-center mb-4">
                     <div className="mr-3 flex h-12 w-12 items-center justify-center rounded-lg bg-white text-2xl text-black">♔</div>
                     <div>
-                      <h3 className="text-2xl font-bold">종합 분석 결과</h3>
-                      <p className="text-blue-100">플레이어: {detailedResult.username} • 분석 게임: {detailedResult.totalGames}개</p>
+                      <h3 className="text-2xl font-bold">{t('comprehensiveResult')}</h3>
+                      <p className="text-blue-100">{t('resultSummary', { username: detailedResult.username, count: detailedResult.totalGames })}</p>
                     </div>
                   </div>
                 </div>
@@ -932,34 +935,34 @@ export default function UnifiedAnalyzePage() {
                       <Target className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="text-lg font-black text-zinc-950">오늘 바로 볼 복기 순서</h4>
-                      <p className="text-sm text-zinc-500">사용자가 실제로 고칠 가능성이 높은 순서로 압축했습니다</p>
+                      <h4 className="text-lg font-black text-zinc-950">{t('reviewOrder')}</h4>
+                      <p className="text-sm text-zinc-500">{t('reviewOrderDesc')}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                      <div className="text-xs font-black text-zinc-500">1순위</div>
-                      <div className="mt-1 text-base font-black text-zinc-950">결정적 순간 {detailedResult.decisiveMoments?.length || 0}개</div>
+                      <div className="text-xs font-black text-zinc-500">{t('priority1')}</div>
+                      <div className="mt-1 text-base font-black text-zinc-950">{t('decisiveMoments', { count: detailedResult.decisiveMoments?.length || 0 })}</div>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">
-                        승패가 크게 흔들린 수부터 보면 복기 시간이 가장 효율적입니다.
+                        {t('decisiveMomentsDesc')}
                       </p>
                     </div>
                     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                      <div className="text-xs font-black text-zinc-500">2순위</div>
+                      <div className="text-xs font-black text-zinc-500">{t('priority2')}</div>
                       <div className="mt-1 text-base font-black text-zinc-950">
-                        {detailedResult.advancedInsights?.openingHoles?.[0]?.name || '반복 오프닝 확인'}
+                        {detailedResult.advancedInsights?.openingHoles?.[0]?.name || t('checkOpenings')}
                       </div>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">
-                        자주 두면서 점수율이나 CPL이 나쁜 레퍼토리를 먼저 손보세요.
+                        {t('checkOpeningsDesc')}
                       </p>
                     </div>
                     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                      <div className="text-xs font-black text-zinc-500">3순위</div>
+                      <div className="text-xs font-black text-zinc-500">{t('priority3')}</div>
                       <div className="mt-1 text-base font-black text-zinc-950">
-                        {detailedResult.trainingRecommendations?.[0]?.title || '맞춤 훈련'}
+                        {detailedResult.trainingRecommendations?.[0]?.title || t('customTraining')}
                       </div>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">
-                        한 번에 많이 고치기보다 이번 주 하나만 반복하는 쪽이 점수에 잘 남습니다.
+                        {t('customTrainingDesc')}
                       </p>
                     </div>
                   </div>
@@ -969,50 +972,50 @@ export default function UnifiedAnalyzePage() {
                 <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
                   <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    성과 지표
+                    {t('performanceMetrics')}
                   </h4>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
                     <div className="text-center p-4 bg-blue-50 rounded-lg border">
                       <div className="text-2xl font-bold text-blue-600">
                         ♕ {detailedResult.averageAccuracy?.toFixed(1) || '0.0'}%
                       </div>
-                      <div className="text-xs text-gray-600">평균 정확도</div>
+                      <div className="text-xs text-gray-600">{t('avgAccuracy')}</div>
                     </div>
-                    
+
                     <div className="text-center p-4 bg-green-50 rounded-lg border">
                       <div className="text-2xl font-bold text-green-600">
                         ♙ {detailedResult.averageCentipawnLoss?.toFixed(1) || '0.0'}
                       </div>
-                      <div className="text-xs text-gray-600">평균 CPL</div>
+                      <div className="text-xs text-gray-600">{t('avgCpl')}</div>
                     </div>
-                    
+
                     <div className="text-center p-4 bg-yellow-50 rounded-lg border">
                       <div className="text-2xl font-bold text-yellow-600">
                         ♞ {detailedResult.tacticalOverview?.tacticalAccuracy || '0.0%'}
                       </div>
-                      <div className="text-xs text-gray-600">전술 정확도</div>
+                      <div className="text-xs text-gray-600">{t('tacticalAccuracy')}</div>
                     </div>
-                    
+
                     <div className="text-center p-4 bg-red-50 rounded-lg border">
                       <div className="text-2xl font-bold text-red-600">
                         {detailedResult.totalBlunders || 0}
                       </div>
-                      <div className="text-xs text-gray-600">블런더</div>
+                      <div className="text-xs text-gray-600">{t('blunders')}</div>
                     </div>
 
                     <div className="text-center p-4 bg-orange-50 rounded-lg border">
                       <div className="text-2xl font-bold text-orange-600">
                         {detailedResult.totalMistakes || 0}
                       </div>
-                      <div className="text-xs text-gray-600">실수</div>
+                      <div className="text-xs text-gray-600">{t('mistakes')}</div>
                     </div>
 
                     <div className="text-center p-4 bg-purple-50 rounded-lg border">
                       <div className="text-2xl font-bold text-purple-600">
                         {detailedResult.totalInaccuracies || 0}
                       </div>
-                      <div className="text-xs text-gray-600">부정확</div>
+                      <div className="text-xs text-gray-600">{t('inaccuracies')}</div>
                     </div>
                   </div>
 
@@ -1022,16 +1025,16 @@ export default function UnifiedAnalyzePage() {
                         <div>
                           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-3 py-1 text-xs font-bold text-zinc-950">
                             <ShieldCheck className="h-3.5 w-3.5" />
-                            같은 레이팅대 비교
+                            {t('cohortComparison')}
                           </div>
-                          <h5 className="text-2xl font-black text-white">내 플레이는 어느 정도인가?</h5>
+                          <h5 className="text-2xl font-black text-white">{t('cohortQuestion')}</h5>
                           <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-zinc-100">
                             {detailedResult.comparativeInsights.narrative}
                           </p>
                         </div>
                         <div className="rounded-lg border border-white/20 bg-white px-4 py-3 text-sm text-zinc-950">
-                          <div className="text-zinc-500">레이팅 밴드</div>
-                          <div className="text-lg font-black">{detailedResult.comparativeInsights.ratingBand || '분석 중'}</div>
+                          <div className="text-zinc-500">{t('ratingBand')}</div>
+                          <div className="text-lg font-black">{detailedResult.comparativeInsights.ratingBand || t('analyzing')}</div>
                         </div>
                       </div>
 
@@ -1051,11 +1054,11 @@ export default function UnifiedAnalyzePage() {
                         <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
                           <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
                             <Trophy className="h-4 w-4" />
-                            닮은 체스 거장
+                            {t('gmMatch')}
                           </div>
-                          <div className="text-2xl font-black">{detailedResult.comparativeInsights.gmMatch?.name || '분석 중'}</div>
+                          <div className="text-2xl font-black">{detailedResult.comparativeInsights.gmMatch?.name || t('analyzing')}</div>
                           <div className="mt-1 text-sm font-semibold text-zinc-700">
-                            {detailedResult.comparativeInsights.gmMatch?.styleLabel} · 유사도 {detailedResult.comparativeInsights.gmMatch?.similarity || 0}%
+                            {detailedResult.comparativeInsights.gmMatch?.styleLabel} · {t('gmSimilarity', { similarity: detailedResult.comparativeInsights.gmMatch?.similarity || 0 })}
                           </div>
                           <p className="mt-3 text-sm font-medium leading-6 text-zinc-700">
                             {detailedResult.comparativeInsights.gmMatch?.reason}
@@ -1065,10 +1068,10 @@ export default function UnifiedAnalyzePage() {
                         <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
                           <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
                             <Target className="h-4 w-4" />
-                            다음 학습 포인트
+                            {t('nextLearning')}
                           </div>
                           <p className="mb-3 text-sm font-medium leading-6 text-zinc-700">
-                            {detailedResult.learningInsights?.headline || '결정적 순간과 반복되는 실수부터 복기해보세요.'}
+                            {detailedResult.learningInsights?.headline || t('nextLearningDesc')}
                           </p>
                           <div className="space-y-2">
                             {learningCards.slice(0, 3).map((card) => (
@@ -1086,7 +1089,10 @@ export default function UnifiedAnalyzePage() {
 
                       {detailedResult.comparativeInsights.sampleReliability && (
                         <div className="mt-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-zinc-800">
-                          표본 신뢰도 {detailedResult.comparativeInsights.sampleReliability.label}: {detailedResult.comparativeInsights.sampleReliability.message}
+                          {t('sampleReliability', {
+                            label: detailedResult.comparativeInsights.sampleReliability.label,
+                            message: detailedResult.comparativeInsights.sampleReliability.message,
+                          })}
                         </div>
                       )}
                     </div>
@@ -1096,7 +1102,7 @@ export default function UnifiedAnalyzePage() {
                     <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
                       <div className="mb-4 flex items-center gap-2">
                         <Brain className="h-5 w-5 text-zinc-800" />
-                        <h5 className="font-semibold text-gray-900">분석 스토리와 신뢰도</h5>
+                        <h5 className="font-semibold text-gray-900">{t('analysisStory')}</h5>
                       </div>
 
                       {detailedResult.advancedInsights.story && (
@@ -1127,7 +1133,7 @@ export default function UnifiedAnalyzePage() {
                             <div key={band.label} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                               <div className="text-xs font-bold text-zinc-500">{band.label}</div>
                               <div className="mt-1 text-lg font-black text-zinc-950">{band.value.toFixed(1)} ± {band.margin}</div>
-                              <div className="mt-1 text-xs text-zinc-600">예상 범위 {band.range}</div>
+                              <div className="mt-1 text-xs text-zinc-600">{t('expectedRange', { range: band.range })}</div>
                             </div>
                           ))}
                         </div>
@@ -1139,20 +1145,20 @@ export default function UnifiedAnalyzePage() {
                     <div className="mb-6 rounded-lg border border-zinc-950 bg-zinc-950 p-4 text-white dark-surface">
                       <div className="mb-2 flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5" />
-                        <h5 className="font-semibold">상대로 만났을 때 공략법</h5>
+                        <h5 className="font-semibold">{t('opponentPlanTitle')}</h5>
                       </div>
                       <p className="mb-4 text-sm font-medium leading-6 text-zinc-200">
                         {detailedResult.opponentExploitPlan.headline}
                         {detailedResult.opponentExploitPlan.confidence && (
                           <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-zinc-950">
-                            신뢰도 {detailedResult.opponentExploitPlan.confidence}
+                            {t('confidence', { confidence: detailedResult.opponentExploitPlan.confidence })}
                           </span>
                         )}
                       </p>
 
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">약점 후보</div>
+                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('weaknessCandidates')}</div>
                           <div className="space-y-2">
                             {(detailedResult.opponentExploitPlan.weaknesses || []).map((item) => (
                               <div key={`${item.title}-${item.value}`} className="rounded-lg border border-white/15 bg-white p-3 text-zinc-950">
@@ -1167,7 +1173,7 @@ export default function UnifiedAnalyzePage() {
                         </div>
 
                         <div>
-                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">추천 전략</div>
+                          <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('recommendedStrategy')}</div>
                           <div className="space-y-2">
                             {(detailedResult.opponentExploitPlan.recommendations || []).map((item) => (
                               <div key={`${item.title}-${item.value}`} className="rounded-lg border border-white/15 bg-zinc-900 p-3">
@@ -1194,7 +1200,7 @@ export default function UnifiedAnalyzePage() {
                     <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
                       <div className="mb-4 flex items-center gap-2">
                         <BarChart3 className="h-5 w-5 text-zinc-800" />
-                        <h5 className="font-semibold text-gray-900">고급 패턴</h5>
+                        <h5 className="font-semibold text-gray-900">{t('advancedPatterns')}</h5>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1204,33 +1210,36 @@ export default function UnifiedAnalyzePage() {
                             <div className="mt-1 text-xl font-black text-zinc-950">
                               {detailedResult.advancedInsights.criticalMoveStats.sample
                                 ? `${detailedResult.advancedInsights.criticalMoveStats.accuracy?.toFixed(1)}%`
-                                : '표본 부족'}
+                                : t('sampleInsufficient')}
                             </div>
                             <div className="mt-1 text-xs text-zinc-600">
-                              표본 {detailedResult.advancedInsights.criticalMoveStats.sample || 0}개 · {detailedResult.advancedInsights.criticalMoveStats.label}
+                              {t('criticalMoveSampleLabel', {
+                                sample: detailedResult.advancedInsights.criticalMoveStats.sample || 0,
+                                label: detailedResult.advancedInsights.criticalMoveStats.label ?? '',
+                              })}
                             </div>
                           </div>
                         )}
 
                         {detailedResult.advancedInsights.complexityPreference && (
                           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                            <div className="text-xs font-bold text-zinc-500">복잡도 대응</div>
+                            <div className="text-xs font-bold text-zinc-500">{t('complexityResponse')}</div>
                             <div className="mt-1 text-xl font-black text-zinc-950">{detailedResult.advancedInsights.complexityPreference.label}</div>
                             <div className="mt-1 text-xs text-zinc-600">{detailedResult.advancedInsights.complexityPreference.value}</div>
                           </div>
                         )}
 
                         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                          <div className="text-xs font-bold text-zinc-500">시간대 패턴</div>
+                          <div className="text-xs font-bold text-zinc-500">{t('timePattern')}</div>
                           <div className="mt-1 text-sm font-semibold leading-5 text-zinc-700">
-                            {detailedResult.advancedInsights.timePatterns?.message || '시간대 표본 수집 중'}
+                            {detailedResult.advancedInsights.timePatterns?.message || t('timePatternCollecting')}
                           </div>
                         </div>
                       </div>
 
                       {(detailedResult.advancedInsights.openingHoles || []).length > 0 && (
                         <div className="mt-4">
-                          <div className="mb-2 text-sm font-bold text-zinc-800">오프닝 hole 후보</div>
+                          <div className="mb-2 text-sm font-bold text-zinc-800">{t('openingHoles')}</div>
                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             {(detailedResult.advancedInsights.openingHoles || []).map((opening) => (
                               <div key={`${opening.sideLabel}-${opening.name}`} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
@@ -1239,7 +1248,11 @@ export default function UnifiedAnalyzePage() {
                                   <div className="shrink-0 text-xs font-bold text-zinc-500">{opening.reason}</div>
                                 </div>
                                 <div className="mt-1 text-xs text-zinc-600">
-                                  {opening.count}판 · 점수율 {opening.scoreRate?.toFixed(1) || '0.0'}% · CPL {opening.averageCpl?.toFixed(1) || '0.0'}
+                                  {t('openingHoleStats', {
+                                    count: opening.count,
+                                    scoreRate: opening.scoreRate?.toFixed(1) ?? '0.0',
+                                    cpl: opening.averageCpl?.toFixed(1) ?? '0.0',
+                                  })}
                                 </div>
                               </div>
                             ))}
@@ -1253,7 +1266,7 @@ export default function UnifiedAnalyzePage() {
                     <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
                       <div className="mb-4 flex items-center gap-2">
                         <TrendingUp className="h-5 w-5 text-zinc-800" />
-                        <h5 className="font-semibold text-gray-900">승부를 흔든 결정적 순간</h5>
+                        <h5 className="font-semibold text-gray-900">{t('decisiveMomentsSection')}</h5>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1264,7 +1277,7 @@ export default function UnifiedAnalyzePage() {
                           >
                             <div className="mb-2 flex items-center justify-between gap-3">
                               <div className="text-sm font-bold text-zinc-950">
-                                {moment.gameIndex + 1}번째 게임 · {moment.moveNumber}수 {moment.sideLabel}
+                                {t('gameMoveSide', { gameIndex: moment.gameIndex + 1, moveNumber: moment.moveNumber, side: moment.sideLabel })}
                               </div>
                               <div className="rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-bold text-white">
                                 {moment.winProbabilityLoss && moment.winProbabilityLoss >= 1
@@ -1277,7 +1290,7 @@ export default function UnifiedAnalyzePage() {
                               {moment.move}
                               {moment.bestMove && (
                                 <span className="ml-2 text-sm font-semibold text-zinc-500">
-                                  대신 {moment.bestMove}
+                                  {t('bestMoveSuggestion', { bestMove: moment.bestMove })}
                                 </span>
                               )}
                             </div>
@@ -1302,18 +1315,18 @@ export default function UnifiedAnalyzePage() {
                     <div className="mb-6 rounded-lg border bg-slate-50 p-4">
                       <div className="mb-4 flex items-center gap-2">
                         <BookOpen className="h-5 w-5 text-slate-700" />
-                        <h5 className="font-semibold text-gray-900">주요 오프닝 레퍼토리</h5>
+                        <h5 className="font-semibold text-gray-900">{t('openingRepertoire')}</h5>
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         {[
-                          { title: '백으로 시작한 게임', total: detailedResult.openingStats.whiteTotal, rows: detailedResult.openingStats.white },
-                          { title: '흑으로 시작한 게임', total: detailedResult.openingStats.blackTotal, rows: detailedResult.openingStats.black },
+                          { title: t('whiteGames'), total: detailedResult.openingStats.whiteTotal, rows: detailedResult.openingStats.white },
+                          { title: t('blackGames'), total: detailedResult.openingStats.blackTotal, rows: detailedResult.openingStats.black },
                         ].map((section) => (
                           <div key={section.title} className="rounded-lg border bg-white p-4">
                             <div className="mb-3 flex items-baseline justify-between">
                               <div className="text-sm font-semibold text-gray-800">{section.title}</div>
-                              <div className="text-xs text-gray-500">총 {section.total}판</div>
+                              <div className="text-xs text-gray-500">{t('totalGamesCount', { total: section.total })}</div>
                             </div>
 
                             {section.rows.length > 0 ? (
@@ -1325,13 +1338,13 @@ export default function UnifiedAnalyzePage() {
                                         {index + 1}. {opening.name}
                                       </div>
                                       <div className="shrink-0 text-gray-600">
-                                        {opening.count}판 · {opening.percentage.toFixed(1)}%
+                                        {t('openingCountPct', { count: opening.count, pct: opening.percentage.toFixed(1) })}
                                       </div>
                                     </div>
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                                      {typeof opening.scoreRate === 'number' && <span>점수율 {opening.scoreRate.toFixed(1)}%</span>}
-                                      {typeof opening.averageCpl === 'number' && opening.averageCpl > 0 && <span>평균 CPL {opening.averageCpl.toFixed(1)}</span>}
-                                      {typeof opening.firstIssueMove === 'number' && <span>첫 흔들림 {opening.firstIssueMove.toFixed(1)}수 전후</span>}
+                                      {typeof opening.scoreRate === 'number' && <span>{t('openingScoreRate', { scoreRate: opening.scoreRate.toFixed(1) })}</span>}
+                                      {typeof opening.averageCpl === 'number' && opening.averageCpl > 0 && <span>{t('openingAvgCpl', { cpl: opening.averageCpl.toFixed(1) })}</span>}
+                                      {typeof opening.firstIssueMove === 'number' && <span>{t('firstWavered', { move: opening.firstIssueMove.toFixed(1) })}</span>}
                                     </div>
                                     <div className="h-1.5 w-full rounded-full bg-gray-200">
                                       <div
@@ -1343,7 +1356,7 @@ export default function UnifiedAnalyzePage() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="text-sm text-gray-500">해당 색으로 분석된 게임이 없습니다.</div>
+                              <div className="text-sm text-gray-500">{t('noGamesForColor')}</div>
                             )}
                           </div>
                         ))}
@@ -1354,17 +1367,17 @@ export default function UnifiedAnalyzePage() {
                   {/* Performance Analysis */}
                   <div className="space-y-4">
                     <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                      <div className="font-medium text-blue-900 mb-1">♕ 정확도 분석</div>
+                      <div className="font-medium text-blue-900 mb-1">{t('accuracySection')}</div>
                       <p className="text-sm text-blue-800">{detailedResult.explanations?.accuracyExplanation}</p>
                     </div>
                     
                     <div className="p-4 bg-green-50 border-l-4 border-green-400 rounded-lg">
-                      <div className="font-medium text-green-900 mb-1">♙ 센티폰 손실 분석</div>
+                      <div className="font-medium text-green-900 mb-1">{t('acplSection')}</div>
                       <p className="text-sm text-green-800">{detailedResult.explanations?.acplExplanation}</p>
                     </div>
                     
                     <div className="p-4 bg-orange-50 border-l-4 border-orange-400 rounded-lg">
-                      <div className="font-medium text-orange-900 mb-1">♟ 실수 패턴 분석</div>
+                      <div className="font-medium text-orange-900 mb-1">{t('mistakeSection')}</div>
                       <p className="text-sm text-orange-800">{detailedResult.explanations?.errorAnalysis}</p>
                     </div>
                   </div>
@@ -1374,16 +1387,16 @@ export default function UnifiedAnalyzePage() {
                 <div className="bg-white rounded-xl shadow-lg p-6 chess-panel">
                   <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                     <Brain className="h-5 w-5" />
-                    12차원 스타일 프로파일링
+                    {t('styleProfile')}
                   </h4>
                   
                   {/* Main Playing Style */}
                   <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-6 rounded-lg mb-6 border chess-style-summary">
                     <div className="text-center">
                       <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-black text-2xl text-white">♚</div>
-                      <h5 className="text-lg font-bold text-purple-800 mb-2">주요 플레이 스타일</h5>
+                      <h5 className="text-lg font-bold text-purple-800 mb-2">{t('mainStyle')}</h5>
                       <div className="text-2xl font-bold text-purple-900">
-                        {detailedResult.styleProfile?.playingStyle || '분석 중'}
+                        {detailedResult.styleProfile?.playingStyle || t('analyzing')}
                       </div>
                       {detailedResult.styleProfile?.dimensionExplanations?.overallStyleAnalysis && (
                         <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-purple-800">
@@ -1403,7 +1416,7 @@ export default function UnifiedAnalyzePage() {
                           <div className={`text-xl font-bold mb-1 ${getRatingColor(score)}`}>
                             {score.toFixed(0)}
                           </div>
-                          <div className="text-xs text-gray-600 leading-tight">{dimension.name}</div>
+                          <div className="text-xs text-gray-600 leading-tight">{t(dimension.i18nKey as Parameters<typeof t>[0])}</div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                             <div 
                               className="bg-blue-500 h-1.5 rounded-full" 
@@ -1418,7 +1431,7 @@ export default function UnifiedAnalyzePage() {
                   {/* Style Dimension Explanations */}
                   {detailedResult.styleProfile?.dimensionExplanations && (
                     <div className="mt-6 space-y-3">
-                      <h5 className="font-semibold text-gray-900 mb-3">📝 차원별 상세 분석</h5>
+                      <h5 className="font-semibold text-gray-900 mb-3">📝 {t('dimensionDetail')}</h5>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(Object.entries(detailedResult.styleProfile.dimensionExplanations) as [string, string | undefined][])
@@ -1440,28 +1453,28 @@ export default function UnifiedAnalyzePage() {
 
                 {/* Tactical Analysis */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h4 className="text-xl font-bold text-gray-900 mb-6">♞ 전술 분석</h4>
-                  
+                  <h4 className="text-xl font-bold text-gray-900 mb-6">{t('tacticsSection')}</h4>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-green-50 p-4 rounded-lg border">
                       <div className="text-2xl font-bold text-green-600 mb-2">
                         {detailedResult.tacticalOverview?.foundTactics || 0}
                       </div>
-                      <div className="text-sm text-gray-600">전술 기회 활용</div>
+                      <div className="text-sm text-gray-600">{t('tacticsConverted')}</div>
                     </div>
-                    
+
                     <div className="bg-red-50 p-4 rounded-lg border">
                       <div className="text-2xl font-bold text-red-600 mb-2">
                         {detailedResult.tacticalOverview?.missedTactics || 0}
                       </div>
-                      <div className="text-sm text-gray-600">전술 기회 놓침</div>
+                      <div className="text-sm text-gray-600">{t('tacticsMissed')}</div>
                     </div>
-                    
+
                     <div className="bg-blue-50 p-4 rounded-lg border">
                       <div className="text-2xl font-bold text-blue-600 mb-2">
                         {detailedResult.tacticalOverview?.totalOpportunities || 0}
                       </div>
-                      <div className="text-sm text-gray-600">총 전술 기회</div>
+                      <div className="text-sm text-gray-600">{t('totalTactics')}</div>
                     </div>
                   </div>
 
@@ -1473,13 +1486,13 @@ export default function UnifiedAnalyzePage() {
 
                   {detailedResult.tacticalOpportunities && detailedResult.tacticalOpportunities.length > 0 && (
                     <div className="mt-6">
-                      <h5 className="font-semibold text-gray-900 mb-3">전술 패턴 분석</h5>
+                      <h5 className="font-semibold text-gray-900 mb-3">{t('tacticsPattern')}</h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {detailedResult.tacticalOpportunities.map((opportunity, index) => (
                           <div key={index} className="p-4 bg-gray-50 rounded-lg border">
                             <div className="font-medium text-gray-800">{opportunity.pattern}</div>
                             <div className="text-sm text-gray-600 mt-1">
-                              정확도: {opportunity.accuracy} | 찾음: {opportunity.found} | 놓침: {opportunity.missed}
+                              {t('tacticsPatternStats', { accuracy: opportunity.accuracy, found: opportunity.found, missed: opportunity.missed })}
                             </div>
                           </div>
                         ))}
@@ -1491,7 +1504,7 @@ export default function UnifiedAnalyzePage() {
                 {/* Training Recommendations */}
                 {detailedResult.trainingRecommendations && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h4 className="text-xl font-bold text-gray-900 mb-6">♙ 맞춤형 훈련 계획</h4>
+                    <h4 className="text-xl font-bold text-gray-900 mb-6">{t('trainingPlan')}</h4>
                     
                     <div className="space-y-4">
                       {detailedResult.trainingRecommendations.map((recommendation, index) => (
@@ -1500,7 +1513,7 @@ export default function UnifiedAnalyzePage() {
                             <h5 className="font-semibold text-blue-900">{recommendation.title}</h5>
                             {recommendation.eloGain > 0 && (
                               <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                +{recommendation.eloGain} Elo 예상
+                                {t('eloGain', { eloGain: recommendation.eloGain })}
                               </span>
                             )}
                           </div>
@@ -1514,26 +1527,26 @@ export default function UnifiedAnalyzePage() {
                 {/* Player Metadata */}
                 {detailedResult.playerMetadata && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h4 className="text-xl font-bold text-gray-900 mb-6">♔ 플레이어 정보</h4>
-                    
+                    <h4 className="text-xl font-bold text-gray-900 mb-6">{t('playerInfo')}</h4>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {detailedResult.playerMetadata.country && (
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <div className="text-sm text-gray-600">국가</div>
+                          <div className="text-sm text-gray-600">{t('country')}</div>
                           <div className="font-medium">{detailedResult.playerMetadata.country}</div>
                         </div>
                       )}
                       
                       {detailedResult.playerMetadata.title && (
                         <div className="p-3 bg-yellow-50 rounded-lg">
-                          <div className="text-sm text-gray-600">타이틀</div>
+                          <div className="text-sm text-gray-600">{t('playerTitle')}</div>
                           <div className="font-medium text-yellow-700">{detailedResult.playerMetadata.title}</div>
                         </div>
                       )}
                       
                       {detailedResult.playerMetadata.followers > 0 && (
                         <div className="p-3 bg-blue-50 rounded-lg">
-                          <div className="text-sm text-gray-600">팔로워</div>
+                          <div className="text-sm text-gray-600">{t('followers')}</div>
                           <div className="font-medium">{detailedResult.playerMetadata.followers.toLocaleString()}</div>
                         </div>
                       )}
@@ -1558,7 +1571,7 @@ export default function UnifiedAnalyzePage() {
             )}
             {isDone && !detailedResult && resultError && (
               <div className="rounded-xl border border-zinc-300 bg-white p-6 shadow-lg chess-panel">
-                <h3 className="text-xl font-bold text-zinc-950">분석은 완료됐지만 결과를 불러오지 못했습니다</h3>
+                <h3 className="text-xl font-bold text-zinc-950">{t('resultLoadError')}</h3>
                 <p className="mt-2 text-sm text-zinc-600">{resultError}</p>
                 <button
                   type="button"
@@ -1566,10 +1579,10 @@ export default function UnifiedAnalyzePage() {
                     if (!response.ok) throw new Error(await response.text());
                     setDetailedResult(await response.json());
                     setResultError(null);
-                  }).catch((error) => setResultError(error instanceof Error ? error.message : '결과를 다시 가져오지 못했습니다.'))}
+                  }).catch((error) => setResultError(error instanceof Error ? error.message : t('resultLoadError')))}
                   className="mt-4 rounded-lg bg-zinc-950 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800"
                 >
-                  결과 다시 불러오기
+                  {t('resultReload')}
                 </button>
               </div>
             )}

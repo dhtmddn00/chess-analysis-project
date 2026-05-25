@@ -18,7 +18,12 @@
     "failed": "분석 실패",
     "unknown": "알 수 없음",
     "error": "오류 발생",
-    "vs": "vs"
+    "vs": "vs",
+    "copyLink": "링크 복사",
+    "copied": "복사됨",
+    "saveImage": "이미지 저장",
+    "saving": "저장 중...",
+    "all": "전체"
   },
   "Nav": {
     "analyzeScreen": "분석 화면",
@@ -170,11 +175,37 @@
     "eloGain": "+{eloGain} Elo 예상",
     "playerInfo": "♔ 플레이어 정보",
     "country": "국가",
-    "title": "타이틀",
+    "playerTitle": "타이틀",
     "followers": "팔로워",
     "viewFullReport": "📋 전체 상세 보고서 보기",
     "comprehensiveResult": "종합 분석 결과",
-    "resultSummary": "플레이어: {username} • 분석 게임: {count}개"
+    "resultSummary": "플레이어: {username} • 분석 게임: {count}개",
+    "playerNotFound": "\"{username}\" 플레이어를 찾을 수 없습니다",
+    "playerNotFoundHint": "아이디를 다시 확인해주세요. 대소문자도 구분됩니다.",
+    "searchAgain": "다시 검색",
+    "summaryFetchError": "플레이어 정보를 가져올 수 없습니다",
+    "deepAnalysisTitle": "심층 Stockfish 분석",
+    "deepAnalysisSubtitle": "게임 수와 분석 모드를 선택하고 시작하세요",
+    "maxGamesEstimate": "최대 {maxGames}게임 · {estimate}",
+    "gamesN": "{n}게임",
+    "startAnalysisN": "{n}게임 심층 분석 시작",
+    "analysisHeaderMeta": "{n}게임 · {mode} 모드",
+    "retryFastHint": "잠시 후 빠르게 모드로 다시 시도해주세요.",
+    "etaSeconds": "약 {n}초",
+    "etaMinutes": "약 {n}분",
+    "tacticsPartial": "전술 분석",
+    "swingPartial": "승부 전환점",
+    "endgamePartial": "엔드게임",
+    "timeMgmtPartial": "시간 관리",
+    "expectedRange": "예상 범위 {range}",
+    "criticalMoveSampleLabel": "표본 {sample}개 · {label}",
+    "openingCountPct": "{count}판 · {pct}%",
+    "openingHoleStats": "{count}판 · 점수율 {scoreRate}% · CPL {cpl}",
+    "tacticsPatternStats": "정확도: {accuracy} | 찾음: {found} | 놓침: {missed}",
+    "resultLoadError": "분석은 완료됐지만 결과를 불러오지 못했습니다",
+    "resultReload": "결과 다시 불러오기",
+    "opponentPlanTitle": "상대로 만났을 때 공략법",
+    "startAnalysisError": "상세 분석을 시작할 수 없습니다"
   },
   "QuickAnalyze": {
     "title": "빠른 체스 분석",
@@ -318,7 +349,9 @@
     "blackLabel": "흑 (Black)",
     "recentGames": "최근 게임",
     "deepAnalysisRunning": "심층 분석 진행 중...",
-    "startDeepAnalysis": "심층 분석 시작"
+    "startDeepAnalysis": "심층 분석 시작",
+    "noGames": "최근 게임 없음",
+    "noTCGames": "최근 {tc} 게임 없음"
   },
   "SiteFooter": {
     "builtBy": "Built by 오승우",
@@ -333,5 +366,20 @@
     "title": "페이지를 불러오지 못했습니다",
     "message": "알 수 없는 오류가 발생했습니다.",
     "retry": "다시 시도"
+  },
+  "AnalysisResultErrorBoundary": {
+    "title": "결과를 표시하지 못했습니다",
+    "message": "분석은 완료됐지만 일부 데이터를 렌더링하는 중 오류가 발생했습니다.",
+    "retry": "다시 시도"
+  },
+  "ShareResultCard": {
+    "title": "공유하기",
+    "gamesAnalyzed": "{count}게임 분석",
+    "accuracy": "정확도",
+    "avgCpl": "평균 CPL",
+    "blunders": "블런더",
+    "winRate": "승률",
+    "playingStyle": "플레이 스타일",
+    "analyzing": "분석 중"
   }
 }

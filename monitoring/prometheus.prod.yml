@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/prometheus_alerts.yml
+
+scrape_configs:
+  # Spring Boot API — Fly.io 내부 네트워크
+  - job_name: chess-api
+    metrics_path: /api/v1/actuator/prometheus
+    static_configs:
+      - targets:
+          - chess-analysis-api-prod.internal:8080
+
+  # Python Worker — prometheus_client HTTP 서버 (포트 8001)
+  # Fly 6PN 덕분에 worker가 포트를 공개하지 않아도 같은 org 안에서 접근 가능
+  - job_name: chess-worker
+    static_configs:
+      - targets:
+          - chess-analysis-worker-prod.internal:8001

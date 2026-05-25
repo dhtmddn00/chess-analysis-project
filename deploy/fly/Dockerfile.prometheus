@@ -1,0 +1,5 @@
+FROM prom/prometheus:v2.51.2
+
+# Fly.io 운영용 scrape config + alert rules 내장
+COPY monitoring/prometheus.prod.yml    /etc/prometheus/prometheus.yml
+COPY monitoring/prometheus_alerts.yml  /etc/prometheus/prometheus_alerts.yml

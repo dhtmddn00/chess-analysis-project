@@ -1,52 +1,30 @@
-app = "chess-analysis-prometheus"
+app            = "chess-analysis-prometheus"
 primary_region = "nrt"
 
+# Dockerfile.prometheus가 prod config를 내장
 [build]
-  image = "prom/prometheus:v2.51.2"
+  dockerfile = "deploy/fly/Dockerfile.prometheus"
 
-# ── Override the default entrypoint to supply our config ──────────────────────
-# prometheus.yml is baked into the image at /etc/prometheus/prometheus.yml.
-# We mount a Fly volume at /prometheus for persistent TSDB storage and
-# pass config overrides via CMD args.
-[processes]
-  app = """
-    --config.file=/etc/prometheus/prometheus.yml
-    --storage.tsdb.path=/prometheus
-    --storage.tsdb.retention.time=30d
-    --web.enable-lifecycle
-    --web.enable-admin-api
-  """
-
-# ── Persistent storage (run once: fly volumes create prometheus_data --size 10 --region nrt) ──
+# 데이터 영속성 — 볼륨 먼저 생성 필요:
+#   fly volumes create prometheus_data --size 10 --region nrt --app chess-analysis-prometheus
 [[mounts]]
   source      = "prometheus_data"
   destination = "/prometheus"
 
-# ── Internal HTTP — only reachable via Fly private network (.internal) ────────
+# 내부 전용 (공개 포트 없음) — fly proxy로만 접근
+# 같은 org 내 Grafana는 chess-analysis-prometheus.internal:9090 으로 직접 접근
 [[services]]
   internal_port = 9090
   protocol      = "tcp"
+  auto_stop_machines  = false
+  auto_start_machines = true
 
-  # No public port — access via `fly proxy 9090 -a chess-analysis-prometheus`
-  # or from other apps on the same org via `chess-analysis-prometheus.internal:9090`
   [[services.tcp_checks]]
-    interval    = "15s"
-    timeout     = "2s"
-    grace_period = "10s"
+    interval     = "30s"
+    timeout      = "5s"
+    grace_period = "15s"
 
-# ── Deploy resources ──────────────────────────────────────────────────────────
 [vm]
-  cpu_kind = "shared"
-  cpus     = 1
+  cpu_kind  = "shared"
+  cpus      = 1
   memory_mb = 512
-
-# ── prometheus.yml must be supplied at deploy time via:
-#      fly deploy --config deploy/fly/prometheus.fly.toml \
-#                 --build-arg PROM_CONFIG="$(cat monitoring/prometheus.yml)"
-#    OR bake it into a custom Docker image:
-#      FROM prom/prometheus:v2.51.2
-#      COPY monitoring/prometheus.yml /etc/prometheus/prometheus.yml
-#      COPY monitoring/prometheus_alerts.yml /etc/prometheus/prometheus_alerts.yml
-#
-# Recommended: build a tiny custom image so the scrape config is version-controlled.
-# See deploy/fly/Dockerfile.prometheus (create when ready to deploy to prod).

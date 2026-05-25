@@ -25,6 +25,9 @@ pandas==2.1.4
 # Math and statistics
 scipy==1.11.4
 
+# Metrics / Observability
+prometheus_client==0.20.0
+
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1

@@ -1,0 +1,249 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Worker — Job Throughput",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 3 }
+        ] }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Jobs In-Flight",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(worker_jobs_in_flight)",
+          "legendFormat": "in-flight"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Job Completion Rate (5m)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(rate(worker_jobs_total{status='completed'}[5m]))",
+          "legendFormat": "completed/s"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [
+        { "color": "green", "value": null },
+        { "color": "red", "value": 1 }
+      ] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Failed Jobs (5m)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(increase(worker_jobs_total{status=~'failed_.*'}[5m]))",
+          "legendFormat": "failures"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Median Job Duration (p50)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(worker_job_duration_seconds_bucket[10m])) by (le))",
+          "legendFormat": "p50"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Worker — Phase Breakdown",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 10,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Phase Duration — p50 / p95 (per phase)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(worker_phase_duration_seconds_bucket[5m])) by (le, phase))",
+          "legendFormat": "p50 {{phase}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(worker_phase_duration_seconds_bucket[5m])) by (le, phase))",
+          "legendFormat": "p95 {{phase}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 11,
+      "title": "Games Per Job Distribution",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(worker_games_per_job_bucket[10m])) by (le))",
+          "legendFormat": "p50 games/job"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(worker_games_per_job_bucket[10m])) by (le))",
+          "legendFormat": "p95 games/job"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "API — HTTP",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 20,
+      "title": "HTTP Request Rate by Status (5m avg)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application='chess-analysis-api'}[5m])) by (status, uri)",
+          "legendFormat": "{{status}} {{uri}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 21,
+      "title": "HTTP Latency p50 / p95 / p99",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5,  sum(rate(http_server_requests_seconds_bucket{application='chess-analysis-api'}[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application='chess-analysis-api'}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application='chess-analysis-api'}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 103,
+      "title": "API — JVM",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 24 },
+      "id": 30,
+      "title": "JVM Heap Memory",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{application='chess-analysis-api', area='heap'}",
+          "legendFormat": "Used"
+        },
+        {
+          "expr": "jvm_memory_max_bytes{application='chess-analysis-api', area='heap'}",
+          "legendFormat": "Max"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 24 },
+      "id": 31,
+      "title": "JVM Threads",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{application='chess-analysis-api'}",
+          "legendFormat": "live"
+        },
+        {
+          "expr": "jvm_threads_daemon_threads{application='chess-analysis-api'}",
+          "legendFormat": "daemon"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 24 },
+      "id": 32,
+      "title": "GC Pause Rate (5m)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(jvm_gc_pause_seconds_count{application='chess-analysis-api'}[5m])) by (action, cause)",
+          "legendFormat": "{{action}} / {{cause}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["chess-analysis"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Chess Analysis — Overview",
+  "uid": "chess-analysis-overview",
+  "version": 1
+}

@@ -75,6 +75,9 @@ services:
       - DB_PASSWORD=local-dev-only
       - STOCKFISH_PATH=/usr/bin/stockfish
       - WORKER_ID=1
+      - METRICS_PORT=8001
+    expose:
+      - "8001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,11 +99,52 @@ services:
       - DB_PASSWORD=local-dev-only
       - STOCKFISH_PATH=/usr/bin/stockfish
       - WORKER_ID=2
+      - METRICS_PORT=8001
+    expose:
+      - "8001"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ── Monitoring ──────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: chess-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - chess-api
+      - chess-worker-1
+      - chess-worker-2
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: chess-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
     restart: unless-stopped
 
   # Next.js Frontend
@@ -122,6 +166,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   default:

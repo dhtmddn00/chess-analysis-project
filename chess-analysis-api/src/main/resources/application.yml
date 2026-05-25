@@ -48,10 +48,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: chess-analysis-api
   info:
     env:
       enabled: true

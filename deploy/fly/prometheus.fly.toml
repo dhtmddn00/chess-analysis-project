@@ -1,0 +1,25 @@
+app = "chess-analysis-prometheus"
+primary_region = "nrt"
+
+[build]
+  image = "prom/prometheus:v2.51.2"
+
+[env]
+  # prometheus.yml은 [files] 또는 fly secrets mount로 주입 필요
+
+[[services]]
+  internal_port = 9090
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 9090
+
+# Prometheus config file — mount via `fly deploy --config`
+# or store in a Fly Volume and reference via CMD override.
+# Recommended: use fly.io volumes or secrets to supply the config.
+#
+# fly volumes create prometheus_data --size 5 --region nrt
+# Then mount in [mounts] section:
+# [[mounts]]
+#   source = "prometheus_data"
+#   destination = "/prometheus"

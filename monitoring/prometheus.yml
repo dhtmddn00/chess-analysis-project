@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Spring Boot API — Actuator /prometheus endpoint
+  - job_name: chess-api
+    metrics_path: /api/v1/actuator/prometheus
+    static_configs:
+      - targets:
+          - chess-api:8080    # Docker Compose internal hostname
+    # Production (Fly.io internal networking):
+    # - targets: ['chess-analysis-api-prod.internal:8080']
+
+  # Python Worker — prometheus_client HTTP server (port 8001)
+  - job_name: chess-worker
+    static_configs:
+      - targets:
+          - chess-worker-1:8001
+          - chess-worker-2:8001
+    # Production (Fly.io):
+    # - targets: ['chess-analysis-worker-prod.internal:8001']

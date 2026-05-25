@@ -19,6 +19,9 @@ public interface AnalysisRepository extends JpaRepository<Analysis, UUID> {
     List<Analysis> findByStatus(Analysis.AnalysisStatus status);
     
     Optional<Analysis> findByShortLink(String shortLink);
+
+    /** shortLink 컬럼이 주어진 suffix로 끝나는 레코드를 찾는다 (short code 기반 조회). */
+    Optional<Analysis> findByShortLinkEndingWith(String suffix);
     
     @Query("SELECT a FROM Analysis a WHERE a.username = :username AND a.platform = :platform AND a.status IN ('PENDING', 'IN_PROGRESS') AND a.createdAt >= :since")
     Optional<Analysis> findActiveAnalysis(@Param("username") String username, @Param("platform") String platform, @Param("since") LocalDateTime since);

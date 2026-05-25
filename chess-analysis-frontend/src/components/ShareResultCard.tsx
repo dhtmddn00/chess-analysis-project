@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Copy, Download, Check, Share2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 
 interface ShareResultCardProps {
   username: string;
@@ -34,17 +34,27 @@ export function ShareResultCard({
 }: ShareResultCardProps) {
   const t = useTranslations('ShareResultCard');
   const tCommon = useTranslations('Common');
+  const locale = useLocale();
 
   const cardRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
 
-  /** 공유할 URL: 단축 링크 있으면 우선, 없으면 분석 결과 직접 링크 */
-  const shareUrl = shortLink
-    ? `${window.location.origin}/s/${extractShortCode(shortLink)}`
-    : jobId
-    ? `${window.location.origin}/ko/analysis/${jobId}`
-    : window.location.href;
+  /**
+   * 공유할 URL: 단축 링크 있으면 우선, 없으면 분석 결과 직접 링크.
+   * window.location 는 클라이언트 전용이므로 useEffect 안에서 계산한다
+   * (SSR hydration mismatch #418 방지).
+   */
+  const [shareUrl, setShareUrl] = useState('');
+  useEffect(() => {
+    const origin = window.location.origin;
+    const url = shortLink
+      ? `${origin}/s/${extractShortCode(shortLink)}`
+      : jobId
+      ? `${origin}/${locale}/analysis/${jobId}`
+      : window.location.href;
+    setShareUrl(url);
+  }, [shortLink, jobId, locale]);
 
   const handleCopyLink = async () => {
     try {
@@ -67,7 +77,30 @@ export function ShareResultCard({
   const handleDownloadImage = async () => {
     if (!cardRef.current || capturing) return;
     setCapturing(true);
+
+    // Tailwind v4 uses oklch() CSS color functions, which html2canvas cannot parse.
+    // Pre-compute getComputedStyle() values (already resolved to rgb) and apply them
+    // as inline styles so html2canvas sees only rgb/rgba strings.
+    const resetStyles: Array<{ el: HTMLElement; saved: string }> = [];
+    const applyResolvedStyles = (root: HTMLElement) => {
+      const cs = window.getComputedStyle(root);
+      const bg = cs.backgroundColor;
+      const color = cs.color;
+      const border = cs.borderColor;
+      const savedBg = root.style.backgroundColor;
+      const savedColor = root.style.color;
+      const savedBorder = root.style.borderColor;
+      root.style.backgroundColor = bg;
+      root.style.color = color;
+      root.style.borderColor = border;
+      resetStyles.push({ el: root, saved: `${savedBg}|${savedColor}|${savedBorder}` });
+      for (const child of Array.from(root.children)) {
+        applyResolvedStyles(child as HTMLElement);
+      }
+    };
+
     try {
+      applyResolvedStyles(cardRef.current);
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(cardRef.current, {
         backgroundColor: '#09090b', // zinc-950
@@ -82,6 +115,13 @@ export function ShareResultCard({
     } catch (err) {
       console.error('Image capture failed:', err);
     } finally {
+      // Restore original inline styles
+      for (const { el, saved } of resetStyles) {
+        const [bg, color, border] = saved.split('|');
+        el.style.backgroundColor = bg;
+        el.style.color = color;
+        el.style.borderColor = border;
+      }
       setCapturing(false);
     }
   };

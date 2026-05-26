@@ -48,6 +48,7 @@
     "feature3Desc": "Redis 기반 일일 제한과 대기열 제한으로 공개 테스트 비용을 통제합니다.",
     "recentSearches": "최근 검색",
     "recentAnalyses": "최근 분석 기록",
+    "viewResult": "결과 보기",
     "reanalyze": "재분석",
     "removeEntry": "삭제",
     "clearHistory": "기록 전체 삭제",

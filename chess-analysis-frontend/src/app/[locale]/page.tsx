@@ -14,6 +14,7 @@ import {
   Clock,
   X,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useLocalHistory } from '@/hooks/useLocalHistory';
@@ -266,6 +267,16 @@ export default function Home() {
                           </span>
                         </div>
                       </div>
+
+                      {/* 결과 보기 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/analysis/${entry.jobId}`)}
+                        className="flex-shrink-0 flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {t('viewResult')}
+                      </button>
 
                       {/* 재분석 버튼 */}
                       <button

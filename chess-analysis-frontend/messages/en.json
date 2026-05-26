@@ -48,6 +48,7 @@
     "feature3Desc": "Redis-based daily and queue limits keep public beta costs under control.",
     "recentSearches": "Recent searches",
     "recentAnalyses": "Recent analyses",
+    "viewResult": "View result",
     "reanalyze": "Re-analyze",
     "removeEntry": "Remove",
     "clearHistory": "Clear all history",

@@ -603,7 +603,7 @@ export default function AdvancedAnalysisResultPage() {
                       { key: 'aggressionExplanation', label: '공격성', icon: '⚔' },
                       { key: 'consistencyExplanation', label: '일관성', icon: '📊' },
                     ].map(({ key, label, icon }) => {
-                      const text = (result.styleProfile.dimensionExplanations as Record<string, string | undefined>)?.[key];
+                      const text = (result.styleProfile?.dimensionExplanations as Record<string, string | undefined> | undefined)?.[key];
                       if (!text) return null;
                       return (
                         <div key={key} className="bg-zinc-50 border-l-4 border-zinc-300 p-4 rounded-r-lg">

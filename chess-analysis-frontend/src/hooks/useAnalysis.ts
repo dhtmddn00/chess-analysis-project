@@ -101,6 +101,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
 export function useAnalysis(): UseAnalysisResult {
   const [jobId, setJobId] = useState<string | null>(null);
   const [shortLink, setShortLink] = useState<string | null>(null);
+  const [cancelToken, setCancelToken] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   // Adaptive polling: track progress stalls to slow down when nothing is moving
@@ -189,6 +190,7 @@ export function useAnalysis(): UseAnalysisResult {
       const data = await response.json();
       setJobId(data.id);
       if (data.shortLink) setShortLink(data.shortLink);
+      if (data.cancelToken) setCancelToken(data.cancelToken);
       
       // Force immediate poll
       mutate();
@@ -236,14 +238,17 @@ export function useAnalysis(): UseAnalysisResult {
 
   const cancelJob = useCallback(() => {
     if (!jobId) return;
-    fetch(`/api/v1/analysis/${jobId}`, { method: 'DELETE' })
+    const headers: Record<string, string> = {};
+    if (cancelToken) headers['X-Cancel-Token'] = cancelToken;
+    fetch(`/api/v1/analysis/${jobId}`, { method: 'DELETE', headers })
       .then(() => mutate())
       .catch((err) => console.error('Failed to cancel job:', err));
-  }, [jobId, mutate]);
+  }, [jobId, cancelToken, mutate]);
 
   const reset = useCallback(() => {
     setJobId(null);
     setShortLink(null);
+    setCancelToken(null);
     etaTrackRef.current = null;
     setEtaRemaining(null);
     mutate(undefined, false); // Clear SWR cache

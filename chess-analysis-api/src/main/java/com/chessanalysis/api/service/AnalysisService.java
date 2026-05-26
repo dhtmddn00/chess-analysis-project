@@ -11,12 +11,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -33,11 +37,14 @@ public class AnalysisService {
     private final AnalysisRateLimitService rateLimitService;
     private final DataSource dataSource;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
     private static final Duration ANALYSIS_CREATE_LOCK_TTL = Duration.ofSeconds(30);
     private static final Duration PENDING_STALE_AFTER = Duration.ofMinutes(45);
     private static final Duration IN_PROGRESS_STALE_AFTER = Duration.ofMinutes(30);
+    private static final Duration CANCEL_TOKEN_TTL = Duration.ofHours(24);
+    private static final String CANCEL_TOKEN_KEY_PREFIX = "cancel:token:";
     private static final int FAST_MAX_GAMES = 50;
     private static final int BALANCED_MAX_GAMES = 30;
     private static final int PRECISE_MAX_GAMES = 20;
@@ -106,8 +113,32 @@ public class AnalysisService {
             analysisRepository.saveAndFlush(analysis);
             throw e;
         }
-        
-        return AnalysisResponseDto.fromEntity(analysis);
+
+        // 취소 토큰 생성 및 Redis 저장 (hash만 저장, raw token은 응답에만 포함)
+        String cancelToken = generateCancelToken();
+        stringRedisTemplate.opsForValue().set(
+                CANCEL_TOKEN_KEY_PREFIX + analysis.getId(), hashToken(cancelToken), CANCEL_TOKEN_TTL);
+
+        AnalysisResponseDto dto = AnalysisResponseDto.fromEntity(analysis);
+        dto.setCancelToken(cancelToken);
+        return dto;
+    }
+
+    /** 암호학적으로 안전한 랜덤 취소 토큰(48 hex chars)을 생성한다. */
+    private String generateCancelToken() {
+        byte[] bytes = new byte[24];
+        new SecureRandom().nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
+    /** SHA-256 해시를 hex string으로 반환한다. */
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     private Optional<Analysis> findReusableActiveAnalysis(String username, String platform) {
@@ -330,7 +361,16 @@ public class AnalysisService {
      * 이미 완료/실패된 분석에 대해 호출하면 아무 동작도 하지 않는다.
      */
     @Transactional
-    public boolean cancelAnalysis(UUID analysisId) {
+    public boolean cancelAnalysis(UUID analysisId, String cancelToken) {
+        // 취소 토큰 검증: Redis에 hash가 있으면 반드시 일치해야 한다.
+        // 구버전 분석(토큰 없음)은 하위 호환을 위해 통과시킨다.
+        String storedHash = stringRedisTemplate.opsForValue().get(CANCEL_TOKEN_KEY_PREFIX + analysisId);
+        if (storedHash != null) {
+            if (cancelToken == null || !storedHash.equals(hashToken(cancelToken))) {
+                throw new SecurityException("유효하지 않은 취소 토큰입니다.");
+            }
+        }
+
         Optional<Analysis> opt = analysisRepository.findById(analysisId);
         if (opt.isEmpty()) {
             return false;

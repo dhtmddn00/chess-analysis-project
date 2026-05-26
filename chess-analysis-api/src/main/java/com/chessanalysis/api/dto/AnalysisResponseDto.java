@@ -21,6 +21,8 @@ public class AnalysisResponseDto {
     private String errorMessage;
     private String reportUrl;
     private String shortLink;
+    /** 분석 생성 시에만 반환되는 취소 토큰. 상태 폴링 응답에서는 null. */
+    private String cancelToken;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     

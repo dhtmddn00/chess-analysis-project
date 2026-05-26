@@ -147,14 +147,20 @@ public class AnalysisController {
     /**
      * 분석 취소 — PENDING / IN_PROGRESS 상태를 FAILED로 전환한다.
      * 이미 완료·실패된 분석이거나 ID가 없으면 404를 반환한다.
+     * X-Cancel-Token 헤더가 있고 저장된 토큰과 불일치하면 403을 반환한다.
      */
     @DeleteMapping("/{analysisId}")
-    public ResponseEntity<Void> cancelAnalysis(@PathVariable UUID analysisId) {
+    public ResponseEntity<Void> cancelAnalysis(
+            @PathVariable UUID analysisId,
+            @RequestHeader(value = "X-Cancel-Token", required = false) String cancelToken) {
         try {
-            boolean cancelled = analysisService.cancelAnalysis(analysisId);
+            boolean cancelled = analysisService.cancelAnalysis(analysisId, cancelToken);
             return cancelled
                     ? ResponseEntity.noContent().build()
                     : ResponseEntity.notFound().<Void>build();
+        } catch (SecurityException e) {
+            log.warn("Unauthorized cancel attempt for analysis {}", analysisId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         } catch (Exception e) {
             log.warn("Failed to cancel analysis {}: {}", analysisId, e.getMessage());
             return ResponseEntity.notFound().build();

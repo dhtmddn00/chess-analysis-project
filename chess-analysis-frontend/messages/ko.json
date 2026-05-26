@@ -45,7 +45,14 @@
     "feature2Title": "12차원 스타일",
     "feature2Desc": "공격성, 포지셔널, 엔드게임, 시간관리까지 플레이 성향을 수치화합니다.",
     "feature3Title": "비용 보호 베타",
-    "feature3Desc": "Redis 기반 일일 제한과 대기열 제한으로 공개 테스트 비용을 통제합니다."
+    "feature3Desc": "Redis 기반 일일 제한과 대기열 제한으로 공개 테스트 비용을 통제합니다.",
+    "recentSearches": "최근 검색",
+    "recentAnalyses": "최근 분석 기록",
+    "reanalyze": "재분석",
+    "removeEntry": "삭제",
+    "clearHistory": "기록 전체 삭제",
+    "gamesCount": "{count}게임",
+    "noRecentAnalyses": "아직 분석 기록이 없습니다"
   },
   "Analyze": {
     "title": "체스 플레이어 분석",

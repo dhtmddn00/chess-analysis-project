@@ -184,6 +184,17 @@ public class AnalysisService {
         return analysisRepository.findByShortLink(shortLink)
                 .map(AnalysisResponseDto::fromEntity);
     }
+
+    /**
+     * short code(URL 마지막 경로 세그먼트)로 분석 결과를 조회한다.
+     * DB에 저장된 shortLink URL의 base URL 부분(환경에 따라 다를 수 있음)에
+     * 무관하게 code suffix로 검색하므로, 구버전 로컬호스트 링크도 올바르게 resolve된다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AnalysisResponseDto> getAnalysisByShortCode(String shortCode) {
+        return analysisRepository.findByShortLinkEndingWith("/" + shortCode)
+                .map(AnalysisResponseDto::fromEntity);
+    }
     
     @Transactional(readOnly = true)
     public List<AnalysisResponseDto> getUserAnalyses(String username, String platform) {

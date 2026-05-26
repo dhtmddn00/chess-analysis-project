@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '../../i18n/navigation';
 import {
@@ -11,8 +11,12 @@ import {
   Search,
   ShieldCheck,
   Swords,
+  Clock,
+  X,
+  Trash2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useLocalHistory } from '@/hooks/useLocalHistory';
 
 const boardPieces = [
   '♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜',
@@ -33,6 +37,33 @@ export default function Home() {
   const [gameCount, setGameCount] = useState(10);
   const [priority, setPriority] = useState<'fast' | 'balanced' | 'precise'>('fast');
 
+  const { recentUsernames, recentAnalyses, addUsername, removeAnalysis, clearHistory } = useLocalHistory();
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // 마지막으로 사용한 유저명 자동 채우기
+  useEffect(() => {
+    if (recentUsernames.length > 0 && !username) {
+      setUsername(recentUsernames[0]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentUsernames]);
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        !inputRef.current?.contains(e.target as Node) &&
+        !suggestionsRef.current?.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const MODE_MAX_GAMES = { fast: 50, balanced: 30, precise: 20 } as const;
   const availableGameCounts = ([10, 20, 30, 50] as const).filter(
     (n) => n <= MODE_MAX_GAMES[priority],
@@ -47,8 +78,10 @@ export default function Home() {
 
   const startAnalysis = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const trimmed = username.trim();
+    if (trimmed) addUsername(trimmed);
     const params = new URLSearchParams();
-    if (username.trim()) params.set('username', username.trim());
+    if (trimmed) params.set('username', trimmed);
     params.set('n', String(gameCount));
     params.set('priority', priority);
     router.push(`/analyze?${params.toString()}`);
@@ -113,15 +146,41 @@ export default function Home() {
                 <label className="sr-only" htmlFor="home-username">
                   Chess.com username
                 </label>
+                {/* Username input + recent suggestions dropdown */}
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                   <input
+                    ref={inputRef}
                     id="home-username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                    onFocus={() => recentUsernames.length > 0 && setShowSuggestions(true)}
                     placeholder="Chess.com username"
                     className="h-11 w-full rounded-lg border border-zinc-300 bg-zinc-50 pl-9 pr-3 text-sm font-medium text-zinc-950 outline-none focus:border-black focus:bg-white"
+                    autoComplete="off"
                   />
+                  {/* Recent username dropdown */}
+                  {showSuggestions && recentUsernames.length > 0 && (
+                    <div
+                      ref={suggestionsRef}
+                      className="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-zinc-200 bg-white shadow-md"
+                    >
+                      <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                        {t('recentSearches')}
+                      </p>
+                      {recentUsernames.map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => { setUsername(u); setShowSuggestions(false); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                        >
+                          <Clock className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
+                          {u}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <select
@@ -160,6 +219,84 @@ export default function Home() {
                 </button>
               </div>
             </form>
+
+            {/* ── 최근 분석 기록 ───────────────────────────────────── */}
+            {recentAnalyses.length > 0 && (
+              <div className="mt-6 max-w-2xl">
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    {t('recentAnalyses')}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={clearHistory}
+                    className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    {t('clearHistory')}
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {recentAnalyses.map((entry) => (
+                    <div
+                      key={entry.jobId}
+                      className="group flex items-center gap-3 rounded-lg border border-zinc-100 bg-white px-3 py-2.5 shadow-sm"
+                    >
+                      {/* 유저명 + 스타일 */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-bold text-zinc-950 truncate">
+                            {entry.username}
+                          </span>
+                          {entry.playingStyle && (
+                            <span className="text-xs text-zinc-400 truncate">
+                              {entry.playingStyle}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
+                          <span>{t('gamesCount', { count: entry.gameCount })}</span>
+                          <span>·</span>
+                          <span className="font-semibold text-blue-600">
+                            {entry.accuracy.toFixed(1)}%
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {new Date(entry.analyzedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 재분석 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addUsername(entry.username);
+                          const params = new URLSearchParams();
+                          params.set('username', entry.username);
+                          params.set('n', String(entry.gameCount));
+                          params.set('priority', priority);
+                          router.push(`/analyze?${params.toString()}`);
+                        }}
+                        className="flex-shrink-0 rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
+                      >
+                        {t('reanalyze')}
+                      </button>
+
+                      {/* 삭제 버튼 — hover 시 표시 */}
+                      <button
+                        type="button"
+                        onClick={() => removeAnalysis(entry.jobId)}
+                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label={t('removeEntry')}
+                      >
+                        <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="relative hidden lg:block">

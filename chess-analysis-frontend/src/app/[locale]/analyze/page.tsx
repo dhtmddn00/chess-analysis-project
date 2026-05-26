@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter as useIntlRouter } from '../../../i18n/navigation';
 import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../../hooks/useAnalysis';
+import { useLocalHistory } from '../../../hooks/useLocalHistory';
 import { PlayerProfileCard } from '../../../components/PlayerProfileCard';
 import { AnalysisResultErrorBoundary } from '../../../components/AnalysisResultErrorBoundary';
 import { ShareResultCard } from '../../../components/ShareResultCard';
@@ -353,6 +354,7 @@ export default function UnifiedAnalyzePage() {
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
+  const { addUsername, addAnalysis } = useLocalHistory();
 
   // modeMeta 는 번역 함수(t)가 바뀔 때만 재생성 — 실제로는 거의 불변
   const modeMeta = useMemo(() => ({
@@ -463,6 +465,18 @@ export default function UnifiedAnalyzePage() {
           if (response.ok) {
             const data = await response.json();
             setDetailedResult(data);
+            // 분석 완료 → 로컬 히스토리에 저장
+            if (data && jobId) {
+              addUsername(searchForm.username);
+              addAnalysis({
+                jobId,
+                username: data.username ?? searchForm.username,
+                gameCount: data.totalGames ?? searchForm.n,
+                accuracy: data.averageAccuracy ?? 0,
+                playingStyle: data.playingStyle ?? '',
+                winrate: summary?.player?.record_all?.winrate ?? 0,
+              });
+            }
           } else {
             const body = await response.text();
             setResultError(body || t('resultLoadError'));

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, ShieldCheck } from 'lucide-react';
+import { Search, Globe, Trophy, TrendingUp, Clock, Target, Zap, Brain, BarChart3, BookOpen, ShieldCheck, ArrowLeft, ExternalLink, X, Trash2 } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
 import { useTranslations } from 'next-intl';
 import { useRouter as useIntlRouter } from '../../../i18n/navigation';
@@ -315,6 +315,8 @@ const STYLE_DIMENSIONS: { i18nKey: string; key: StyleNumericKey; icon: string }[
 export default function UnifiedAnalyzePage() {
   const t = useTranslations('Analyze');
   const tCommon = useTranslations('Common');
+  const tHome = useTranslations('Home');
+  const router = useIntlRouter();
   const [searchForm, setSearchForm] = useState({
     platform: 'chess.com',
     username: '',
@@ -354,7 +356,7 @@ export default function UnifiedAnalyzePage() {
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
-  const { addUsername, addAnalysis } = useLocalHistory();
+  const { addUsername, addAnalysis, recentAnalyses, removeAnalysis, clearHistory } = useLocalHistory();
 
   // modeMeta 는 번역 함수(t)가 바뀔 때만 재생성 — 실제로는 거의 불변
   const modeMeta = useMemo(() => ({
@@ -540,7 +542,18 @@ export default function UnifiedAnalyzePage() {
       {/* Header */}
       <div className="bg-white shadow-sm chess-hero">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-6 py-6">
+          {/* 홈 복귀 링크 */}
+          <div className="pt-4 pb-1">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-700 transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              홈으로
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-6 py-4">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
                 <span className="text-base leading-none">♟</span>
@@ -591,6 +604,87 @@ export default function UnifiedAnalyzePage() {
             </button>
           </form>
         </div>
+
+        {/* 최근 분석 기록 — 분석 시작 전에만 표시 */}
+        {!analysisStarted && recentAnalyses.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-zinc-200 p-4 mb-5">
+            <div className="mb-2.5 flex items-center justify-between">
+              <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                {tHome('recentAnalyses')}
+              </h2>
+              <button
+                type="button"
+                onClick={clearHistory}
+                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+                {tHome('clearHistory')}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {recentAnalyses.map((entry) => (
+                <div
+                  key={entry.jobId}
+                  className="group flex items-center gap-3 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2.5"
+                >
+                  {/* 유저명 + 스타일 */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-bold text-zinc-950 truncate">
+                        {entry.username}
+                      </span>
+                      {entry.playingStyle && (
+                        <span className="text-xs text-zinc-400 truncate hidden sm:inline">
+                          {entry.playingStyle}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-zinc-400">
+                      <span>{tHome('gamesCount', { count: entry.gameCount })}</span>
+                      <span>·</span>
+                      <span className="font-bold text-zinc-700">{entry.accuracy.toFixed(1)}%</span>
+                      <span>·</span>
+                      <span>{new Date(entry.analyzedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+
+                  {/* 결과 보기 */}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/analysis/${entry.jobId}`)}
+                    className="flex-shrink-0 flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    {tHome('viewResult')}
+                  </button>
+
+                  {/* 재분석 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchForm((prev) => ({ ...prev, username: entry.username, n: entry.gameCount }));
+                      setHasSearched(true);
+                      setAnalysisStarted(false);
+                    }}
+                    className="flex-shrink-0 rounded-md bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
+                  >
+                    {tHome('reanalyze')}
+                  </button>
+
+                  {/* 삭제 — hover 시 */}
+                  <button
+                    type="button"
+                    onClick={() => removeAnalysis(entry.jobId)}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={tHome('removeEntry')}
+                  >
+                    <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Loading skeleton */}
         {summaryLoading && (

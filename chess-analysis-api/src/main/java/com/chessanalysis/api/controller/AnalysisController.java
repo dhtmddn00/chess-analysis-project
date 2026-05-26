@@ -121,8 +121,17 @@ public class AnalysisController {
         return ResponseEntity.ok(analyses);
     }
     
+    /**
+     * 내부 운영 통계 — Fly.io 내부 네트워크(fdaa::/8) 또는 로컬호스트에서만 접근 가능.
+     * 외부 요청은 403을 반환하여 큐 사이즈 등 운영 정보 노출을 차단한다.
+     */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getStats() {
+    public ResponseEntity<Map<String, Object>> getStats(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        if (!isInternalAddress(remoteAddr)) {
+            log.warn("External /stats access attempt from {}", remoteAddr);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         Map<String, Object> stats = Map.of(
                 "total_analyses", analysisService.getTotalAnalyses(),
                 "completed_analyses", analysisService.getCompletedAnalyses(),
@@ -130,6 +139,19 @@ public class AnalysisController {
                 "queue_size", analysisService.getQueueSize()
         );
         return ResponseEntity.ok(stats);
+    }
+
+    /** Fly.io 내부 IPv6(fdaa::/8), loopback, 사설망 주소 허용 */
+    private boolean isInternalAddress(String addr) {
+        if (addr == null) return false;
+        String a = addr.trim().toLowerCase();
+        return a.equals("127.0.0.1")
+            || a.equals("::1")
+            || a.startsWith("fdaa:")   // Fly.io 내부 네트워크
+            || a.startsWith("10.")
+            || a.startsWith("172.16.") || a.startsWith("172.17.") || a.startsWith("172.18.")
+            || a.startsWith("172.19.") || a.startsWith("172.2")   || a.startsWith("172.3")
+            || a.startsWith("192.168.");
     }
     
     @GetMapping("/{analysisId}/result")

@@ -53,8 +53,10 @@ docker-compose.override.yml
 
 # Other
 .claude/
+!.claude/settings.json
 CLAUDE.md
 MEMORY.md
 engines/
 .vercel
 .env*.local
+.claude/settings.local.json

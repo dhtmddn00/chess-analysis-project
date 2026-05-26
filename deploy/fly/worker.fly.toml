@@ -10,6 +10,7 @@ primary_region = "nrt"
   STOCKFISH_MEMORY = "128"
   WORKER_ID = "fly-worker-1"
   LOG_LEVEL = "INFO"
+  METRICS_PORT = "8001"
 
 [[vm]]
   cpu_kind = "shared"

@@ -1,0 +1,40 @@
+app            = "chess-analysis-grafana"
+primary_region = "nrt"
+
+[build]
+  image = "grafana/grafana:10.4.2"
+
+# 관리자 비밀번호는 fly secrets로 주입 (아래 배포 가이드 참고)
+# fly secrets set GF_SECURITY_ADMIN_PASSWORD=강한비밀번호 --app chess-analysis-grafana
+[env]
+  GF_SECURITY_ADMIN_USER    = "admin"
+  GF_USERS_ALLOW_SIGN_UP    = "false"
+  GF_SERVER_ROOT_URL        = "https://chess-analysis-grafana.fly.dev"
+  # Prometheus는 같은 org 내부 네트워크로 연결
+  GF_DATASOURCES_DEFAULT_URL = "http://chess-analysis-prometheus.internal:9090"
+
+# Grafana 데이터 (대시보드, 설정) 영속성
+#   fly volumes create grafana_data --size 5 --region nrt --app chess-analysis-grafana
+[[mounts]]
+  source      = "grafana_data"
+  destination = "/var/lib/grafana"
+
+[http_service]
+  internal_port       = 3000
+  force_https         = true
+  auto_stop_machines  = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/api/health"
+    timeout      = "10s"
+    type         = "http"
+
+[vm]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory_mb = 256

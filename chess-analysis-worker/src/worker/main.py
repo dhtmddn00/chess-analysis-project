@@ -6,6 +6,7 @@ import sys
 import signal
 import logging
 import os
+import time
 from typing import Dict, Any
 from pathlib import Path
 from dataclasses import asdict
@@ -22,6 +23,15 @@ from .services.progressive_analyzer import ProgressiveAnalyzer
 from .utils.pgn_parser import parse_chess_com_games
 from .utils.elite_config import get_elite_config
 from .models.database import DatabaseClient
+from .metrics import (
+    JOBS_TOTAL,
+    PHASE_DURATION,
+    JOB_DURATION,
+    JOBS_IN_FLIGHT,
+    GAMES_PER_JOB,
+    start_metrics_server,
+    poll_queue_length,
+)
 
 
 class FatalAnalysisError(Exception):
@@ -99,7 +109,10 @@ class ChessAnalysisWorker:
         game_count = job_data.get('gameCount')
         
         logger.info(f"Processing analysis {analysis_id} for user {username}")
-        
+
+        _job_start = time.monotonic()
+        JOBS_IN_FLIGHT.inc()
+
         try:
             if platform not in ('chess.com', 'chesscom'):
                 raise FatalAnalysisError(f"Unsupported platform: {platform}. Only chess.com is supported.")
@@ -108,54 +121,63 @@ class ChessAnalysisWorker:
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 0, 'Starting analysis'
             )
-            
+
             # Step 1: Collect games (0-20%)
             logger.info(f"Collecting games for user: {username}")
+            _t = time.monotonic()
             games, player_info = await self.chess_api.get_recent_games(username, game_count)
-            
+            PHASE_DURATION.labels(phase="fetch").observe(time.monotonic() - _t)
+
             if not games:
                 raise FatalAnalysisError(f"No games found for user: {username}")
-                
+
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 20, f'Collected {len(games)} games'
             )
-            
+
             # Step 2: Parse games (20-30%)
             # PGN parsing is CPU-bound; run in thread pool to avoid blocking the event loop.
             logger.info("Parsing game data")
+            _t = time.monotonic()
             parsed_games = await asyncio.to_thread(parse_chess_com_games, games)
             valid_games = [g for g in parsed_games if g is not None]
-            
+            PHASE_DURATION.labels(phase="parse").observe(time.monotonic() - _t)
+
             if not valid_games:
                 raise FatalAnalysisError("No valid games to analyze after parsing")
-                
+
+            GAMES_PER_JOB.observe(len(valid_games))
+
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 30, f'Parsed {len(valid_games)} games'
             )
-            
+
             # Step 3: Store games in database (30-35%)
+            _t = time.monotonic()
             await self.store_games(analysis_id, valid_games)
+            PHASE_DURATION.labels(phase="store_games").observe(time.monotonic() - _t)
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 35, 'Games stored in database'
             )
-            
+
             # Step 4: Progressive Analysis (35-80%)
             logger.info("Starting Progressive Analysis")
-            
+
             # Progress callback to update status with partials
             async def progress_callback(progress: float, partials=None):
                 # Convert from 0.0-1.0 to 35-80% range
                 scaled_progress = 35 + int(progress * 45)
                 await self.update_analysis_status(
-                    analysis_id, 'IN_PROGRESS', scaled_progress, 
+                    analysis_id, 'IN_PROGRESS', scaled_progress,
                     f'Progressive analysis: {progress*100:.1f}% complete', partials
                 )
-            
+
             # Get priority from job_data (fast, balanced, precise)
             priority = job_data.get('priority', 'precise')
             logger.info(f"Using priority mode: {priority}")
-            
-            # Run progressive analysis
+
+            # Run progressive analysis (Stockfish / engine phase)
+            _t = time.monotonic()
             results = await self.analyzer.analyze_progressive(
                 job_id=analysis_id,
                 games=valid_games,
@@ -163,59 +185,58 @@ class ChessAnalysisWorker:
                 progress_callback=progress_callback,
                 priority=priority
             )
-            
+            PHASE_DURATION.labels(phase="stockfish").observe(time.monotonic() - _t)
+
             if not results:
                 raise TransientAnalysisError("Progressive analysis returned no results — may retry")
-                
+
             # Extract game analyses from results
             game_analyses = results.get('game_analyses', [])
             logger.info(f"Progressive analysis returned game_analyses: {type(game_analyses)}, length: {len(game_analyses)}")
             if game_analyses:
                 logger.info(f"First analysis sample: {type(game_analyses[0])}, keys: {game_analyses[0] if isinstance(game_analyses[0], dict) else 'not dict'}")
-                
+
             # Step 5: Store analysis results (80-85%)
+            _t = time.monotonic()
             await self.store_analysis_results(analysis_id, game_analyses, username, valid_games)
-            await self.update_analysis_status(
-                analysis_id, 'IN_PROGRESS', 85, 'Analysis results stored'
-            )
-            
-            # Step 5.5: Store progressive analysis results in database (85-90%)
             await self.store_progressive_results(analysis_id, results)
+            PHASE_DURATION.labels(phase="store_results").observe(time.monotonic() - _t)
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 90, 'Progressive results stored'
             )
-            
+
             # Step 6: Use progressive analysis profile (90-95%)
             logger.info("Using progressive analysis profile")
-            
-            # Use profile from progressive analysis results
+            _t = time.monotonic()
             profile_data = results.get('profile', {})
-            
-            # Store the progressive analysis profile
             await self.store_style_profile(analysis_id, profile_data)
+            PHASE_DURATION.labels(phase="profile").observe(time.monotonic() - _t)
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 95, 'Progressive profile stored'
             )
-            
+
             # Step 7: Complete analysis (95-100%)
-            # Generate report URL and store it
+            _t = time.monotonic()
             report_url = f"/analysis/{analysis_id}/report"
-            
-            # Update analysis record with report URL
             update_query = """
-                UPDATE analyses 
+                UPDATE analyses
                 SET report_url = $1, updated_at = NOW()
                 WHERE id = $2
             """
             await self.db_client.execute(update_query, [report_url, analysis_id])
-            
+            PHASE_DURATION.labels(phase="complete").observe(time.monotonic() - _t)
+
             await self.update_analysis_status(
                 analysis_id, 'COMPLETED', 100, 'Analysis completed successfully'
             )
-            
+
+            JOB_DURATION.observe(time.monotonic() - _job_start)
+            JOBS_TOTAL.labels(status="completed").inc()
             logger.info(f"Successfully completed analysis {analysis_id}")
-            
+
         except FatalAnalysisError as e:
+            JOB_DURATION.observe(time.monotonic() - _job_start)
+            JOBS_TOTAL.labels(status="failed_fatal").inc()
             logger.error(f"Analysis {analysis_id} failed (fatal, no retry): {e}")
             await self.update_analysis_status(
                 analysis_id,
@@ -226,6 +247,8 @@ class ChessAnalysisWorker:
             )
             # Do not re-raise — fatal errors should not trigger tenacity retry
         except Exception as e:
+            JOB_DURATION.observe(time.monotonic() - _job_start)
+            JOBS_TOTAL.labels(status="failed_transient").inc()
             logger.error(f"Analysis {analysis_id} failed (may retry): {e}", exc_info=True)
             await self.update_analysis_status(
                 analysis_id,
@@ -236,6 +259,8 @@ class ChessAnalysisWorker:
             )
             # Wrap unknown errors as transient so @retry can attempt again
             raise TransientAnalysisError(str(e)) from e
+        finally:
+            JOBS_IN_FLIGHT.dec()
             
     async def update_analysis_status(self, analysis_id: str, status: str, 
                                    progress: int = None, current_step: str = None,
@@ -1091,7 +1116,15 @@ class ChessAnalysisWorker:
         """Main worker loop"""
         self.running = True
         logger.info("Chess Analysis Worker started")
-        
+
+        # Start Redis queue-depth poller as a background task.
+        # Runs every 15 s; lets us distinguish "stuck inside worker" vs
+        # "jobs piling up before they're even picked up".
+        asyncio.create_task(
+            poll_queue_length(self.redis_client, self.queue_name),
+            name="queue-length-poller",
+        )
+
         while self.running:
             try:
                 # Pop job from Redis queue (blocking with timeout)
@@ -1144,7 +1177,10 @@ async def main():
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
         level="INFO"
     )
-    
+
+    # Start Prometheus metrics HTTP server (default port 8001)
+    start_metrics_server()
+
     # Setup signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)

@@ -1,0 +1,99 @@
+groups:
+  - name: chess-analysis-worker
+    interval: 1m
+    rules:
+
+      # ── Stockfish 단계가 5분 이상 걸릴 때 ────────────────────────────────
+      - alert: StockfishPhaseSlow
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(worker_phase_duration_seconds_bucket{phase="stockfish"}[10m])) by (le)
+          ) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stockfish analysis phase is slow"
+          description: >
+            p95 of the stockfish phase exceeded 5 minutes for the last 5 minutes.
+            Check engine pool size and CPU headroom.
+
+      # ── 전체 작업 실패율이 10%를 넘을 때 ─────────────────────────────────
+      - alert: HighJobFailureRate
+        expr: >
+          sum(rate(worker_jobs_total{status=~"failed_.*"}[5m]))
+          /
+          sum(rate(worker_jobs_total[5m])) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Job failure rate exceeded 10 %"
+          description: >
+            More than 10 % of analysis jobs failed in the last 5 minutes.
+            Check worker logs for FatalAnalysisError or TransientAnalysisError patterns.
+
+      # ── Redis 큐에 작업이 10개 이상 쌓일 때 ─────────────────────────────
+      - alert: QueueBacklogHigh
+        expr: worker_queue_length > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis queue backlog is high ({{ $value }} jobs)"
+          description: >
+            More than 10 jobs are waiting in the Redis queue for 2+ minutes.
+            Consider scaling up the number of worker replicas.
+
+      # ── 워커가 완전히 멈춘 것처럼 보일 때 ──────────────────────────────
+      # 큐는 비었는데 in-flight 작업이 15분 이상 빠져나오지 않으면 deadlock 의심
+      - alert: WorkerStalled
+        expr: >
+          worker_jobs_in_flight > 0
+          and
+          increase(worker_jobs_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker appears stalled — jobs in-flight but no completions"
+          description: >
+            {{ $value }} job(s) have been in-flight for 15+ minutes with zero
+            completions. The worker process may be deadlocked or the Stockfish
+            engine may have crashed silently.
+
+  - name: chess-analysis-api
+    interval: 1m
+    rules:
+
+      # ── API 5xx 오류율 ─────────────────────────────────────────────────
+      - alert: APIHighErrorRate
+        expr: >
+          sum(rate(http_server_requests_seconds_count{
+            application="chess-analysis-api", status=~"5.."
+          }[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{
+            application="chess-analysis-api"
+          }[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API 5xx error rate exceeded 5 %"
+          description: >
+            More than 5 % of API requests are returning 5xx errors.
+
+      # ── API p99 응답 시간이 3초 이상 ────────────────────────────────────
+      - alert: APIHighLatency
+        expr: >
+          histogram_quantile(0.99,
+            sum(rate(http_server_requests_seconds_bucket{
+              application="chess-analysis-api"
+            }[5m])) by (le)
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p99 latency exceeded 3 s"

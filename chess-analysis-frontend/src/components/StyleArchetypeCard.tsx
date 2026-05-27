@@ -12,6 +12,7 @@ interface Archetype {
   piece: string;         // chess piece icon
   color: string;         // bg gradient
   textColor: string;
+  barColor: string;      // explicit bg class (avoids runtime string replacement)
   traits: StyleNumericKey[];  // top traits for this archetype
 }
 
@@ -21,6 +22,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♞',
     color: 'from-zinc-900 to-zinc-700',
     textColor: 'text-yellow-400',
+    barColor: 'bg-yellow-400',
     traits: ['tacticalRating', 'aggressionRating', 'riskTolerance'],
   },
   {
@@ -28,6 +30,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♗',
     color: 'from-zinc-800 to-zinc-600',
     textColor: 'text-blue-300',
+    barColor: 'bg-blue-300',
     traits: ['positionalRating', 'consistency', 'timeManagementRating'],
   },
   {
@@ -35,6 +38,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♛',
     color: 'from-zinc-900 to-red-900',
     textColor: 'text-red-300',
+    barColor: 'bg-red-300',
     traits: ['aggressionRating', 'riskTolerance', 'tacticalRating'],
   },
   {
@@ -42,6 +46,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♜',
     color: 'from-zinc-800 to-zinc-900',
     textColor: 'text-green-400',
+    barColor: 'bg-green-400',
     traits: ['consistency', 'swindleResistance', 'timeManagementRating'],
   },
   {
@@ -49,6 +54,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♔',
     color: 'from-zinc-700 to-zinc-900',
     textColor: 'text-purple-300',
+    barColor: 'bg-purple-300',
     traits: ['endgameRating', 'leadConversion', 'positionalRating'],
   },
   {
@@ -56,6 +62,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♙',
     color: 'from-zinc-800 to-zinc-700',
     textColor: 'text-cyan-300',
+    barColor: 'bg-cyan-300',
     traits: ['openingVariety', 'riskTolerance', 'aggressionRating'],
   },
   {
@@ -63,6 +70,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♚',
     color: 'from-zinc-900 to-zinc-800',
     textColor: 'text-orange-300',
+    barColor: 'bg-orange-300',
     traits: ['swindleResistance', 'consistency', 'timeManagementRating'],
   },
   {
@@ -70,6 +78,7 @@ const ARCHETYPES: Archetype[] = [
     piece: '♕',
     color: 'from-zinc-700 to-zinc-800',
     textColor: 'text-white',
+    barColor: 'bg-white',
     traits: ['tacticalRating', 'positionalRating', 'endgameRating'],
   },
 ];
@@ -149,9 +158,9 @@ export function StyleArchetypeCard({ result, shortLink: _shortLink, jobId: _jobI
   const handleDownload = async () => {
     if (!cardRef.current || saving) return;
     setSaving(true);
+    const resets: Array<{ el: HTMLElement; saved: string }> = [];
     try {
       // Pre-resolve oklch colours for html2canvas
-      const resets: Array<{ el: HTMLElement; saved: string }> = [];
       const resolve = (root: HTMLElement) => {
         const cs = window.getComputedStyle(root);
         const saved = `${root.style.backgroundColor}|${root.style.color}|${root.style.borderColor}`;
@@ -177,6 +186,13 @@ export function StyleArchetypeCard({ result, shortLink: _shortLink, jobId: _jobI
     } catch (err) {
       console.error('Download failed:', err);
     } finally {
+      // Restore all inline styles that were overwritten for html2canvas
+      for (const { el, saved } of resets) {
+        const [bg, color, border] = saved.split('|');
+        el.style.backgroundColor = bg;
+        el.style.color            = color;
+        el.style.borderColor      = border;
+      }
       setSaving(false);
     }
   };
@@ -235,7 +251,7 @@ export function StyleArchetypeCard({ result, shortLink: _shortLink, jobId: _jobI
                 </span>
                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${archetype.textColor.replace('text-', 'bg-')}`}
+                    className={`h-full rounded-full ${archetype.barColor}`}
                     style={{ width: `${Math.min(val * 10, 100)}%` }}
                   />
                 </div>
@@ -276,7 +292,7 @@ export function StyleArchetypeCard({ result, shortLink: _shortLink, jobId: _jobI
           }`}
         >
           {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-          {copied ? '복사됨' : t('shareCard')}
+          {copied ? t('copied') : t('shareCard')}
         </button>
       </div>
     </div>

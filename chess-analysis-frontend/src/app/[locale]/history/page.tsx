@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, RefreshCw, Clock, CheckCircle, XCircle, Loader2, BarChart2 } from 'lucide-react';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useRouter, Link } from '../../../i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useLocalHistory } from '@/hooks/useLocalHistory';
@@ -81,7 +81,6 @@ export default function HistoryPage() {
   const t = useTranslations('History');
   const tCommon = useTranslations('Common');
   const router = useRouter();
-  const locale = useLocale();
   const searchParams = useSearchParams();
   const { recentAnalyses } = useLocalHistory();
 

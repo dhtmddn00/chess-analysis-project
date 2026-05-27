@@ -441,7 +441,8 @@
     "archetypeComeback": "역전의 명수",
     "archetypeComebackDesc": "불리한 상황에서도 포기하지 않고 역전 기회를 끝까지 노립니다.",
     "archetypeAllRounder": "균형 잡힌 플레이어",
-    "archetypeAllRounderDesc": "특정 분야에 치우치지 않고 모든 국면에서 고르게 활약합니다."
+    "archetypeAllRounderDesc": "특정 분야에 치우치지 않고 모든 국면에서 고르게 활약합니다.",
+    "copied": "복사됨"
   },
   "Compare": {
     "title": "플레이어 비교",
@@ -456,6 +457,7 @@
     "noAnalysisHint": "해당 유저의 완료된 분석이 없습니다. 먼저 분석을 실행하세요.",
     "radarTitle": "12차원 스타일 비교",
     "statsTitle": "성과 지표 비교",
+    "metricsLabel": "지표",
     "accuracy": "정확도",
     "avgCpl": "평균 CPL",
     "blunders": "블런더/게임",

@@ -318,7 +318,7 @@ export default function ComparePage() {
             <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">{t('statsTitle')}</h3>
             <div className="grid grid-cols-3 gap-2 pb-2 border-b border-zinc-200 mb-1">
               <div className="text-xs font-black text-zinc-900 text-right">{p1.result?.username ?? t('player1')}</div>
-              <div className="text-xs text-zinc-400 text-center">지표</div>
+              <div className="text-xs text-zinc-400 text-center">{t('metricsLabel')}</div>
               <div className="text-xs font-black text-zinc-900 text-left">{p2.result?.username ?? t('player2')}</div>
             </div>
             <StatRow

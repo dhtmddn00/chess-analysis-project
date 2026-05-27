@@ -6,6 +6,7 @@ Lichess Open API를 통해 플레이어 정보와 게임 데이터를 수집합�
 """
 
 import asyncio
+import json
 from typing import List, Dict, Optional, Tuple
 
 import aiohttp
@@ -161,7 +162,6 @@ class LichessAPI:
                 if not line:
                     continue
                 try:
-                    import json
                     game_json = json.loads(line)
                     game_dict = self._lichess_game_to_dict(game_json)
                     if game_dict:
@@ -188,12 +188,19 @@ class LichessAPI:
         game_id = g.get("id", "")
         url = f"https://lichess.org/{game_id}"
 
+        # pgn_parser.py required_fields: ['white', 'black', 'pgn', 'time_control', 'rated']
+        players = g.get("players", {})
+        white_name = players.get("white", {}).get("user", {}).get("name", "")
+        black_name = players.get("black", {}).get("user", {}).get("name", "")
+
         return {
-            "url":        url,
-            "pgn":        pgn_text,
-            "time_class": self._perf_to_time_class(g.get("perf", "")),
+            "url":          url,
+            "pgn":          pgn_text,
+            "white":        white_name,
+            "black":        black_name,
+            "time_class":   self._perf_to_time_class(g.get("perf", "")),
             "time_control": self._build_time_control(g),
-            "rated":      g.get("rated", True),
+            "rated":        g.get("rated", True),
         }
 
     @staticmethod

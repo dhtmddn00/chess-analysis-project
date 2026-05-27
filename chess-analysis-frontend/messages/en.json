@@ -441,7 +441,8 @@
     "archetypeComeback": "Comeback Artist",
     "archetypeComebackDesc": "You never give up in losing positions and fight for every half-point.",
     "archetypeAllRounder": "All-Rounder",
-    "archetypeAllRounderDesc": "You play consistently well in all phases without a single glaring weakness."
+    "archetypeAllRounderDesc": "You play consistently well in all phases without a single glaring weakness.",
+    "copied": "Copied!"
   },
   "Compare": {
     "title": "Player Comparison",
@@ -456,6 +457,7 @@
     "noAnalysisHint": "No completed analysis for this user. Run an analysis first.",
     "radarTitle": "12-Dimension Style Comparison",
     "statsTitle": "Performance Comparison",
+    "metricsLabel": "Metric",
     "accuracy": "Accuracy",
     "avgCpl": "Avg CPL",
     "blunders": "Blunders/game",

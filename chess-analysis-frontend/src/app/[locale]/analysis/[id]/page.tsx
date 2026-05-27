@@ -127,7 +127,7 @@ export default function AnalysisResultPage() {
                     {playerProfile.meta.title}
                   </span>
                 )}
-                <h1 className="text-3xl font-bold text-gray-900">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                   {result.username}
                 </h1>
                 {playerProfile.meta?.country && (

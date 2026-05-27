@@ -258,45 +258,53 @@ export default function HistoryPage() {
                 key={entry.id}
                 className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm hover:border-zinc-300 transition-colors"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <StatusBadge status={entry.status} t={t} />
-                      <span className="text-xs text-zinc-400">
-                        {t('gamesCount', { count: entry.gameCount })}
-                      </span>
-                      <span className="text-xs text-zinc-400">
-                        {t('createdAt', { date: formatDate(entry.createdAt) })}
-                      </span>
-                    </div>
-                    {entry.playingStyle && (
-                      <span className="inline-block text-xs text-zinc-600 bg-zinc-100 rounded-full px-2 py-0.5 font-semibold mb-1.5">
-                        {entry.playingStyle}
-                      </span>
-                    )}
-                    {entry.accuracy != null && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-xs text-zinc-500">{t('accuracyLabel')}</span>
-                        <span className="text-sm font-bold text-zinc-900">{entry.accuracy.toFixed(1)}%</span>
-                        <div className="flex-1 max-w-24 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-zinc-900 rounded-full" style={{ width: `${Math.min(entry.accuracy, 100)}%` }} />
-                        </div>
+                <div className="flex flex-col gap-3">
+                  {/* 상단: 메타 정보 */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <StatusBadge status={entry.status} t={t} />
+                        <span className="text-xs text-zinc-400">
+                          {t('gamesCount', { count: entry.gameCount })}
+                        </span>
+                        <span className="text-xs text-zinc-400 hidden sm:inline">
+                          {t('createdAt', { date: formatDate(entry.createdAt) })}
+                        </span>
                       </div>
-                    )}
+                      {entry.playingStyle && (
+                        <span className="inline-block text-xs text-zinc-600 bg-zinc-100 rounded-full px-2 py-0.5 font-semibold mb-1.5">
+                          {entry.playingStyle}
+                        </span>
+                      )}
+                      {entry.accuracy != null && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-xs text-zinc-500">{t('accuracyLabel')}</span>
+                          <span className="text-sm font-bold text-zinc-900">{entry.accuracy.toFixed(1)}%</span>
+                          <div className="flex-1 max-w-24 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-zinc-900 rounded-full" style={{ width: `${Math.min(entry.accuracy, 100)}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* 날짜 — 모바일에선 우측 상단에 작게 */}
+                    <span className="text-[11px] text-zinc-400 flex-shrink-0 sm:hidden">
+                      {formatDate(entry.createdAt)}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* 하단: 액션 버튼 */}
+                  <div className="flex items-center gap-2">
                     {entry.status === 'COMPLETED' && (
                       <Link
                         href={`/analysis/${entry.id}`}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-zinc-800 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-950 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-800 transition-colors"
                       >
                         {t('viewResult')}
                       </Link>
                     )}
                     <Link
                       href={`/analyze?username=${encodeURIComponent(entry.username)}&platform=${encodeURIComponent(entry.platform)}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-700 hover:border-zinc-400 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:border-zinc-400 transition-colors"
                     >
                       <RefreshCw className="h-3 w-3" />
                       {t('reanalyze')}

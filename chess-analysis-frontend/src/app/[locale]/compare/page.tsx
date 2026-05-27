@@ -215,11 +215,32 @@ export default function ComparePage() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Search form */}
-        <form onSubmit={handleCompare} className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+        <form onSubmit={handleCompare} className="bg-white rounded-xl border border-zinc-200 p-4 sm:p-5 shadow-sm">
+          {/* Platform + swap — 상단 바 */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <select
+              value={platform}
+              onChange={e => setPlatform(e.target.value)}
+              className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium focus:border-zinc-500 focus:outline-none bg-white"
+            >
+              <option value="chess.com">Chess.com</option>
+              <option value="lichess">Lichess</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleSwap}
+              title={t('swapPlayers')}
+              className="rounded-full border border-zinc-200 p-2 hover:bg-zinc-100 transition"
+            >
+              <ArrowLeftRight className="h-4 w-4 text-zinc-500" />
+            </button>
+          </div>
+
+          {/* Inputs + compare button */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2.5 sm:gap-3">
             {/* Player 1 */}
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-bold text-zinc-500 mb-1.5">{t('player1')}</label>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">{t('player1')}</label>
               <input
                 type="text"
                 value={u1}
@@ -229,29 +250,9 @@ export default function ComparePage() {
               />
             </div>
 
-            {/* Swap + platform */}
-            <div className="flex flex-col items-center gap-2 flex-shrink-0 pt-5">
-              <button
-                type="button"
-                onClick={handleSwap}
-                title={t('swapPlayers')}
-                className="rounded-full border border-zinc-200 p-2 hover:bg-zinc-100 transition"
-              >
-                <ArrowLeftRight className="h-4 w-4 text-zinc-500" />
-              </button>
-              <select
-                value={platform}
-                onChange={e => setPlatform(e.target.value)}
-                className="rounded-lg border border-zinc-300 px-2 py-1.5 text-xs font-medium focus:border-zinc-500 focus:outline-none bg-white"
-              >
-                <option value="chess.com">Chess.com</option>
-                <option value="lichess">Lichess</option>
-              </select>
-            </div>
-
             {/* Player 2 */}
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-bold text-zinc-500 mb-1.5">{t('player2')}</label>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">{t('player2')}</label>
               <input
                 type="text"
                 value={u2}
@@ -264,7 +265,7 @@ export default function ComparePage() {
             <button
               type="submit"
               disabled={!u1.trim() || !u2.trim()}
-              className="self-end sm:mt-5 inline-flex items-center gap-2 rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+              className="sm:self-end w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors"
             >
               {t('compareButton')}
             </button>
@@ -272,12 +273,17 @@ export default function ComparePage() {
         </form>
 
         {/* Player cards + radar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Player 1 card */}
           <PlayerCard data={p1} label={t('player1')} color="zinc" t={tCommon as TFunc} tH={t as TFunc} />
 
-          {/* Radar chart (center on lg) */}
-          <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm flex flex-col items-center justify-center gap-4">
+          {/* Player 2 card — 모바일에서는 player1 바로 옆/아래 */}
+          <div className="order-2 lg:order-3">
+            <PlayerCard data={p2} label={t('player2')} color="blue" t={tCommon as TFunc} tH={t as TFunc} />
+          </div>
+
+          {/* Radar chart — 모바일에서는 두 카드 아래 (order-last), lg에서는 중앙 */}
+          <div className="order-last sm:col-span-2 lg:col-span-1 lg:order-2 bg-white rounded-xl border border-zinc-200 p-5 shadow-sm flex flex-col items-center justify-center gap-4">
             {showRadar ? (
               <>
                 <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest">{t('radarTitle')}</h3>
@@ -308,8 +314,6 @@ export default function ComparePage() {
             )}
           </div>
 
-          {/* Player 2 card */}
-          <PlayerCard data={p2} label={t('player2')} color="blue" t={tCommon as TFunc} tH={t as TFunc} />
         </div>
 
         {/* Stats comparison table */}

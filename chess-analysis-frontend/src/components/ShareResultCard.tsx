@@ -234,7 +234,7 @@ function StatCell({
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-center">
       <p className="text-[10px] font-semibold text-zinc-400">{label}</p>
-      <p className={`mt-1 text-xl font-black ${highlight ? 'text-blue-400' : 'text-white'}`}>
+      <p className={`mt-1 text-lg sm:text-xl font-black ${highlight ? 'text-blue-400' : 'text-white'}`}>
         {value}
       </p>
     </div>

@@ -45,6 +45,27 @@ export default function AnalysisResultPage() {
     return () => { cancelled = true; };
   }, [analysisId, t]);
 
+  // ── Derived player profile (must be above all early returns — Rules of Hooks) ─
+  const playerProfile = useMemo(() => {
+    if (!result) return { meta: null, stylePlay: null, ratings: {} as { blitz?: number; rapid?: number; bullet?: number } };
+    const meta = result.playerMetadata;
+    const stylePlay = result.styleProfile?.playingStyle ?? null;
+
+    let ratings: { blitz?: number; rapid?: number; bullet?: number } = {};
+    try {
+      if (meta?.ratingsData) {
+        const parsed = JSON.parse(meta.ratingsData as string);
+        ratings = {
+          rapid:  parsed?.chess_rapid?.last?.rating  ?? parsed?.chess_rapid?.rating,
+          blitz:  parsed?.chess_blitz?.last?.rating  ?? parsed?.chess_blitz?.rating,
+          bullet: parsed?.chess_bullet?.last?.rating ?? parsed?.chess_bullet?.rating,
+        };
+      }
+    } catch { /* ignore */ }
+
+    return { meta, stylePlay, ratings };
+  }, [result]);
+
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -77,27 +98,6 @@ export default function AnalysisResultPage() {
       </div>
     );
   }
-
-  // ── Derived player profile ───────────────────────────────────────────────────
-  const playerProfile = useMemo(() => {
-    const meta = result.playerMetadata;
-    const stylePlay = result.styleProfile?.playingStyle ?? null;
-
-    // Parse ratings_by_timecontrol from playerMetadata.ratingsData JSON
-    let ratings: { blitz?: number; rapid?: number; bullet?: number } = {};
-    try {
-      if (meta?.ratingsData) {
-        const parsed = JSON.parse(meta.ratingsData as string);
-        ratings = {
-          rapid: parsed?.chess_rapid?.last?.rating ?? parsed?.chess_rapid?.rating,
-          blitz: parsed?.chess_blitz?.last?.rating ?? parsed?.chess_blitz?.rating,
-          bullet: parsed?.chess_bullet?.last?.rating ?? parsed?.chess_bullet?.rating,
-        };
-      }
-    } catch { /* ignore */ }
-
-    return { meta, stylePlay, ratings };
-  }, [result]);
 
   // ── Page ─────────────────────────────────────────────────────────────────────
   return (

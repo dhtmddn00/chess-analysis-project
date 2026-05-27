@@ -131,6 +131,29 @@ const TYPE_CONFIG: Record<TipType, {
 
 const INTERVAL_MS = 7000; // 7초마다 전환
 
+/**
+ * 다음 팁 인덱스를 확률적으로 선택한다.
+ *
+ * - 50% 확률 → quote | tip 풀
+ * - 50% 확률 → share | bug 풀
+ * - 같은 인덱스가 연속으로 나오지 않도록 현재 인덱스 제외
+ */
+function pickNext(tips: Tip[], current: number): number {
+  const useActionable = Math.random() < 0.5;
+  const pool = tips
+    .map((t, i) => ({ i, t }))
+    .filter(({ i, t }) =>
+      i !== current &&
+      (useActionable
+        ? t.type === 'share' || t.type === 'bug'
+        : t.type === 'quote' || t.type === 'tip'),
+    );
+  // 풀이 비어있으면(share/bug가 전부 current 하나뿐 등) 전체에서 선택
+  const fallback = tips.map((_, i) => i).filter(i => i !== current);
+  const candidates = pool.length > 0 ? pool.map(x => x.i) : fallback;
+  return candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AnalysisTips() {
@@ -143,10 +166,10 @@ export function AnalysisTips() {
   const advance = useCallback(() => {
     setVisible(false);
     setTimeout(() => {
-      setIndex(prev => (prev + 1) % tips.length);
+      setIndex(prev => pickNext(tips, prev));
       setVisible(true);
     }, 400); // fade-out 시간
-  }, [tips.length]);
+  }, [tips]);
 
   useEffect(() => {
     const timer = setInterval(advance, INTERVAL_MS);
@@ -179,22 +202,15 @@ export function AnalysisTips() {
         </div>
       </div>
 
-      {/* Dot indicators */}
-      <div className="mt-3 flex items-center justify-center gap-1.5">
-        {tips.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            aria-label={`tip ${i + 1}`}
-            onClick={() => {
-              setVisible(false);
-              setTimeout(() => { setIndex(i); setVisible(true); }, 400);
-            }}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              i === index ? 'w-5 bg-zinc-400' : 'w-1.5 bg-zinc-700 hover:bg-zinc-500'
-            }`}
-          />
-        ))}
+      {/* Next button */}
+      <div className="mt-3 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={advance}
+          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
+          {locale === 'ko' ? '다음 →' : 'Next →'}
+        </button>
       </div>
     </div>
   );

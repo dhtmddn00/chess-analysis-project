@@ -58,18 +58,18 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
     <div className="space-y-8">
 
       {/* ── Executive Summary ──────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-zinc-950 text-white shadow-lg p-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white text-2xl text-black">♔</div>
+      <div className="rounded-xl bg-zinc-950 text-white shadow-lg p-4 sm:p-6">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-lg bg-white text-xl sm:text-2xl text-black">♔</div>
           <div>
-            <h3 className="text-2xl font-bold">{t('comprehensiveResult')}</h3>
-            <p className="mt-0.5 text-zinc-400">{t('resultSummary', { username: result.username, count: result.totalGames })}</p>
+            <h3 className="text-lg sm:text-2xl font-bold">{t('comprehensiveResult')}</h3>
+            <p className="mt-0.5 text-sm text-zinc-400">{t('resultSummary', { username: result.username, count: result.totalGames })}</p>
           </div>
         </div>
       </div>
 
       {/* ── Review Order ───────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
             <Target className="h-5 w-5" />
@@ -103,7 +103,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
       </div>
 
       {/* ── Performance Metrics ────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
         <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
           <BarChart3 className="h-5 w-5" />
           {t('performanceMetrics')}
@@ -128,8 +128,8 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {t('cohortComparison')}
                 </div>
-                <h5 className="text-2xl font-black text-white">{t('cohortQuestion')}</h5>
-                <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-zinc-200">
+                <h5 className="text-lg sm:text-2xl font-black text-white">{t('cohortQuestion')}</h5>
+                <p className="mt-3 max-w-3xl text-sm sm:text-base font-medium leading-7 text-zinc-200">
                   {result.comparativeInsights.narrative}
                 </p>
               </div>
@@ -486,7 +486,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
       </div>
 
       {/* ── Style Profile ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
         <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
           <Brain className="h-5 w-5" />
           {t('styleProfile')}
@@ -508,8 +508,8 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
           </div>
         </div>
 
-        {/* 12 dimensions — 3 cols on mobile, 4 on sm, 6 on lg */}
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        {/* 12 dimensions — 2 cols on mobile, 3 on xs, 4 on sm, 6 on lg */}
+        <div className="grid grid-cols-2 gap-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 sm:gap-3">
           {STYLE_DIMENSIONS.map((dimension) => {
             const score = result.styleProfile?.[dimension.key] ?? 0;
             return (
@@ -550,7 +550,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
       </div>
 
       {/* ── Tactical Analysis ──────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
         <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
           <Zap className="h-5 w-5" />
           {t('tacticsSection')}
@@ -596,7 +596,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
 
       {/* ── Training Recommendations ───────────────────────────────────────── */}
       {(result.trainingRecommendations ?? []).length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
           <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
             <Target className="h-5 w-5" />
             {t('trainingPlan')}
@@ -621,7 +621,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
 
       {/* ── Player Metadata ────────────────────────────────────────────────── */}
       {result.playerMetadata && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
           <h4 className="mb-4 text-lg font-bold text-zinc-950">{t('playerInfo')}</h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {result.playerMetadata.country && (

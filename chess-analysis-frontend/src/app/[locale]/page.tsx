@@ -159,7 +159,7 @@ export default function Home() {
             </p>
 
             <form onSubmit={startAnalysis} className="mt-8 max-w-2xl rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
-              <div className="grid gap-3 lg:grid-cols-[1fr_120px_126px_auto]">
+              <div className="grid gap-2 sm:gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_120px_126px_auto]">
                 <label className="sr-only" htmlFor="home-username">
                   Chess.com username
                 </label>
@@ -200,40 +200,42 @@ export default function Home() {
                   )}
                 </div>
 
-                <select
-                  value={gameCount}
-                  onChange={(e) => setGameCount(Number(e.target.value))}
-                  className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
-                >
-                  {availableGameCounts.map((n) => (
-                    <option key={n} value={n}>{n} games</option>
-                  ))}
-                </select>
+                {/* selects + button: 모바일에서 한 row, lg에서 각 셀 */}
+                <div className="flex gap-2 lg:contents">
+                  <select
+                    value={gameCount}
+                    onChange={(e) => setGameCount(Number(e.target.value))}
+                    className="h-11 flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white lg:flex-none lg:w-[120px]"
+                  >
+                    {availableGameCounts.map((n) => (
+                      <option key={n} value={n}>{n} games</option>
+                    ))}
+                  </select>
 
-                <select
-                  value={priority}
-                  onChange={(e) => {
-                    const next = e.target.value as 'fast' | 'balanced' | 'precise';
-                    setPriority(next);
-                    // 선택된 게임 수가 새 모드의 최대치를 초과하면 클램프
-                    if (gameCount > MODE_MAX_GAMES[next]) {
-                      setGameCount(MODE_MAX_GAMES[next]);
-                    }
-                  }}
-                  className="h-11 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white"
-                >
-                  <option value="fast">Fast</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="precise">Precise</option>
-                </select>
+                  <select
+                    value={priority}
+                    onChange={(e) => {
+                      const next = e.target.value as 'fast' | 'balanced' | 'precise';
+                      setPriority(next);
+                      if (gameCount > MODE_MAX_GAMES[next]) {
+                        setGameCount(MODE_MAX_GAMES[next]);
+                      }
+                    }}
+                    className="h-11 flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white lg:flex-none lg:w-[126px]"
+                  >
+                    <option value="fast">Fast</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="precise">Precise</option>
+                  </select>
 
-                <button
-                  type="submit"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-bold text-white hover:bg-zinc-800"
-                >
-                  {t('start')}
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                  <button
+                    type="submit"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-bold text-white hover:bg-zinc-800 flex-shrink-0"
+                  >
+                    {t('start')}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </form>
 
@@ -284,41 +286,44 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* 결과 보기 버튼 */}
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/analysis/${entry.jobId}`)}
-                        className="flex-shrink-0 flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {t('viewResult')}
-                      </button>
+                      {/* 액션 버튼 묶음 */}
+                      <div className="flex-shrink-0 flex items-center gap-1.5">
+                        {/* 결과 보기 — 모바일에선 아이콘만, sm+ 에서 텍스트 포함 */}
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/analysis/${entry.jobId}`)}
+                          className="flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          <span className="hidden sm:inline">{t('viewResult')}</span>
+                        </button>
 
-                      {/* 재분석 버튼 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          addUsername(entry.username);
-                          const params = new URLSearchParams();
-                          params.set('username', entry.username);
-                          params.set('n', String(entry.gameCount));
-                          params.set('priority', priority);
-                          router.push(`/analyze?${params.toString()}`);
-                        }}
-                        className="flex-shrink-0 rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
-                      >
-                        {t('reanalyze')}
-                      </button>
+                        {/* 재분석 — sm+ 에서만 표시 */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addUsername(entry.username);
+                            const params = new URLSearchParams();
+                            params.set('username', entry.username);
+                            params.set('n', String(entry.gameCount));
+                            params.set('priority', priority);
+                            router.push(`/analyze?${params.toString()}`);
+                          }}
+                          className="hidden sm:block rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
+                        >
+                          {t('reanalyze')}
+                        </button>
 
-                      {/* 삭제 버튼 — hover 시 표시 */}
-                      <button
-                        type="button"
-                        onClick={() => removeAnalysis(entry.jobId)}
-                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label={t('removeEntry')}
-                      >
-                        <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
-                      </button>
+                        {/* 삭제 — 모바일은 항상 표시, 데스크탑은 hover 시 */}
+                        <button
+                          type="button"
+                          onClick={() => removeAnalysis(entry.jobId)}
+                          className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1"
+                          aria-label={t('removeEntry')}
+                        >
+                          <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

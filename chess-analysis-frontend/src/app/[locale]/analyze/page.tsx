@@ -257,12 +257,12 @@ export default function UnifiedAnalyzePage() {
           </div>
           <div className="flex items-center justify-between gap-6 py-4">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
                 <span className="text-base leading-none">♟</span>
                 Chess intelligence
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
-              <p className="text-gray-600 mt-1">{t('subtitle')}</p>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">{t('title')}</h1>
+              <p className="hidden sm:block text-gray-600 mt-1">{t('subtitle')}</p>
             </div>
             <div className="hidden sm:grid chess-board-mini" aria-hidden="true">
               {['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜', '♙', '♙', '♙', '♙', '♟', '♟', '♟', '♟'].map((piece, index) => (
@@ -351,38 +351,41 @@ export default function UnifiedAnalyzePage() {
                     </div>
                   </div>
 
-                  {/* 결과 보기 */}
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/analysis/${entry.jobId}`)}
-                    className="flex-shrink-0 flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    {tHome('viewResult')}
-                  </button>
+                  {/* 액션 버튼 묶음 */}
+                  <div className="flex-shrink-0 flex items-center gap-1.5">
+                    {/* 결과 보기 — 모바일 아이콘만 */}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/analysis/${entry.jobId}`)}
+                      className="flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      <span className="hidden sm:inline">{tHome('viewResult')}</span>
+                    </button>
 
-                  {/* 재분석 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchForm((prev) => ({ ...prev, username: entry.username, n: entry.gameCount }));
-                      setHasSearched(true);
-                      setAnalysisStarted(false);
-                    }}
-                    className="flex-shrink-0 rounded-md bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
-                  >
-                    {tHome('reanalyze')}
-                  </button>
+                    {/* 재분석 — sm+ 만 */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchForm((prev) => ({ ...prev, username: entry.username, n: entry.gameCount }));
+                        setHasSearched(true);
+                        setAnalysisStarted(false);
+                      }}
+                      className="hidden sm:block rounded-md bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-zinc-700 transition-colors"
+                    >
+                      {tHome('reanalyze')}
+                    </button>
 
-                  {/* 삭제 — hover 시 */}
-                  <button
-                    type="button"
-                    onClick={() => removeAnalysis(entry.jobId)}
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label={tHome('removeEntry')}
-                  >
-                    <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
-                  </button>
+                    {/* 삭제 — 모바일 항상 표시 */}
+                    <button
+                      type="button"
+                      onClick={() => removeAnalysis(entry.jobId)}
+                      className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1"
+                      aria-label={tHome('removeEntry')}
+                    >
+                      <X className="h-4 w-4 text-zinc-400 hover:text-zinc-700" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -699,7 +702,7 @@ export default function UnifiedAnalyzePage() {
                 )}
 
                 {/* Partial Results Indicators */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mt-6">
                   {[
                     { key: 'tactics', title: t('tacticsPartial'), ready: tacticsReady, icon: Target },
                     { key: 'swing', title: t('swingPartial'), ready: swingMomentsReady, icon: TrendingUp },
@@ -708,16 +711,16 @@ export default function UnifiedAnalyzePage() {
                   ].map(({ key, title, ready, icon: Icon }) => (
                     <div
                       key={key}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        ready 
-                          ? 'bg-green-50 border-green-200 text-green-800' 
+                      className={`p-2.5 sm:p-3 rounded-lg border-2 transition-all ${
+                        ready
+                          ? 'bg-green-50 border-green-200 text-green-800'
                           : 'bg-gray-50 border-gray-200 text-gray-500'
                       }`}
                     >
-                      <div className="flex items-center space-x-2">
-                        <Icon className="w-5 h-5" />
-                        <span className="text-sm font-medium">{title}</span>
-                        {ready && <span className="text-xs">✓</span>}
+                      <div className="flex items-center gap-1.5 sm:space-x-2">
+                        <Icon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm font-medium leading-tight">{title}</span>
+                        {ready && <span className="text-xs ml-auto">✓</span>}
                       </div>
                     </div>
                   ))}

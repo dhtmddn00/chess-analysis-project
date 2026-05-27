@@ -116,21 +116,21 @@ export function PlayerProfileCard({ summary }: Props) {
           </div>
 
           {/* Ratings */}
-          <div className="flex gap-5 flex-shrink-0">
+          <div className="flex gap-3 sm:gap-5 flex-shrink-0">
             {ratingColumns.map(({ key, icon, label }) => {
               const rating = player.ratings?.[key]
                 ?? (player.time_controls?.[key] as TimeControlStats | undefined)?.rating;
               const tcStat = player.time_controls?.[key] as TimeControlStats | undefined;
               return (
                 <div key={key} className="text-center">
-                  <div className="text-2xl font-black tabular-nums">
+                  <div className="text-xl sm:text-2xl font-black tabular-nums">
                     {rating ?? <span className="text-zinc-500">—</span>}
                   </div>
                   <div className="text-xs text-zinc-400 mt-0.5">
                     {icon} {label}
                   </div>
                   {tcStat && (
-                    <div className="text-xs text-zinc-500 mt-0.5">
+                    <div className="hidden sm:block text-xs text-zinc-500 mt-0.5">
                       {(tcStat.winrate * 100).toFixed(0)}% W · {tcStat.games.toLocaleString()} {tCommon('games')}
                     </div>
                   )}
@@ -153,7 +153,7 @@ export function PlayerProfileCard({ summary }: Props) {
                 key={key}
                 type="button"
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold border-b-2 transition-colors ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 text-xs font-bold border-b-2 transition-colors ${
                   isActive
                     ? 'border-zinc-900 text-zinc-900'
                     : 'border-transparent text-zinc-400 hover:text-zinc-600'

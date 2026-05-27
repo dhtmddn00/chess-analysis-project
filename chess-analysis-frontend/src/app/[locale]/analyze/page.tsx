@@ -282,6 +282,7 @@ export default function UnifiedAnalyzePage() {
               className="border border-zinc-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 bg-white"
             >
               <option value="chess.com">Chess.com</option>
+              <option value="lichess">Lichess</option>
             </select>
             <input
               type="text"

@@ -17,6 +17,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from .services.engine import StockfishEngine
 from .services.chess_api import ChessComAPI
+from .services.lichess_api import LichessAPI, LichessPlayerNotFoundError
 from .services.profiler import PlayerProfiler
 from .services.progressive_analyzer import ProgressiveAnalyzer
 from .utils.pgn_parser import parse_chess_com_games
@@ -101,17 +102,29 @@ class ChessAnalysisWorker:
         logger.info(f"Processing analysis {analysis_id} for user {username}")
         
         try:
-            if platform not in ('chess.com', 'chesscom'):
-                raise FatalAnalysisError(f"Unsupported platform: {platform}. Only chess.com is supported.")
+            normalized_platform = (platform or '').lower().strip()
+            if normalized_platform in ('chess.com', 'chesscom'):
+                normalized_platform = 'chesscom'
+            elif normalized_platform == 'lichess':
+                pass
+            else:
+                raise FatalAnalysisError(f"Unsupported platform: {platform}. Supported: chess.com, lichess.")
 
             # Update status: Starting
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 0, 'Starting analysis'
             )
-            
+
             # Step 1: Collect games (0-20%)
-            logger.info(f"Collecting games for user: {username}")
-            games, player_info = await self.chess_api.get_recent_games(username, game_count)
+            logger.info(f"Collecting games for user: {username} on {normalized_platform}")
+            if normalized_platform == 'lichess':
+                time_control = job_data.get('timeControl')
+                async with LichessAPI() as lichess_api:
+                    games, player_info = await lichess_api.get_recent_games(
+                        username, game_count, time_control
+                    )
+            else:
+                games, player_info = await self.chess_api.get_recent_games(username, game_count)
             
             if not games:
                 raise FatalAnalysisError(f"No games found for user: {username}")

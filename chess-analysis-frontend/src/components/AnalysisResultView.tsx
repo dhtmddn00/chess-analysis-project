@@ -8,6 +8,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { AnalysisResult, PercentileMetric, STYLE_DIMENSIONS } from '@/types/analysis';
 import { ShareResultCard } from '@/components/ShareResultCard';
+import { StyleArchetypeCard } from '@/components/StyleArchetypeCard';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -643,6 +644,11 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Style Archetype Card ──────────────────────────────────────────── */}
+      {result.styleProfile && (
+        <StyleArchetypeCard result={result} shortLink={shortLink ?? null} jobId={jobId} />
       )}
 
       {/* ── Share Card ─────────────────────────────────────────────────────── */}

@@ -13,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.HttpClientErrorException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -86,9 +87,155 @@ public class PlayerSummaryService {
 
         if ("chesscom".equals(normalizedPlatform)) {
             return fetchChessComSummary(username);
+        } else if ("lichess".equals(normalizedPlatform)) {
+            return fetchLichessSummary(username);
         } else {
             throw new IllegalArgumentException("Unsupported platform: " + platform);
         }
+    }
+
+    // ── Lichess ─────────────────────────────────────────────────────────────
+
+    private PlayerSummaryResponse fetchLichessSummary(String username) {
+        PlayerSummaryResponse response = new PlayerSummaryResponse();
+        try {
+            // Lichess user profile (no auth required for public data)
+            JsonNode profile = fetchOnce("https://lichess.org/api/user/" + username, 5000);
+
+            PlayerSummaryResponse.Player player = new PlayerSummaryResponse.Player();
+            player.username = profile.path("username").asText(username);
+
+            // Ratings
+            Map<String, Integer> ratings = new java.util.LinkedHashMap<>();
+            JsonNode perfs = profile.path("perfs");
+            extractLichessRating(perfs, "rapid",  ratings);
+            extractLichessRating(perfs, "blitz",  ratings);
+            extractLichessRating(perfs, "bullet", ratings);
+            player.ratings = ratings;
+
+            // Record
+            JsonNode count = profile.path("count");
+            PlayerSummaryResponse.RecordAll record = new PlayerSummaryResponse.RecordAll();
+            record.games = count.path("all").asInt(0);
+            record.win   = count.path("win").asInt(0);
+            record.loss  = count.path("loss").asInt(0);
+            record.draw  = count.path("draw").asInt(0);
+            record.winrate = record.games > 0 ? (double) record.win / record.games : 0.0;
+            player.recordAll = record;
+
+            // Time-control stats
+            Map<String, PlayerSummaryResponse.TimeControlStats> timeControls = new java.util.LinkedHashMap<>();
+            for (String tc : new String[]{"rapid", "blitz", "bullet"}) {
+                JsonNode perf = perfs.path(tc);
+                if (!perf.isMissingNode() && perf.path("games").asInt(0) > 0) {
+                    PlayerSummaryResponse.TimeControlStats tcs = new PlayerSummaryResponse.TimeControlStats();
+                    tcs.rating = perf.path("rating").asInt(0);
+                    tcs.games  = perf.path("games").asInt(0);
+                    // Lichess doesn't expose win/draw/loss per time-control in basic profile
+                    timeControls.put(tc, tcs);
+                }
+            }
+            player.timeControls = timeControls;
+
+            // Country/title
+            JsonNode profileNode = profile.path("profile");
+            String country = profileNode.path("country").asText(null);
+            if (country == null || country.isBlank()) {
+                country = profile.path("profile").path("flag").asText(null);
+            }
+            player.country = country;
+
+            String title = profile.path("title").asText(null);
+            if (title == null || title.isBlank()) title = null;
+
+            response.player = player;
+
+            // Fetch last 10 games (NDJSON format via Lichess games export)
+            List<PlayerSummaryResponse.RecentGame> recentGames = fetchLichessRecentGames(username, 10);
+            response.recent10 = recentGames;
+            response.openings = extractOpeningsFromGames(recentGames);
+            response.cohortHint = buildCohortHint(player.ratings);
+
+            logger.info("Successfully built Lichess summary for {}", username);
+
+        } catch (Exception e) {
+            Throwable cause = e;
+            while (cause != null) {
+                if (cause instanceof PlayerNotFoundException pnfe) throw pnfe;
+                cause = cause.getCause();
+            }
+            logger.error("Failed to fetch Lichess summary for {}: {}", username, e.getMessage());
+            throw new RuntimeException("Failed to fetch player summary", e);
+        }
+        return response;
+    }
+
+    private void extractLichessRating(JsonNode perfs, String tc, Map<String, Integer> ratings) {
+        JsonNode perf = perfs.path(tc);
+        if (!perf.isMissingNode()) {
+            int rating = perf.path("rating").asInt(0);
+            if (rating > 0) ratings.put(tc, rating);
+        }
+    }
+
+    private List<PlayerSummaryResponse.RecentGame> fetchLichessRecentGames(String username, int max) {
+        List<PlayerSummaryResponse.RecentGame> games = new ArrayList<>();
+        try {
+            // Lichess games export returns NDJSON (one JSON object per line)
+            String url = "https://lichess.org/api/games/user/" + username
+                    + "?max=" + max + "&pgnInJson=false&clocks=false&evals=false&opening=true";
+            RestTemplate customRestTemplate = createRestTemplate(8000);
+            customRestTemplate.getMessageConverters().add(0,
+                    new org.springframework.http.converter.StringHttpMessageConverter(StandardCharsets.UTF_8));
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Accept", "application/x-ndjson");
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+            org.springframework.http.ResponseEntity<String> response =
+                    customRestTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, String.class);
+
+            String body = response.getBody();
+            if (body == null || body.isBlank()) return games;
+
+            for (String line : body.split("\n")) {
+                line = line.trim();
+                if (line.isBlank()) continue;
+                try {
+                    JsonNode game = objectMapper.readTree(line);
+                    PlayerSummaryResponse.RecentGame rg = new PlayerSummaryResponse.RecentGame();
+                    String whiteUser = game.path("players").path("white").path("user").path("name").asText("");
+                    String blackUser = game.path("players").path("black").path("user").path("name").asText("");
+                    boolean isWhite  = whiteUser.equalsIgnoreCase(username);
+                    rg.color    = isWhite ? "white" : "black";
+                    rg.opponent = isWhite ? blackUser : whiteUser;
+                    rg.oppRating = isWhite
+                            ? game.path("players").path("black").path("rating").asInt(0)
+                            : game.path("players").path("white").path("rating").asInt(0);
+
+                    String winner = game.path("winner").asText("");
+                    if (winner.isBlank()) {
+                        rg.result = "draw";
+                    } else {
+                        rg.result = winner.equals(rg.color) ? "win" : "loss";
+                    }
+
+                    rg.gameId = game.path("id").asText("");
+                    rg.timeControl = game.path("clock").path("initial").asInt(0)
+                            + "+" + game.path("clock").path("increment").asInt(0);
+                    rg.openingName = game.path("opening").path("name").asText(null);
+                    rg.eco         = game.path("opening").path("eco").asText(null);
+
+                    long lastMoveAt = game.path("lastMoveAt").asLong(0);
+                    if (lastMoveAt > 0) rg.endedAt = java.time.Instant.ofEpochMilli(lastMoveAt);
+
+                    games.add(rg);
+                } catch (Exception ex) {
+                    logger.debug("Skipping malformed Lichess game line: {}", ex.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to fetch Lichess recent games for {}: {}", username, e.getMessage());
+        }
+        return games;
     }
     
     private PlayerSummaryResponse fetchChessComSummary(String username) {

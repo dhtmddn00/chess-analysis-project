@@ -192,7 +192,7 @@ export function AnalysisTips() {
             <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${cfg.iconColor}`}>
               {locale === 'ko' ? cfg.labelKo : cfg.labelEn}
             </p>
-            <p className="text-sm text-zinc-300 leading-relaxed">
+            <p className="text-sm text-white leading-relaxed">
               {tip.type === 'quote' ? `"${tip.text}"` : tip.text}
             </p>
             {tip.author && (

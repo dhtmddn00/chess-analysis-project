@@ -11,6 +11,7 @@ import { useLocalHistory } from '../../../hooks/useLocalHistory';
 import { PlayerProfileCard } from '../../../components/PlayerProfileCard';
 import { AnalysisResultErrorBoundary } from '../../../components/AnalysisResultErrorBoundary';
 import { AnalysisResultView } from '../../../components/AnalysisResultView';
+import { AnalysisTips } from '../../../components/AnalysisTips';
 import type { AnalysisResult } from '../../../types/analysis';
 
 interface PlayerSummary {
@@ -721,6 +722,9 @@ export default function UnifiedAnalyzePage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Rotating tips / quotes while waiting */}
+                <AnalysisTips />
               </div>
             )}
 

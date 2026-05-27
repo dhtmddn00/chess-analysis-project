@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '../../../../i18n/navigation';
@@ -78,6 +78,27 @@ export default function AnalysisResultPage() {
     );
   }
 
+  // ── Derived player profile ───────────────────────────────────────────────────
+  const playerProfile = useMemo(() => {
+    const meta = result.playerMetadata;
+    const stylePlay = result.styleProfile?.playingStyle ?? null;
+
+    // Parse ratings_by_timecontrol from playerMetadata.ratingsData JSON
+    let ratings: { blitz?: number; rapid?: number; bullet?: number } = {};
+    try {
+      if (meta?.ratingsData) {
+        const parsed = JSON.parse(meta.ratingsData as string);
+        ratings = {
+          rapid: parsed?.chess_rapid?.last?.rating ?? parsed?.chess_rapid?.rating,
+          blitz: parsed?.chess_blitz?.last?.rating ?? parsed?.chess_blitz?.rating,
+          bullet: parsed?.chess_bullet?.last?.rating ?? parsed?.chess_bullet?.rating,
+        };
+      }
+    } catch { /* ignore */ }
+
+    return { meta, stylePlay, ratings };
+  }, [result]);
+
   // ── Page ─────────────────────────────────────────────────────────────────────
   return (
     <div className="chess-toss min-h-screen bg-gray-50">
@@ -100,12 +121,40 @@ export default function AnalysisResultPage() {
                 <span className="text-base leading-none">♟</span>
                 Chess intelligence
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {t('resultPageTitle', { username: result.username })}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {t('resultPageSubtitle', { count: result.totalGames, platform: result.platform })}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {playerProfile.meta?.title && (
+                  <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold bg-zinc-900 text-yellow-400 border border-zinc-700 uppercase tracking-wide">
+                    {playerProfile.meta.title}
+                  </span>
+                )}
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {result.username}
+                </h1>
+                {playerProfile.meta?.country && (
+                  <span className="text-base" title={playerProfile.meta.country as string}>
+                    {countryToFlag(playerProfile.meta.country as string)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                {playerProfile.stylePlay && (
+                  <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-700">
+                    {playerProfile.stylePlay}
+                  </span>
+                )}
+                {playerProfile.ratings.rapid && (
+                  <span className="text-xs text-zinc-500 font-medium">Rapid <span className="text-zinc-900 font-bold">{playerProfile.ratings.rapid}</span></span>
+                )}
+                {playerProfile.ratings.blitz && (
+                  <span className="text-xs text-zinc-500 font-medium">Blitz <span className="text-zinc-900 font-bold">{playerProfile.ratings.blitz}</span></span>
+                )}
+                {playerProfile.ratings.bullet && (
+                  <span className="text-xs text-zinc-500 font-medium">Bullet <span className="text-zinc-900 font-bold">{playerProfile.ratings.bullet}</span></span>
+                )}
+                <span className="text-xs text-zinc-400">
+                  {t('resultPageSubtitle', { count: result.totalGames, platform: result.platform })}
+                </span>
+              </div>
             </div>
             <div className="hidden sm:grid chess-board-mini" aria-hidden="true">
               {['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜', '♙', '♙', '♙', '♙', '♟', '♟', '♟', '♟'].map((piece, index) => (
@@ -128,4 +177,16 @@ export default function AnalysisResultPage() {
       </div>
     </div>
   );
+}
+
+/** Convert ISO 3166-1 alpha-2/alpha-3 country code to flag emoji. Falls back to empty. */
+function countryToFlag(country: string): string {
+  if (!country || country.length < 2) return '';
+  // Some platforms store full names; skip those
+  if (country.length > 3) return '';
+  const code = country.toUpperCase().slice(0, 2);
+  return code
+    .split('')
+    .map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65))
+    .join('');
 }

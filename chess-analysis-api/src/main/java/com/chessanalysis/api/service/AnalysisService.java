@@ -45,6 +45,8 @@ public class AnalysisService {
     private static final Duration IN_PROGRESS_STALE_AFTER = Duration.ofMinutes(30);
     private static final Duration CANCEL_TOKEN_TTL = Duration.ofHours(24);
     private static final String CANCEL_TOKEN_KEY_PREFIX = "cancel:token:";
+    private static final Duration RESULT_CACHE_TTL = Duration.ofHours(24);
+    private static final String RESULT_CACHE_KEY_PREFIX = "result:cache:";
     private static final int FAST_MAX_GAMES = 50;
     private static final int BALANCED_MAX_GAMES = 30;
     private static final int PRECISE_MAX_GAMES = 20;
@@ -391,8 +393,22 @@ public class AnalysisService {
     
     @Transactional(readOnly = true)
     public Map<String, Object> getAnalysisResult(UUID analysisId) {
+        // ── Redis cache: completed analyses never change, serve from cache ──────
+        String cacheKey = RESULT_CACHE_KEY_PREFIX + analysisId;
+        String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> cachedResult = objectMapper.readValue(cached, Map.class);
+                log.debug("Cache hit for analysis result {}", analysisId);
+                return cachedResult;
+            } catch (Exception e) {
+                log.warn("Failed to deserialize cached result for {}, falling through to DB", analysisId);
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
-        
+
         var connection = DataSourceUtils.getConnection(dataSource);
         try {
             // Get analysis summary
@@ -744,9 +760,21 @@ public class AnalysisService {
             DataSourceUtils.releaseConnection(connection, dataSource);
         }
 
+        // ── Cache write: only cache completed analyses ────────────────────────
+        Object statusObj = result.get("status");
+        if ("COMPLETED".equals(statusObj)) {
+            try {
+                String json = objectMapper.writeValueAsString(result);
+                stringRedisTemplate.opsForValue().set(cacheKey, json, RESULT_CACHE_TTL);
+                log.debug("Cached result for completed analysis {}", analysisId);
+            } catch (Exception e) {
+                log.warn("Failed to cache result for {}: {}", analysisId, e.getMessage());
+            }
+        }
+
         return result;
     }
-    
+
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAnalysisGames(UUID analysisId) {
         List<Map<String, Object>> games = new ArrayList<>();

@@ -422,6 +422,8 @@
     "createdAt": "{date} 분석",
     "accuracyLabel": "정확도",
     "trendTitle": "정확도 추이",
+    "trendLatest": "최근",
+    "trendCount": "{n}회",
     "trendEmpty": "완료된 분석이 2개 이상이어야 추이를 볼 수 있습니다",
     "loading": "이력 불러오는 중...",
     "error": "이력을 불러오지 못했습니다",

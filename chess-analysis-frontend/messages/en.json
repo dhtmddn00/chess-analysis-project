@@ -422,6 +422,8 @@
     "createdAt": "Analyzed {date}",
     "accuracyLabel": "Accuracy",
     "trendTitle": "Accuracy Trend",
+    "trendLatest": "latest",
+    "trendCount": "{n} analyses",
     "trendEmpty": "Need 2+ completed analyses to show trend",
     "loading": "Loading history...",
     "error": "Failed to load history",

@@ -212,13 +212,13 @@ export default function HistoryPage() {
               <div className="text-sm text-zinc-500 space-y-0.5">
                 <div>
                   <span className="font-semibold text-zinc-900">{completedAccuracies[completedAccuracies.length - 1].toFixed(1)}%</span>
-                  <span className="ml-1.5 text-xs">최근</span>
+                  <span className="ml-1.5 text-xs">{t('trendLatest')}</span>
                 </div>
                 {completedAccuracies.length >= 2 && (() => {
                   const diff = completedAccuracies[completedAccuracies.length - 1] - completedAccuracies[0];
                   return (
                     <div className={`text-xs font-semibold ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                      {diff >= 0 ? '+' : ''}{diff.toFixed(1)}% ({completedAccuracies.length}회)
+                      {diff >= 0 ? '+' : ''}{diff.toFixed(1)}% ({t('trendCount', { n: completedAccuracies.length })})
                     </div>
                   );
                 })()}

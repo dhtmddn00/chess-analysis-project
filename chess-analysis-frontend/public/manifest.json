@@ -1,21 +1,21 @@
 {
   "name": "Chess Analysis Pro",
-  "short_name": "ChessAnalysis",
-  "description": "Advanced chess game analysis powered by Stockfish engine",
-  "start_url": "/",
+  "short_name": "ChessLab",
+  "description": "Stockfish 기반 체스 게임 심층 분석 — 스타일, 약점, 전술 기회 한눈에",
+  "start_url": "/ko",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "theme_color": "#09090b",
   "orientation": "portrait-primary",
   "categories": ["games", "sports", "entertainment"],
-  "lang": "en",
+  "lang": "ko",
   "scope": "/",
   "icons": [
     {
       "src": "/favicon-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/favicon-32x32.png",
@@ -32,32 +32,19 @@
   ],
   "shortcuts": [
     {
-      "name": "New Analysis",
-      "short_name": "Analyze",
-      "description": "Start a new chess analysis",
-      "url": "/",
-      "icons": [
-        {
-          "src": "/favicon-96x96.png",
-          "sizes": "96x96"
-        }
-      ]
+      "name": "새 분석",
+      "short_name": "분석",
+      "description": "새 체스 분석 시작",
+      "url": "/ko/analyze",
+      "icons": [{ "src": "/favicon-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "System Stats",
-      "short_name": "Stats", 
-      "description": "View system statistics",
-      "url": "/#stats",
-      "icons": [
-        {
-          "src": "/favicon-96x96.png",
-          "sizes": "96x96"
-        }
-      ]
+      "name": "분석 이력",
+      "short_name": "이력",
+      "description": "과거 분석 이력 조회",
+      "url": "/ko/history",
+      "icons": [{ "src": "/favicon-96x96.png", "sizes": "96x96" }]
     }
   ],
-  "prefer_related_applications": false,
-  "edge_side_panel": {
-    "preferred_width": 400
-  }
+  "prefer_related_applications": false
 }

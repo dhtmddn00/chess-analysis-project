@@ -66,10 +66,19 @@ export default async function LocaleLayout({
   return (
     <html lang={locale}>
       <body className={`${inter.variable} antialiased`}>
+        {/* P4-15: Skip to main content for keyboard/screen reader users */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-zinc-950 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white focus:outline-none"
+        >
+          {locale === 'ko' ? '본문으로 바로가기' : 'Skip to main content'}
+        </a>
         <NextIntlClientProvider messages={messages}>
           <ErrorBoundary>
             <ToastProvider>
-              {children}
+              <div id="main-content">
+                {children}
+              </div>
               <SiteFooter />
             </ToastProvider>
           </ErrorBoundary>

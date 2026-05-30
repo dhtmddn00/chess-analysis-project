@@ -55,6 +55,11 @@ export interface AnalysisJobStatus {
   plan?: unknown;
 }
 
+export interface UseAnalysisOptions {
+  /** Pre-set a jobId (e.g. restored from URL) so polling resumes immediately */
+  initialJobId?: string | null;
+}
+
 interface UseAnalysisResult {
   // Job creation
   createJob: (request: CreateAnalysisRequest) => Promise<string>;
@@ -98,8 +103,8 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json();
 });
 
-export function useAnalysis(): UseAnalysisResult {
-  const [jobId, setJobId] = useState<string | null>(null);
+export function useAnalysis(options?: UseAnalysisOptions): UseAnalysisResult {
+  const [jobId, setJobId] = useState<string | null>(options?.initialJobId ?? null);
   const [shortLink, setShortLink] = useState<string | null>(null);
   const [cancelToken, setCancelToken] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);

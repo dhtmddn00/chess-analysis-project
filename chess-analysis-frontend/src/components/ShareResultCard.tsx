@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Copy, Download, Check, Share2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
+import { sendGAEvent } from '@next/third-parties/google';
 
 interface ShareResultCardProps {
   username: string;
@@ -56,10 +57,16 @@ export function ShareResultCard({
     setShareUrl(url);
   }, [shortLink, jobId, locale]);
 
+  const safeTrack = (eventName: string, params: Record<string, string | number>) => {
+    if (!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID) return;
+    try { sendGAEvent('event', eventName, params); } catch { /* ignore */ }
+  };
+
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
+      safeTrack('share_copy_link', { username });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // fallback for older browsers
@@ -112,6 +119,7 @@ export function ShareResultCard({
       link.download = `chess-analysis-${username}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+      safeTrack('share_download_image', { username });
     } catch (err) {
       console.error('Image capture failed:', err);
     } finally {

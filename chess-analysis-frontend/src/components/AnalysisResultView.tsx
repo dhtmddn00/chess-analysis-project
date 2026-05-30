@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Target, BarChart3, Brain, Zap, TrendingUp,
-  BookOpen, ShieldCheck, Trophy,
+  BookOpen, ShieldCheck, Trophy, ChevronDown,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { AnalysisResult, PercentileMetric, STYLE_DIMENSIONS } from '@/types/analysis';
@@ -58,7 +58,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
     <div className="space-y-8">
 
       {/* ── Executive Summary ──────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-zinc-950 text-white shadow-lg p-4 sm:p-6">
+      <div id="section-top" className="rounded-xl bg-zinc-950 text-white shadow-lg p-4 sm:p-6">
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-lg bg-white text-xl sm:text-2xl text-black">♔</div>
           <div>
@@ -68,17 +68,38 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
         </div>
       </div>
 
-      {/* ── Review Order ───────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
-            <Target className="h-5 w-5" />
-          </div>
-          <div>
-            <h4 className="text-lg font-black text-zinc-950">{t('reviewOrder')}</h4>
-            <p className="text-sm text-zinc-500">{t('reviewOrderDesc')}</p>
-          </div>
+      {/* ── P2-4: Sticky section navigation ──────────────────────────────── */}
+      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 overflow-x-auto bg-white/95 backdrop-blur border-b border-zinc-100 shadow-sm">
+        <div className="flex gap-1 px-4 sm:px-6 lg:px-8 py-2 min-w-max">
+          {[
+            { id: 'section-review', label: t('navReviewOrder') },
+            { id: 'section-performance', label: t('navPerformance') },
+            { id: 'section-style', label: t('navStyle') },
+            { id: 'section-tactics', label: t('navTactics') },
+            { id: 'section-training', label: t('navTraining') },
+            { id: 'section-share', label: t('navShare') },
+          ].map(({ id, label }) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="rounded-full px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 whitespace-nowrap transition-colors"
+            >
+              {label}
+            </a>
+          ))}
         </div>
+      </div>
+
+      {/* ── Review Order ───────────────────────────────────────────────────── */}
+      <CollapsibleSection
+        id="section-review"
+        icon={<Target className="h-5 w-5" />}
+        title={t('reviewOrder')}
+      >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             <div className="text-xs font-black text-zinc-400 uppercase tracking-widest">{t('priority1')}</div>
@@ -100,14 +121,14 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             <p className="mt-2 text-sm leading-6 text-zinc-500">{t('customTrainingDesc')}</p>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* ── Performance Metrics ────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
-        <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
-          <BarChart3 className="h-5 w-5" />
-          {t('performanceMetrics')}
-        </h4>
+      <CollapsibleSection
+        id="section-performance"
+        icon={<BarChart3 className="h-5 w-5" />}
+        title={t('performanceMetrics')}
+      >
 
         {/* 6 stat boxes — 2 cols on mobile, 3 on sm, 6 on md */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 mb-6">
@@ -483,14 +504,14 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             <p className="text-sm leading-6 text-zinc-600">{result.explanations?.errorAnalysis}</p>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* ── Style Profile ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
-        <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
-          <Brain className="h-5 w-5" />
-          {t('styleProfile')}
-        </h4>
+      <CollapsibleSection
+        id="section-style"
+        icon={<Brain className="h-5 w-5" />}
+        title={t('styleProfile')}
+      >
 
         {/* Main style banner */}
         <div className="mb-6 rounded-lg border border-zinc-200 bg-zinc-50 p-6">
@@ -547,14 +568,14 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             </div>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* ── Tactical Analysis ──────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
-        <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
-          <Zap className="h-5 w-5" />
-          {t('tacticsSection')}
-        </h4>
+      <CollapsibleSection
+        id="section-tactics"
+        icon={<Zap className="h-5 w-5" />}
+        title={t('tacticsSection')}
+      >
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-center">
@@ -592,15 +613,15 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             </div>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* ── Training Recommendations ───────────────────────────────────────── */}
       {(result.trainingRecommendations ?? []).length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 shadow-sm">
-          <h4 className="mb-6 flex items-center gap-2 text-xl font-bold text-zinc-950">
-            <Target className="h-5 w-5" />
-            {t('trainingPlan')}
-          </h4>
+        <CollapsibleSection
+          id="section-training"
+          icon={<Target className="h-5 w-5" />}
+          title={t('trainingPlan')}
+        >
           <div className="space-y-3">
             {(result.trainingRecommendations ?? []).map((rec, index) => (
               <div key={index} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
@@ -616,7 +637,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* ── Player Metadata ────────────────────────────────────────────────── */}
@@ -652,6 +673,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
       )}
 
       {/* ── Share Card ─────────────────────────────────────────────────────── */}
+      <div id="section-share">
       <ShareResultCard
         username={result.username}
         gameCount={result.totalGames}
@@ -663,7 +685,50 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
         shortLink={shortLink ?? null}
         jobId={jobId}
       />
+      </div>
 
+    </div>
+  );
+}
+
+// ── CollapsibleSection sub-component ─────────────────────────────────────────
+
+function CollapsibleSection({
+  id,
+  icon,
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div id={id} className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden scroll-mt-12">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between p-4 sm:p-6 hover:bg-zinc-50 transition-colors"
+        aria-expanded={open}
+      >
+        <h4 className="flex items-center gap-2 text-xl font-bold text-zinc-950">
+          {icon}
+          {title}
+        </h4>
+        <ChevronDown
+          className={`h-5 w-5 text-zinc-400 transition-transform duration-200 flex-shrink-0 ${open ? '' : '-rotate-90'}`}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6 border-t border-zinc-100">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

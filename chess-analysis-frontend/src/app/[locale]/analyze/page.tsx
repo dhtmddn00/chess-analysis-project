@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { Search, Clock, Target, Zap, Brain, BarChart3, TrendingUp, ShieldCheck, ArrowLeft, ExternalLink, X, Trash2 } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
 import { useTranslations } from 'next-intl';
@@ -67,6 +68,12 @@ export default function UnifiedAnalyzePage() {
   const [analysisStarted, setAnalysisStarted] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+  // ── P1-1: Restore jobId from URL (SSR-safe lazy init) ───────────────────────
+  const [initialJobIdFromUrl] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('jobId');
+  });
+
   // Player summary hook
   const { summary, isLoading: summaryLoading, error: summaryError, notFound: playerNotFound, refetch } = usePlayerSummary(
     hasSearched ? searchForm.platform : null,
@@ -90,7 +97,7 @@ export default function UnifiedAnalyzePage() {
     swingMomentsReady,
     endgameReady,
     timeMgmtReady,
-  } = useAnalysis();
+  } = useAnalysis({ initialJobId: initialJobIdFromUrl });
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
@@ -137,20 +144,34 @@ export default function UnifiedAnalyzePage() {
 
     const params = new URLSearchParams(window.location.search);
     const username = params.get('username');
+    const platform = params.get('platform');
     const n = Number(params.get('n'));
     const priority = params.get('priority');
+    const urlJobId = params.get('jobId');
 
-    if (!username && !Number.isFinite(n) && priority !== 'fast' && priority !== 'balanced' && priority !== 'precise') {
-      return;
+    // P1-1: If jobId is in URL, resume the analysis session
+    if (urlJobId) {
+      setAnalysisStarted(true);
     }
 
     setSearchForm((previous) => ({
       ...previous,
       username: username ?? previous.username,
+      platform: platform ?? previous.platform,
       n: Number.isFinite(n) && n > 0 ? n : previous.n,
       priority: priority === 'precise' ? 'precise' : priority === 'balanced' ? 'balanced' : priority === 'fast' ? 'fast' : previous.priority,
     }));
   }, []);
+
+  // P1-3: Tab notification when analysis completes
+  useEffect(() => {
+    if (isDone) {
+      document.title = '✓ 분석 완료 — Chess Analysis';
+    }
+    return () => {
+      if (isDone) document.title = 'Chess Analysis';
+    };
+  }, [isDone]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,7 +196,7 @@ export default function UnifiedAnalyzePage() {
     try {
       setAnalysisError(null);
       setResultError(null);
-      await createJob({
+      const newJobId = await createJob({
         platform: searchForm.platform,
         username: searchForm.username,
         n: searchForm.n,
@@ -183,6 +204,10 @@ export default function UnifiedAnalyzePage() {
         timeControl: searchForm.timeControl,
       });
       setAnalysisStarted(true);
+      // P1-1: Reflect jobId in URL so page survives refresh
+      if (newJobId && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', `?jobId=${newJobId}`);
+      }
       trackEvent('analysis_started', {
         platform: searchForm.platform,
         game_count: searchForm.n,
@@ -215,6 +240,13 @@ export default function UnifiedAnalyzePage() {
                 accuracy: data.averageAccuracy ?? 0,
                 playingStyle: data.playingStyle ?? '',
                 winrate: summary?.player?.record_all?.winrate ?? 0,
+              });
+              // P3-9: GA event for analysis completion
+              trackEvent('analysis_completed', {
+                platform: searchForm.platform,
+                game_count: data.totalGames ?? searchForm.n,
+                accuracy: data.averageAccuracy ?? 0,
+                playing_style: data.playingStyle ?? '',
               });
             }
           } else {
@@ -600,7 +632,7 @@ export default function UnifiedAnalyzePage() {
           <div className="bg-white rounded-xl border border-zinc-200 px-5 py-3 mb-5 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-200 flex-shrink-0">
               {summary.player.avatar ? (
-                <img src={summary.player.avatar} alt={summary.player.username} className="w-full h-full object-cover" />
+                <Image src={summary.player.avatar} alt={summary.player.username} width={36} height={36} className="object-cover" unoptimized />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-sm font-black text-zinc-500">
                   {summary.player.username.charAt(0).toUpperCase()}
@@ -641,6 +673,8 @@ export default function UnifiedAnalyzePage() {
                       setAnalysisStarted(false);
                       setAnalysisError(null);
                       setResultError(null);
+                      // P2-7: Clear jobId from URL on retry
+                      if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
                     }}
                     className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800"
                   >
@@ -652,6 +686,13 @@ export default function UnifiedAnalyzePage() {
                     className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
                   >
                     {t('refreshStatus')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/')}
+                    className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-500 hover:bg-zinc-50"
+                  >
+                    {tCommon('home')}
                   </button>
                 </div>
               </div>

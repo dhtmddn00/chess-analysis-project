@@ -35,6 +35,7 @@ export default function Home() {
   const tNav = useTranslations('Nav');
   const router = useRouter();
   const [username, setUsername] = useState('');
+  const [platform, setPlatform] = useState<'chess.com' | 'lichess'>('chess.com');
   const [gameCount, setGameCount] = useState(10);
   const [priority, setPriority] = useState<'fast' | 'balanced' | 'precise'>('fast');
 
@@ -83,6 +84,7 @@ export default function Home() {
     if (trimmed) addUsername(trimmed);
     const params = new URLSearchParams();
     if (trimmed) params.set('username', trimmed);
+    params.set('platform', platform);
     params.set('n', String(gameCount));
     params.set('priority', priority);
     router.push(`/analyze?${params.toString()}`);
@@ -159,9 +161,9 @@ export default function Home() {
             </p>
 
             <form onSubmit={startAnalysis} className="mt-8 max-w-2xl rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
-              <div className="grid gap-2 sm:gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_120px_126px_auto]">
+              <div className="grid gap-2 sm:gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_110px_120px_126px_auto]">
                 <label className="sr-only" htmlFor="home-username">
-                  Chess.com username
+                  {platform === 'lichess' ? 'Lichess' : 'Chess.com'} username
                 </label>
                 {/* Username input + recent suggestions dropdown */}
                 <div className="relative">
@@ -172,7 +174,7 @@ export default function Home() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     onFocus={() => recentUsernames.length > 0 && setShowSuggestions(true)}
-                    placeholder="Chess.com username"
+                    placeholder={platform === 'lichess' ? 'Lichess username' : 'Chess.com username'}
                     className="h-11 w-full rounded-lg border border-zinc-300 bg-zinc-50 pl-9 pr-3 text-sm font-medium text-zinc-950 outline-none focus:border-black focus:bg-white"
                     autoComplete="off"
                   />
@@ -202,6 +204,15 @@ export default function Home() {
 
                 {/* selects + button: 모바일에서 한 row, lg에서 각 셀 */}
                 <div className="flex gap-2 lg:contents">
+                  <select
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as 'chess.com' | 'lichess')}
+                    className="h-11 flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-black focus:bg-white lg:flex-none lg:w-[110px]"
+                  >
+                    <option value="chess.com">Chess.com</option>
+                    <option value="lichess">Lichess</option>
+                  </select>
+
                   <select
                     value={gameCount}
                     onChange={(e) => setGameCount(Number(e.target.value))}

@@ -76,7 +76,10 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             { id: 'section-performance', label: t('navPerformance') },
             { id: 'section-style', label: t('navStyle') },
             { id: 'section-tactics', label: t('navTactics') },
-            { id: 'section-training', label: t('navTraining') },
+            // Only show Training nav pill when the section actually renders
+            ...((result.trainingRecommendations ?? []).length > 0
+              ? [{ id: 'section-training', label: t('navTraining') }]
+              : []),
             { id: 'section-share', label: t('navShare') },
           ].map(({ id, label }) => (
             <a

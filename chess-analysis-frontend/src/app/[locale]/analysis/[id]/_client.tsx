@@ -9,19 +9,28 @@ import type { AnalysisResult } from '@/types/analysis';
 import { AnalysisResultView } from '@/components/AnalysisResultView';
 import { AnalysisResultErrorBoundary } from '@/components/AnalysisResultErrorBoundary';
 
-export function AnalysisResultClient() {
+interface Props {
+  /** Pre-fetched result from the server component. When provided the client
+   *  skips its own fetch, eliminating the loading spinner on the static page. */
+  initialResult?: AnalysisResult | null;
+}
+
+export function AnalysisResultClient({ initialResult }: Props = {}) {
   const t = useTranslations('AnalysisDetail');
   const tCommon = useTranslations('Common');
   const params = useParams();
   const router = useRouter();
 
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  // If the server already gave us the result, start with it (no loading state).
+  const [result, setResult] = useState<AnalysisResult | null>(initialResult ?? null);
+  const [loading, setLoading] = useState(initialResult == null);
   const [error, setError] = useState<string | null>(null);
 
   const analysisId = params.id as string;
 
   useEffect(() => {
+    // Skip client-side fetch when the server pre-loaded the result.
+    if (initialResult != null) return;
     if (!analysisId) return;
     let cancelled = false;
 
@@ -43,7 +52,8 @@ export function AnalysisResultClient() {
 
     load();
     return () => { cancelled = true; };
-  }, [analysisId, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisId, t]); // initialResult is intentionally excluded: it's a one-time seed
 
   // ── Derived player profile (must be above all early returns — Rules of Hooks) ─
   const playerProfile = useMemo(() => {

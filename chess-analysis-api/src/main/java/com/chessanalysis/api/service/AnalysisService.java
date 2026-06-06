@@ -506,7 +506,8 @@ public class AnalysisService {
                     "blunder_tendency, risk_tolerance, piece_activity_preference, " +
                     "aggression_rating, exchange_preference, opening_variety, " +
                     "lead_conversion, consistency, swindle_resistance, " +
-                    "summary_data, metadata, tactical_stats FROM style_profiles_worker WHERE analysis_id = ?");
+                    "summary_data, metadata, tactical_stats, coach_narrative " +
+                    "FROM style_profiles_worker WHERE analysis_id = ?");
                 styleStmt.setObject(1, analysisId);
                 var styleResult = styleStmt.executeQuery();
                 
@@ -592,6 +593,13 @@ public class AnalysisService {
                     dimensionExplanations.put("overallStyleAnalysis", overallStyleAnalysis);
                     
                     profile.put("dimensionExplanations", dimensionExplanations);
+
+                    // AI coaching narrative — null when not yet generated
+                    String coachNarrativeJson = styleResult.getString("coach_narrative");
+                    if (coachNarrativeJson != null && !coachNarrativeJson.isBlank()) {
+                        profile.put("coachNarrative", coachNarrativeJson);
+                    }
+
                     result.put("styleProfile", profile);
                 } else {
                     // Provide default style profile when analysis data is missing

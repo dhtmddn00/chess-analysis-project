@@ -54,6 +54,21 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
 
   const learningCards = result.learningInsights?.cards ?? [];
 
+  // Parse AI coaching narrative (stored as JSON string from API)
+  const coachNarrative = (() => {
+    const raw = result.styleProfile?.coachNarrative;
+    if (!raw) return null;
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (parsed?.pattern && parsed?.why_losing && parsed?.one_action) return parsed as {
+        pattern: string;
+        why_losing: string;
+        one_action: string;
+      };
+    } catch { /* malformed JSON — degrade gracefully */ }
+    return null;
+  })();
+
   return (
     <div className="space-y-8">
 
@@ -66,6 +81,29 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             <p className="mt-0.5 text-sm text-zinc-400">{t('resultSummary', { username: result.username, count: result.totalGames })}</p>
           </div>
         </div>
+
+        {/* AI coaching narrative — shown only when generated */}
+        {coachNarrative && (
+          <div className="mt-5 space-y-4 border-t border-zinc-800 pt-5">
+            {/* Pattern: the chess identity */}
+            <p className="text-base sm:text-lg font-semibold text-white leading-snug">
+              {coachNarrative.pattern}
+            </p>
+
+            {/* Why losing: the mechanism */}
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              {coachNarrative.why_losing}
+            </p>
+
+            {/* One action: clear CTA */}
+            <div className="flex items-start gap-2.5 rounded-lg bg-zinc-800/70 px-3.5 py-3">
+              <span className="mt-0.5 text-base leading-none shrink-0">→</span>
+              <p className="text-sm font-semibold text-zinc-100 leading-snug">
+                {coachNarrative.one_action}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── P2-4: Sticky section navigation ──────────────────────────────── */}

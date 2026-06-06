@@ -86,6 +86,13 @@ export interface AnalysisResult {
       consistencyExplanation?: string;
       overallStyleAnalysis?: string;
     };
+    /**
+     * AI-generated coaching narrative (Gemini 2.0 Flash).
+     * Present as a JSON string from the API; parsed before rendering.
+     * null / undefined = not yet generated (feature post-dates this analysis
+     * or GEMINI_API_KEY not configured — UI falls back gracefully).
+     */
+    coachNarrative?: string | null;
   };
 
   comparativeInsights?: {

@@ -20,6 +20,7 @@ from .services.chess_api import ChessComAPI
 from .services.lichess_api import LichessAPI, LichessPlayerNotFoundError
 from .services.profiler import PlayerProfiler
 from .services.progressive_analyzer import ProgressiveAnalyzer
+from .services.narrative_service import NarrativeService
 from .utils.pgn_parser import parse_chess_com_games
 from .utils.elite_config import get_elite_config
 from .models.database import DatabaseClient
@@ -80,7 +81,14 @@ class ChessAnalysisWorker:
             self.profiler = PlayerProfiler(self.db_client)
             self.analyzer = ProgressiveAnalyzer(engine_pool_size=2, db_client=self.db_client)
             await self.analyzer.initialize()
-            
+
+            # AI narrative service — optional, degrades gracefully if key absent
+            self.narrative_service = NarrativeService(
+                redis_client=self.redis_client,
+                api_key=os.getenv("GEMINI_API_KEY"),
+            )
+            self.narrative_service.initialize()
+
             logger.info("Chess Analysis Worker initialized successfully")
             
         except Exception as e:
@@ -210,7 +218,16 @@ class ChessAnalysisWorker:
                 analysis_id, 'IN_PROGRESS', 95, 'Progressive profile stored'
             )
             
-            # Step 7: Complete analysis (95-100%)
+            # Step 6.5: AI coaching narrative (95-98%)
+            # Non-blocking — any failure falls back to rule-based output silently.
+            await self.update_analysis_status(
+                analysis_id, 'IN_PROGRESS', 96, 'Generating coaching narrative'
+            )
+            await self._generate_and_store_narrative(
+                analysis_id, profile_data, game_analyses
+            )
+
+            # Step 7: Complete analysis (98-100%)
             # Generate report URL and store it
             report_url = f"/analysis/{analysis_id}/report"
             
@@ -673,6 +690,61 @@ class ChessAnalysisWorker:
             # Don't raise - this is supplementary
     
         
+    async def _generate_and_store_narrative(
+        self, analysis_id: str, profile_data, game_analyses: list
+    ) -> None:
+        """
+        Generate an AI coaching narrative and persist it to style_profiles_worker.
+        Completely non-fatal: any error is logged and swallowed.
+        """
+        try:
+            # Fetch pre-computed per-game accuracy/blunder stats from DB
+            # (stored in Step 5 by store_analysis_results)
+            stats = await self._fetch_aggregate_stats(analysis_id)
+
+            narrative = await self.narrative_service.generate(profile_data, stats)
+
+            await self.db_client.execute(
+                """
+                UPDATE style_profiles_worker
+                SET coach_narrative = $1
+                WHERE analysis_id = $2
+                """,
+                [json.dumps(narrative, ensure_ascii=False), analysis_id],
+            )
+            logger.info(f"Coaching narrative stored for analysis {analysis_id}")
+        except Exception as exc:
+            # Never let narrative failure block analysis completion
+            logger.error(
+                f"_generate_and_store_narrative failed for {analysis_id}: {exc} "
+                f"(analysis marked COMPLETED regardless)"
+            )
+
+    async def _fetch_aggregate_stats(self, analysis_id: str) -> dict:
+        """Aggregate accuracy and blunder counts from already-stored game_analyses rows."""
+        try:
+            rows = await self.db_client.fetch(
+                """
+                SELECT
+                    AVG(accuracy)       AS avg_accuracy,
+                    SUM(blunders)       AS total_blunders,
+                    SUM(mistakes)       AS total_mistakes
+                FROM game_analyses
+                WHERE analysis_id = $1
+                """,
+                [analysis_id],
+            )
+            if rows:
+                row = rows[0]
+                return {
+                    "avg_accuracy":   float(row.get("avg_accuracy")   or 0.0),
+                    "total_blunders": int(row.get("total_blunders")   or 0),
+                    "total_mistakes": int(row.get("total_mistakes")   or 0),
+                }
+        except Exception as exc:
+            logger.warning(f"_fetch_aggregate_stats failed: {exc}")
+        return {"avg_accuracy": 0.0, "total_blunders": 0, "total_mistakes": 0}
+
     def _serialize_profile(self, profile) -> dict:
         """Convert PlayerProfile to serializable dict"""
         try:

@@ -223,8 +223,9 @@ class ChessAnalysisWorker:
             await self.update_analysis_status(
                 analysis_id, 'IN_PROGRESS', 96, 'Generating coaching narrative'
             )
+            locale = job_data.get('locale', 'ko')
             await self._generate_and_store_narrative(
-                analysis_id, profile_data, game_analyses
+                analysis_id, profile_data, game_analyses, locale
             )
 
             # Step 7: Complete analysis (98-100%)
@@ -691,7 +692,7 @@ class ChessAnalysisWorker:
     
         
     async def _generate_and_store_narrative(
-        self, analysis_id: str, profile_data, game_analyses: list
+        self, analysis_id: str, profile_data, game_analyses: list, locale: str = "ko"
     ) -> None:
         """
         Generate an AI coaching narrative and persist it to style_profiles_worker.
@@ -702,7 +703,7 @@ class ChessAnalysisWorker:
             # (stored in Step 5 by store_analysis_results)
             stats = await self._fetch_aggregate_stats(analysis_id)
 
-            narrative = await self.narrative_service.generate(profile_data, stats)
+            narrative = await self.narrative_service.generate(profile_data, stats, locale=locale)
 
             await self.db_client.execute(
                 """

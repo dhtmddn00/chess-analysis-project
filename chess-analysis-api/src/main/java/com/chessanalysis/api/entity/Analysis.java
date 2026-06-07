@@ -53,6 +53,10 @@ public class Analysis {
     
     @Column(name = "short_link")
     private String shortLink;
+
+    /** Nullable: null = guest analysis, non-null = linked to a registered user. */
+    @Column(name = "user_id")
+    private UUID userId;
     
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Game> games;

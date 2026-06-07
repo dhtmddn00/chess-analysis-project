@@ -478,5 +478,31 @@
     "platform": "플랫폼",
     "analyzeFirst": "분석 먼저 하기",
     "errorFetch": "데이터를 불러오지 못했습니다"
+  },
+  "Auth": {
+    "login": "로그인",
+    "logout": "로그아웃",
+    "signup": "회원가입",
+    "loginTitle": "다시 오셨군요!",
+    "loginSubtitle": "로그인하고 분석 기록을 저장하세요",
+    "signupTitle": "계정 만들기",
+    "signupSubtitle": "무료로 시작하세요. 카드 정보 불필요.",
+    "email": "이메일",
+    "password": "비밀번호",
+    "passwordHint": "8자 이상",
+    "confirmPassword": "비밀번호 확인",
+    "name": "표시 이름",
+    "namePlaceholder": "예: Magnus",
+    "loggingIn": "로그인 중…",
+    "signingUp": "계정 생성 중…",
+    "noAccount": "아직 계정이 없으신가요?",
+    "hasAccount": "이미 계정이 있으신가요?",
+    "termsNotice": "회원가입 시 이용약관 및 개인정보처리방침에 동의하게 됩니다.",
+    "errorInvalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "errorTooManyAttempts": "로그인 시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.",
+    "errorEmailTaken": "이미 사용 중인 이메일입니다.",
+    "errorPasswordMismatch": "비밀번호가 일치하지 않습니다.",
+    "errorPasswordTooShort": "비밀번호는 8자 이상이어야 합니다.",
+    "errorGeneric": "오류가 발생했습니다. 다시 시도해주세요."
   }
 }

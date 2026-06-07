@@ -11,7 +11,7 @@ public class AnalysisRequestDto {
     private String username;
     
     @NotBlank(message = "Platform is required")
-    @Pattern(regexp = "chess\\.com", message = "Only chess.com analysis is currently supported")
+    @Pattern(regexp = "chess\\.com|lichess", message = "Platform must be chess.com or lichess")
     private String platform = "chess.com";
     
     @NotNull(message = "Game count is required")
@@ -24,4 +24,8 @@ public class AnalysisRequestDto {
     
     @Pattern(regexp = "fast|balanced|precise", message = "Priority must be fast, balanced, or precise")
     private String priority = "fast";
+
+    /** UI locale — determines the language of AI-generated coaching narrative. */
+    @Pattern(regexp = "ko|en", message = "Locale must be ko or en")
+    private String locale = "ko";
 }

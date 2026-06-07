@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR from 'swr';
+import { useLocale } from 'next-intl';
 
 export interface CreateAnalysisRequest {
   platform: string;
@@ -104,6 +105,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
 });
 
 export function useAnalysis(options?: UseAnalysisOptions): UseAnalysisResult {
+  const locale = useLocale();
   const [jobId, setJobId] = useState<string | null>(options?.initialJobId ?? null);
   const [shortLink, setShortLink] = useState<string | null>(null);
   const [cancelToken, setCancelToken] = useState<string | null>(null);
@@ -170,6 +172,7 @@ export function useAnalysis(options?: UseAnalysisOptions): UseAnalysisResult {
         gameCount: request.n || 20,
         timeControl: request.timeControl || 'all',
         priority: request.priority || 'fast',
+        locale: locale === 'en' ? 'en' : 'ko',
       };
 
       const response = await fetch('/api/v1/analysis', {

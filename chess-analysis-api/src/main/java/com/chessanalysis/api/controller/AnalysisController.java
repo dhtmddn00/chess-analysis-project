@@ -2,6 +2,7 @@ package com.chessanalysis.api.controller;
 
 import com.chessanalysis.api.dto.AnalysisRequestDto;
 import com.chessanalysis.api.dto.AnalysisResponseDto;
+import com.chessanalysis.api.entity.User;
 import com.chessanalysis.api.service.AnalysisRateLimitException;
 import com.chessanalysis.api.service.AnalysisService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,7 +37,13 @@ public class AnalysisController {
             log.info("Creating analysis for user: {} on platform: {}", 
                     request.getUsername(), request.getPlatform());
             
-            AnalysisResponseDto response = analysisService.createAnalysis(request, resolveClientIp(httpRequest));
+            // Resolve authenticated user — null if guest
+            UUID userId = null;
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof User user) {
+                userId = user.getId();
+            }
+            AnalysisResponseDto response = analysisService.createAnalysis(request, resolveClientIp(httpRequest), userId);
             return ResponseEntity.ok(response);
             
         } catch (AnalysisRateLimitException e) {

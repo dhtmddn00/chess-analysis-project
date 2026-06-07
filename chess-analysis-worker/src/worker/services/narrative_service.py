@@ -39,9 +39,24 @@ DIMENSION_KR = {
     "blunder_tendency":       "블런더 경향",
 }
 
+DIMENSION_EN = {
+    "tactical_dependency":    "Tactical Play",
+    "positional_orientation": "Positional Play",
+    "aggression":             "Aggression",
+    "endgame_technique":      "Endgame Technique",
+    "time_management":        "Time Management",
+    "consistency":            "Consistency",
+    "risk_taking":            "Risk-Taking",
+    "exchange_preference":    "Exchange Preference",
+    "opening_variety":        "Opening Variety",
+    "lead_conversion":        "Lead Conversion",
+    "swindle_resistance":     "Swindle Resistance",
+    "blunder_tendency":       "Blunder Tendency",
+}
+
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT_KO = """\
 당신은 데이터 기반 체스 코치입니다.
 플레이어의 최근 게임 분석 결과를 보고 한국어로 코칭 보고서를 작성하세요.
 
@@ -81,7 +96,47 @@ SYSTEM_PROMPT = """\
 }
 """
 
-USER_PROMPT_TEMPLATE = """\
+SYSTEM_PROMPT_EN = """\
+You are a data-driven chess coach.
+Analyze the player's recent game metrics and write a coaching report in English.
+
+## Core approach
+Don't list numbers — find ONE causal relationship by cross-correlating multiple dimensions.
+"A is strong but B is weak" → "so in situation X, outcome Y occurs" → "therefore do Z"
+
+## Strictly forbidden
+- Generic advice — "study tactics", "improve time management" (applies to everyone)
+- Number listing — "Tactical: 82%, Endgame: 61%" (numbers without interpretation)
+- Hollow encouragement — "you're doing great", "keep it up"
+- Stating what the player already knows
+
+## Output format (JSON)
+```json
+{
+  "pattern": "This player's chess identity — how strength and weakness are causally linked (1 sentence)",
+  "why_losing": "The specific mechanism causing losses — what situation, what sequence breaks down (2-3 sentences, cite 1-2 numbers)",
+  "one_action": "One immediately actionable next step — specific platform, category, and quantity"
+}
+```
+
+## Learn from examples
+
+❌ Bad (don't write like this):
+{
+  "pattern": "You have an aggressive style with good tactical ability",
+  "why_losing": "You lose because of too many mistakes. Play more carefully.",
+  "one_action": "Solve chess tactics puzzles every day"
+}
+
+✅ Good (aim for this):
+{
+  "pattern": "You're excellent at creating kingside attacks but have no positional Plan B when the attack is stopped",
+  "why_losing": "A significant portion of your losses are reverse after move 30. You navigate complex middlegames well, but once pieces are exchanged and the position simplifies, you don't know how to convert. This pattern is especially pronounced when playing Black.",
+  "one_action": "Complete 20 problems in the Rook Endgames category on Lichess (lichess.org/practice) this week"
+}
+"""
+
+USER_PROMPT_TEMPLATE_KO = """\
 ## 플레이어 데이터
 
 플레이어: {username} | 레이팅 {average_rating} | 분석 게임 수: {total_games}
@@ -106,6 +161,35 @@ USER_PROMPT_TEMPLATE = """\
 ### AI 스타일 태그
 {style_tags}
 """
+
+USER_PROMPT_TEMPLATE_EN = """\
+## Player Data
+
+Player: {username} | Rating: {average_rating} | Games analyzed: {total_games}
+
+### Performance metrics
+- Average accuracy: {avg_accuracy}%
+- Average centipawn loss (ACPL): {avg_centipawn_loss}
+- Blunders per game: {blunders_per_game}
+- Win / Draw / Loss: {win_rate}% / {draw_rate}% / {loss_rate}%
+- Win rate as White: {white_win_rate}%  |  Win rate as Black: {black_win_rate}%
+
+### 12-dimension style analysis (0–100, higher = stronger)
+{style_lines}
+
+→ Strongest dimension: {strongest} ({strongest_score})
+→ Weakest dimension:   {weakest} ({weakest_score})
+→ Gap: {gap} points
+
+### Main openings
+{opening_lines}
+
+### Style tags
+{style_tags}
+"""
+
+# Aliases used by the rest of the module (Korean is default)
+USER_PROMPT_TEMPLATE = USER_PROMPT_TEMPLATE_KO
 
 
 class NarrativeService:
@@ -140,19 +224,25 @@ class NarrativeService:
         try:
             import google.generativeai as genai
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 600,
-                    "response_mime_type": "application/json",
-                },
-                system_instruction=SYSTEM_PROMPT,
-            )
+            # Store the genai module so _get_model() can create locale-specific instances
+            self._genai = genai
             self._enabled = True
             logger.info("NarrativeService ready (Gemini 2.0 Flash)")
         except Exception as exc:
             logger.error(f"NarrativeService initialisation failed: {exc}")
+
+    def _get_model(self, locale: str):
+        """Return a Gemini model configured with the correct system prompt for locale."""
+        system_prompt = SYSTEM_PROMPT_EN if locale == "en" else SYSTEM_PROMPT_KO
+        return self._genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            generation_config={
+                "temperature": 0.7,
+                "max_output_tokens": 600,
+                "response_mime_type": "application/json",
+            },
+            system_instruction=system_prompt,
+        )
 
     # ── Rate-limit helpers ─────────────────────────────────────────────────────
 
@@ -181,7 +271,7 @@ class NarrativeService:
 
     # ── Context builder ────────────────────────────────────────────────────────
 
-    def _build_context(self, profile, stats: dict) -> dict:
+    def _build_context(self, profile, stats: dict, locale: str = "ko") -> dict:
         """
         Extract the analytically richest data points in the fewest tokens.
         ~500 tokens when serialised to the prompt template.
@@ -189,12 +279,13 @@ class NarrativeService:
         from .profiler import StyleDimension
 
         total_games = max(profile.total_games, 1)
+        dim_labels = DIMENSION_EN if locale == "en" else DIMENSION_KR
 
-        # Style dimensions with Korean labels, sorted descending
+        # Style dimensions with locale-appropriate labels, sorted descending
         style_dict: dict[str, float] = {}
         for dim in StyleDimension:
             score_obj = profile.style_scores.get(dim)
-            label = DIMENSION_KR.get(dim.value, dim.value)
+            label = dim_labels.get(dim.value, dim.value)
             style_dict[label] = round(score_obj.score, 1) if score_obj else 0.0
 
         sorted_dims = sorted(style_dict.items(), key=lambda x: x[1])
@@ -240,17 +331,25 @@ class NarrativeService:
         }
 
     def _format_prompt(self, ctx: dict) -> str:
+        locale = ctx.get("locale", "ko")
+        is_en = locale == "en"
+        score_suffix = "" if is_en else "점"
+        games_label = "games" if is_en else "게임"
+        winrate_label = "win rate" if is_en else "승률"
+        no_data = "(no data)" if is_en else "(데이터 없음)"
+
         style_lines = "\n".join(
-            f"  {name}: {score}점"
+            f"  {name}: {score}{score_suffix}"
             for name, score in sorted(ctx["style_dict"].items(), key=lambda x: x[1], reverse=True)
         )
         opening_lines = "\n".join(
-            f"  {o['colour']} {o['name']} — {o['games']}게임, 승률 {o['win_pct']}%"
+            f"  {o['colour']} {o['name']} — {o['games']} {games_label}, {winrate_label} {o['win_pct']}%"
             for o in ctx["openings"]
-        ) or "  (데이터 없음)"
-        style_tags = ", ".join(ctx["style_tags"]) or "없음"
+        ) or f"  {no_data}"
+        style_tags = ", ".join(ctx["style_tags"]) or ("none" if is_en else "없음")
 
-        return USER_PROMPT_TEMPLATE.format(
+        template = USER_PROMPT_TEMPLATE_EN if is_en else USER_PROMPT_TEMPLATE_KO
+        return template.format(
             username=ctx["username"],
             average_rating=ctx["average_rating"],
             total_games=ctx["total_games"],
@@ -327,19 +426,22 @@ class NarrativeService:
 
     # ── Main entry point ───────────────────────────────────────────────────────
 
-    async def generate(self, profile, stats: dict) -> dict:
+    async def generate(self, profile, stats: dict, locale: str = "ko") -> dict:
         """
         Generate a coaching narrative for the given player.
 
         Args:
             profile:  PlayerProfile dataclass from profiler.py
             stats:    dict with keys avg_accuracy, total_blunders, total_mistakes
+            locale:   "ko" (Korean, default) or "en" (English)
 
         Returns:
             dict with keys: pattern, why_losing, one_action
             Never raises — always falls back to rule-based output on any error.
         """
-        ctx = self._build_context(profile, stats)
+        locale = locale if locale in ("ko", "en") else "ko"
+        ctx = self._build_context(profile, stats, locale=locale)
+        ctx["locale"] = locale  # pass through to _format_prompt
 
         if not self._can_call_ai():
             reason = "AI disabled" if not self._enabled else "daily limit reached"
@@ -348,14 +450,15 @@ class NarrativeService:
 
         try:
             prompt = self._format_prompt(ctx)
+            model = self._get_model(locale)
             logger.info(
-                f"Generating AI narrative for {ctx['username']} "
+                f"Generating AI narrative [{locale}] for {ctx['username']} "
                 f"({ctx['total_games']} games, rating {ctx['average_rating']})"
             )
 
             # Use asyncio.to_thread since google-generativeai's sync client
             # is thread-safe; avoids blocking the event loop.
-            response = await asyncio.to_thread(self._model.generate_content, prompt)
+            response = await asyncio.to_thread(model.generate_content, prompt)
             self._increment_counter()
 
             raw = response.text.strip()

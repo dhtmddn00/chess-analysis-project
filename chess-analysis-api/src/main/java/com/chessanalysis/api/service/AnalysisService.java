@@ -52,6 +52,10 @@ public class AnalysisService {
     private static final int PRECISE_MAX_GAMES = 20;
     
     public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp) {
+        return createAnalysis(request, clientIp, null);
+    }
+
+    public AnalysisResponseDto createAnalysis(AnalysisRequestDto request, String clientIp, UUID userId) {
         String normalizedUsername = request.getUsername() == null ? "" : request.getUsername().trim();
         String normalizedPlatform = request.getPlatform() == null ? "chess.com" : request.getPlatform().trim();
         String normalizedPriority = normalizePriority(request.getPriority());
@@ -86,6 +90,7 @@ public class AnalysisService {
                 .status(Analysis.AnalysisStatus.PENDING)
                 .progress(0)
                 .currentStep("Queued for " + normalizedPriority + " analysis")
+                .userId(userId)   // null for guests
                 .build();
                 
         analysis = analysisRepository.saveAndFlush(analysis);
@@ -103,7 +108,9 @@ public class AnalysisService {
                 normalizedPlatform,
                 normalizedGameCount,
                 request.getTimeControl(),
-                normalizedPriority
+                normalizedPriority,
+                request.getLocale(),
+                userId
         );
         
         try {

@@ -478,5 +478,31 @@
     "platform": "Platform",
     "analyzeFirst": "Analyze First",
     "errorFetch": "Failed to load data"
+  },
+  "Auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "signup": "Sign up",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Log in to save your analysis history",
+    "signupTitle": "Create an account",
+    "signupSubtitle": "Free forever. No credit card required.",
+    "email": "Email",
+    "password": "Password",
+    "passwordHint": "min 8 characters",
+    "confirmPassword": "Confirm password",
+    "name": "Display name",
+    "namePlaceholder": "e.g. Magnus",
+    "loggingIn": "Logging in…",
+    "signingUp": "Creating account…",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "termsNotice": "By signing up you agree to our Terms and Privacy Policy.",
+    "errorInvalidCredentials": "Incorrect email or password.",
+    "errorTooManyAttempts": "Too many failed attempts. Please wait 15 minutes.",
+    "errorEmailTaken": "This email is already registered.",
+    "errorPasswordMismatch": "Passwords do not match.",
+    "errorPasswordTooShort": "Password must be at least 8 characters.",
+    "errorGeneric": "Something went wrong. Please try again."
   }
 }

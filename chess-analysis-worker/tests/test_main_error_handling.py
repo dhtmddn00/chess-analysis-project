@@ -1,6 +1,6 @@
 """Tests for worker error classification and retry logic."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 import sys
 import os
 
@@ -18,10 +18,19 @@ def worker():
     w.chess_api = AsyncMock()
     w.profiler = AsyncMock()
     w.analyzer = AsyncMock()
+    w.narrative_service = MagicMock()
+    w.narrative_service.generate = AsyncMock(return_value={
+        'pattern': 'test', 'why_losing': 'test', 'one_action': 'test'
+    })
     w.running = False
     w.queue_name = "chess-analysis-queue"
     w._move_schema_ready = False
     return w
+
+
+def _unwrap(fn):
+    """Unwrap tenacity @retry decorator (single level of __wrapped__)."""
+    return fn.__wrapped__
 
 
 @pytest.mark.asyncio
@@ -30,14 +39,14 @@ async def test_unsupported_platform_raises_fatal(worker):
     job_data = {
         'analysisId': 'test-id-123',
         'username': 'testuser',
-        'platform': 'lichess',
+        'platform': 'unsupported_platform',   # ← 진짜 지원 안 하는 플랫폼
         'gameCount': 10,
         'priority': 'fast',
     }
     worker.update_analysis_status = AsyncMock()
 
     # FatalAnalysisError should not propagate (caught internally, no re-raise)
-    await worker.process_analysis_job.__wrapped__.__wrapped__(worker, job_data)
+    await _unwrap(worker.process_analysis_job)(worker, job_data)
 
     worker.update_analysis_status.assert_called()
     last_call_args = worker.update_analysis_status.call_args
@@ -57,7 +66,7 @@ async def test_no_games_found_raises_fatal(worker):
     worker.update_analysis_status = AsyncMock()
     worker.chess_api.get_recent_games = AsyncMock(return_value=([], {}))
 
-    await worker.process_analysis_job.__wrapped__.__wrapped__(worker, job_data)
+    await _unwrap(worker.process_analysis_job)(worker, job_data)
 
     worker.update_analysis_status.assert_called()
     last_call_args = worker.update_analysis_status.call_args
@@ -67,8 +76,6 @@ async def test_no_games_found_raises_fatal(worker):
 @pytest.mark.asyncio
 async def test_network_error_raises_transient(worker):
     """Network errors from Chess.com API should be wrapped as TransientAnalysisError."""
-    import aiohttp
-
     job_data = {
         'analysisId': 'test-id-789',
         'username': 'testuser',
@@ -82,7 +89,7 @@ async def test_network_error_raises_transient(worker):
     )
 
     with pytest.raises(TransientAnalysisError):
-        await worker.process_analysis_job.__wrapped__.__wrapped__(worker, job_data)
+        await _unwrap(worker.process_analysis_job)(worker, job_data)
 
 
 def test_fatal_error_is_not_transient():

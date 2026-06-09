@@ -175,13 +175,13 @@ USER_PROMPT_TEMPLATE_KO = """\
 
 → 가장 강한 차원: {strongest} ({strongest_score}점)
 → 가장 약한 차원: {weakest} ({weakest_score}점)
-→ 강약 격차: {gap}점
 
 ### 주요 오프닝
 {opening_lines}
 
-### AI 스타일 태그
-{style_tags}
+### 게임별 실수 기록 (50cp 이상 손실, 게임 순서대로)
+이 데이터에서 반복 패턴을 찾으세요 — 같은 수 대역, 같은 오프닝, 같은 색깔에서 반복되는지 확인.
+{decisive_lines}
 """
 
 USER_PROMPT_TEMPLATE_EN = """\
@@ -201,13 +201,13 @@ Player: {username} | Rating: {average_rating} | Games analyzed: {total_games}
 
 → Strongest dimension: {strongest} ({strongest_score})
 → Weakest dimension:   {weakest} ({weakest_score})
-→ Gap: {gap} points
 
 ### Main openings
 {opening_lines}
 
-### Style tags
-{style_tags}
+### Mistake log (50cp+ losses, ordered by game)
+Find repeating patterns — same move range, same opening, same color?
+{decisive_lines}
 """
 
 # Aliases used by the rest of the module (Korean is default)
@@ -335,7 +335,35 @@ class NarrativeService:
             "gap": round(strongest_score - weakest_score, 1),
             "openings": openings,
             "style_tags": (profile.style_tags or [])[:5],
+            "decisive_moves": stats.get("decisive_moves", []),
         }
+
+    def _format_decisive_lines(self, decisive_moves: list, is_en: bool) -> str:
+        """Format decisive moves into a compact, AI-readable text block."""
+        if not decisive_moves:
+            return "  (no data)" if is_en else "  (데이터 없음)"
+
+        lines = []
+        for m in decisive_moves:
+            quality_label = "blunder" if m["cp_loss"] >= 100 else "mistake"
+            if not is_en:
+                quality_label = "블런더" if m["cp_loss"] >= 100 else "실수"
+            opening = f" [{m['opening']}]" if m.get("opening") else ""
+            result = f" ({m['result']})" if m.get("result") else ""
+            color = m.get("color", "")
+            color_str = f" {color}" if color else ""
+
+            if is_en:
+                lines.append(
+                    f"  Game {m['game']}{color_str}{opening}{result} | "
+                    f"move {m['move']}: {m['played']} ({quality_label}, -{m['cp_loss']}cp) → best: {m['best']}"
+                )
+            else:
+                lines.append(
+                    f"  게임{m['game']}{color_str}{opening}{result} | "
+                    f"{m['move']}수: {m['played']} ({quality_label}, -{m['cp_loss']}cp) → 최선: {m['best']}"
+                )
+        return "\n".join(lines)
 
     def _format_prompt(self, ctx: dict) -> str:
         locale = ctx.get("locale", "ko")
@@ -353,7 +381,7 @@ class NarrativeService:
             f"  {o['colour']} {o['name']} — {o['games']} {games_label}, {winrate_label} {o['win_pct']}%"
             for o in ctx["openings"]
         ) or f"  {no_data}"
-        style_tags = ", ".join(ctx["style_tags"]) or ("none" if is_en else "없음")
+        decisive_lines = self._format_decisive_lines(ctx.get("decisive_moves", []), is_en)
 
         template = USER_PROMPT_TEMPLATE_EN if is_en else USER_PROMPT_TEMPLATE_KO
         return template.format(
@@ -373,9 +401,8 @@ class NarrativeService:
             strongest_score=ctx["strongest_score"],
             weakest=ctx["weakest"],
             weakest_score=ctx["weakest_score"],
-            gap=ctx["gap"],
             opening_lines=opening_lines,
-            style_tags=style_tags,
+            decisive_lines=decisive_lines,
         )
 
     # ── Fallback (rule-based) ──────────────────────────────────────────────────

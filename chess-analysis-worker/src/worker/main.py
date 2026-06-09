@@ -701,7 +701,8 @@ class ChessAnalysisWorker:
         try:
             # Fetch pre-computed per-game accuracy/blunder stats from DB
             # (stored in Step 5 by store_analysis_results)
-            stats = await self._fetch_aggregate_stats(analysis_id)
+            username = getattr(profile_data, 'player_name', '') or ''
+            stats = await self._fetch_aggregate_stats(analysis_id, username=username)
 
             narrative = await self.narrative_service.generate(profile_data, stats, locale=locale)
 
@@ -721,15 +722,18 @@ class ChessAnalysisWorker:
                 f"(analysis marked COMPLETED regardless)"
             )
 
-    async def _fetch_aggregate_stats(self, analysis_id: str) -> dict:
-        """Aggregate accuracy and blunder counts from already-stored game_analyses rows."""
+    async def _fetch_aggregate_stats(self, analysis_id: str, username: str = "") -> dict:
+        """Aggregate stats + all decisive moves (mistakes/blunders) with game context."""
+        stats = {"avg_accuracy": 0.0, "total_blunders": 0, "total_mistakes": 0, "decisive_moves": []}
+
+        # ── Aggregate stats ────────────────────────────────────────────────────
         try:
             rows = await self.db_client.fetch_all(
                 """
                 SELECT
-                    AVG(accuracy)       AS avg_accuracy,
-                    SUM(blunders)       AS total_blunders,
-                    SUM(mistakes)       AS total_mistakes
+                    AVG(accuracy)    AS avg_accuracy,
+                    SUM(blunders)    AS total_blunders,
+                    SUM(mistakes)    AS total_mistakes
                 FROM game_analyses
                 WHERE analysis_id = $1
                 """,
@@ -737,14 +741,57 @@ class ChessAnalysisWorker:
             )
             if rows:
                 row = rows[0]
-                return {
-                    "avg_accuracy":   float(row.get("avg_accuracy")   or 0.0),
-                    "total_blunders": int(row.get("total_blunders")   or 0),
-                    "total_mistakes": int(row.get("total_mistakes")   or 0),
-                }
+                stats["avg_accuracy"]   = float(row.get("avg_accuracy")   or 0.0)
+                stats["total_blunders"] = int(row.get("total_blunders")   or 0)
+                stats["total_mistakes"] = int(row.get("total_mistakes")   or 0)
         except Exception as exc:
-            logger.warning(f"_fetch_aggregate_stats failed: {exc}")
-        return {"avg_accuracy": 0.0, "total_blunders": 0, "total_mistakes": 0}
+            logger.warning(f"_fetch_aggregate_stats (agg) failed: {exc}")
+
+        # ── Decisive moves: 실수(50cp↑) 전체, 게임 컨텍스트 포함 ───────────────
+        try:
+            move_rows = await self.db_client.fetch_all(
+                """
+                SELECT
+                    m.game_index,
+                    m.move_number + 1            AS move_num,   -- 0-indexed → 1-indexed
+                    m.move_notation              AS played,
+                    m.best_move                  AS best,
+                    m.centipawn_loss             AS cp_loss,
+                    m.classification             AS quality,
+                    g.result,
+                    g.opening,
+                    g.white_player,
+                    g.black_player
+                FROM move_analyses m
+                LEFT JOIN games_worker g
+                       ON g.analysis_id = m.analysis_id
+                      AND g.game_index  = m.game_index
+                WHERE m.analysis_id   = $1
+                  AND m.centipawn_loss >= 50        -- 실수(50cp) 이상 전부
+                  AND m.move_notation != ''         -- 빈 수 제외
+                ORDER BY m.game_index, m.move_number
+                """,
+                [analysis_id],
+            )
+            decisive = []
+            for r in move_rows:
+                decisive.append({
+                    "game":    int(r.get("game_index", 0)) + 1,   # 1-indexed
+                    "move":    int(r.get("move_num",   0)),
+                    "played":  r.get("played", "?"),
+                    "best":    r.get("best",   "?"),
+                    "cp_loss": int(r.get("cp_loss", 0)),
+                    "quality": r.get("quality", "mistake"),
+                    "result":  r.get("result", "?"),
+                    "opening": r.get("opening", ""),
+                    "color":   "백" if r.get("white_player", "").lower() == username.lower() else "흑",
+                })
+            stats["decisive_moves"] = decisive
+            logger.info(f"Fetched {len(decisive)} decisive moves for narrative context")
+        except Exception as exc:
+            logger.warning(f"_fetch_aggregate_stats (moves) failed: {exc}")
+
+        return stats
 
     def _serialize_profile(self, profile) -> dict:
         """Convert PlayerProfile to serializable dict"""

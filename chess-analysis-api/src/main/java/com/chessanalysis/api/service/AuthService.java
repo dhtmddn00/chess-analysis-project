@@ -10,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,7 @@ import java.util.HexFormat;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     static final String COOKIE_NAME = "auth_token";
@@ -65,7 +67,12 @@ public class AuthService {
                     .privacyAgreedAt(now)          // 개인정보 동의 시간 기록 (PIPA)
                     .build();
             userRepository.saveAndFlush(user);
-            emailService.sendVerificationEmail(user.getEmail(), token);
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), token);
+            } catch (Exception emailEx) {
+                // 메일 발송 실패는 계정 생성에 영향 없음 — 사용자가 재발송 요청 가능
+                log.warn("[Signup] 인증 메일 발송 실패 (계정은 생성됨): {}", emailEx.getMessage());
+            }
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
         }

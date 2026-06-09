@@ -59,7 +59,7 @@ export default function VerifyEmailPage() {
             <XCircle className="mx-auto mb-4 h-12 w-12 text-amber-500" />
             <h1 className="text-xl font-bold text-zinc-900">{t('verifyExpired')}</h1>
             <p className="mt-2 text-sm text-zinc-500">{t('verifyExpiredDesc')}</p>
-            <Link href="/auth/signup"
+            <Link href="/auth/login"
               className="mt-4 inline-block rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">
               {t('resendEmail')}
             </Link>

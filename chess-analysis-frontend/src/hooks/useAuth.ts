@@ -21,12 +21,6 @@ export function useAuth() {
     return u;
   };
 
-  const signup = async (email: string, password: string, name: string) => {
-    const u = await authApi.signup(email, password, name);
-    await globalMutate(ME_KEY, u, false);
-    return u;
-  };
-
   const logout = async () => {
     await authApi.logout();
     await globalMutate(ME_KEY, null, false);
@@ -37,7 +31,6 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!user,
     login,
-    signup,
     logout,
   };
 }

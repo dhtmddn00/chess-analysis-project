@@ -30,12 +30,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const authApi = {
-  signup: (email: string, password: string, name: string) =>
-    request<AuthUser>('/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, name }),
-    }),
-
   login: (email: string, password: string) =>
     request<AuthUser>('/login', {
       method: 'POST',

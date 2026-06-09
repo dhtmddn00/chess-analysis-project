@@ -82,11 +82,14 @@ public class AuthController {
         return ResponseEntity.ok(authService.getCurrentUser(request));
     }
 
-    // 프록시 환경을 고려한 클라이언트 IP 추출
+    // 클라이언트 실제 IP 추출
+    // X-Forwarded-For는 클라이언트가 임의 값을 주입할 수 있어 사용하지 않음 (기존 컨트롤러와 동일 정책)
+    // Fly.io 환경: Fly-Client-IP 헤더가 인프라에서 설정되므로 신뢰 가능
+    // 로컬/기타: RemoteAddr 사용
     private String getClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].strip();
+        String flyClientIp = request.getHeader("Fly-Client-IP");
+        if (flyClientIp != null && !flyClientIp.isBlank()) {
+            return flyClientIp.strip();
         }
         return request.getRemoteAddr();
     }

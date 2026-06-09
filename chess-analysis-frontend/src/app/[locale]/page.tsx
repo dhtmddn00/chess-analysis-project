@@ -16,7 +16,6 @@ import {
   Trash2,
   ExternalLink,
 } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useLocalHistory } from '@/hooks/useLocalHistory';
 
 const boardPieces = [
@@ -32,7 +31,7 @@ const boardPieces = [
 
 export default function Home() {
   const t = useTranslations('Home');
-  const tNav = useTranslations('Nav');
+
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [platform, setPlatform] = useState<'chess.com' | 'lichess'>('chess.com');
@@ -92,53 +91,6 @@ export default function Home() {
 
   return (
     <main className="chess-toss min-h-screen bg-gray-50">
-      <header className="border-b border-zinc-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="flex items-center gap-3 text-left"
-            aria-label="Chess Analysis home"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-xl text-white">
-              ♘
-            </span>
-            <span>
-              <span className="block text-base font-bold text-zinc-950">Chess Analysis</span>
-              <span className="block text-xs font-medium text-zinc-500">{tNav('logoSubtitle')}</span>
-            </span>
-          </button>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <LanguageSwitcher />
-            <button
-              type="button"
-              onClick={() => router.push('/history')}
-              className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-              이력
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/compare')}
-              className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-              비교
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/analyze')}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
-            >
-              <Search className="h-4 w-4" />
-              {tNav('analyzeScreen')}
-            </button>
-          </div>
-        </div>
-      </header>
-
       <section className="chess-hero">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8 lg:py-16">
           <div className="flex flex-col justify-center">

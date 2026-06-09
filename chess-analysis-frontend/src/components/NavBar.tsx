@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { LogIn, LogOut, User, ChevronDown } from 'lucide-react';
+import { LogIn, LogOut, User, ChevronDown, BarChart2, ArrowLeftRight, Search } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -34,9 +34,36 @@ export function NavBar() {
   return (
     <nav className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-sm font-bold text-zinc-900">
-          ♟ ChessLab
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2 text-sm font-bold text-zinc-900">
+            ♟ ChessLab
+          </Link>
+
+          {/* Page links */}
+          <div className="hidden sm:flex items-center gap-1">
+            <Link
+              href="/history"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            >
+              <BarChart2 className="h-3.5 w-3.5" />
+              {t('history')}
+            </Link>
+            <Link
+              href="/compare"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              {t('compare')}
+            </Link>
+            <Link
+              href="/analyze"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
+            >
+              <Search className="h-3.5 w-3.5" />
+              {t('analyzeScreen')}
+            </Link>
+          </div>
+        </div>
 
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
@@ -84,3 +111,4 @@ export function NavBar() {
     </nav>
   );
 }
+

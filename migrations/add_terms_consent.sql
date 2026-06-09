@@ -1,0 +1,3 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS terms_agreed_at TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS privacy_agreed_at TIMESTAMP;

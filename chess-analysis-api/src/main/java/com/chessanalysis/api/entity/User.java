@@ -42,6 +42,22 @@ public class User {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    @Column(name = "verification_token", length = 64)
+    private String verificationToken;
+
+    @Column(name = "verification_token_expires_at")
+    private LocalDateTime verificationTokenExpiresAt;
+
+    @Column(name = "terms_agreed_at")
+    private LocalDateTime termsAgreedAt;
+
+    @Column(name = "privacy_agreed_at")
+    private LocalDateTime privacyAgreedAt;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

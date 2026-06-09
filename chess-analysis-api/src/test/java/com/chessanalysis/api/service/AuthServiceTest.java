@@ -44,6 +44,8 @@ class AuthServiceTest {
     @Mock PasswordEncoder passwordEncoder;
     @Mock LoginAttemptService loginAttemptService;
     @Mock JwtProperties jwtProperties;
+    @Mock EmailService emailService;
+    @Mock SignupRateLimitService signupRateLimitService;
     @Mock HttpServletResponse response;
     @Mock HttpServletRequest request;
 
@@ -65,6 +67,7 @@ class AuthServiceTest {
                 .build();
         ReflectionTestUtils.setField(activeUser, "id", userId);
         ReflectionTestUtils.setField(activeUser, "active", true);
+        ReflectionTestUtils.setField(activeUser, "emailVerified", true);
         ReflectionTestUtils.setField(activeUser, "createdAt", LocalDateTime.now());
         ReflectionTestUtils.setField(activeUser, "subscriptionTier", "free");
     }
@@ -76,7 +79,7 @@ class AuthServiceTest {
     class Signup {
 
         @Test
-        @DisplayName("정상 요청 시 유저 저장 후 JWT 쿠키 설정")
+        @DisplayName("정상 요청 시 유저 저장 + 인증 메일 발송 (JWT 쿠키 미발급)")
         void success() {
             SignupRequest req = new SignupRequest();
             req.setEmail("NEW@EXAMPLE.COM");
@@ -90,21 +93,14 @@ class AuthServiceTest {
                 ReflectionTestUtils.setField(u, "createdAt", LocalDateTime.now());
                 return u;
             });
-            when(jwtService.generateToken(userId)).thenReturn("jwt-token");
 
-            AuthResponse result = authService.signup(req, response);
+            authService.signup(req, "127.0.0.1");
 
-            assertThat(result.getEmail()).isEqualTo("new@example.com");  // 소문자 정규화
-            assertThat(result.getName()).isEqualTo("신규유저");
-
-            verify(passwordEncoder).encode("password123");
             verify(userRepository).saveAndFlush(argThat(u ->
                     "new@example.com".equals(u.getEmail()) && "hashed".equals(u.getPasswordHash())
             ));
-            // Set-Cookie 헤더 설정 확인
-            verify(response).addHeader(eq("Set-Cookie"), contains("auth_token=jwt-token"));
-            verify(response).addHeader(eq("Set-Cookie"), contains("HttpOnly"));
-            verify(response).addHeader(eq("Set-Cookie"), contains("SameSite=Lax"));
+            verify(emailService).sendVerificationEmail(eq("new@example.com"), anyString());
+            verify(jwtService, never()).generateToken(any());
         }
 
         @Test
@@ -118,7 +114,7 @@ class AuthServiceTest {
             when(passwordEncoder.encode(any())).thenReturn("hashed");
             when(userRepository.saveAndFlush(any())).thenThrow(DataIntegrityViolationException.class);
 
-            assertThatThrownBy(() -> authService.signup(req, response))
+            assertThatThrownBy(() -> authService.signup(req, "127.0.0.1"))
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
                             .isEqualTo(HttpStatus.CONFLICT));
@@ -320,23 +316,18 @@ class AuthServiceTest {
     class CookieSecurity {
 
         @Test
-        @DisplayName("Set-Cookie 헤더에 HttpOnly, SameSite=Lax 포함")
-        void cookieHasSecurityAttributes() {
-            SignupRequest req = new SignupRequest();
-            req.setEmail("test@example.com");
-            req.setPassword("password123");
-            req.setName("테스터");
-
-            when(passwordEncoder.encode(any())).thenReturn("hashed");
-            when(userRepository.saveAndFlush(any())).thenAnswer(inv -> {
-                User u = inv.getArgument(0);
-                ReflectionTestUtils.setField(u, "id", userId);
-                ReflectionTestUtils.setField(u, "createdAt", LocalDateTime.now());
-                return u;
-            });
+        @DisplayName("로그인 성공 시 Set-Cookie 헤더에 HttpOnly, SameSite=Lax 포함")
+        void loginCookieHasSecurityAttributes() {
+            when(loginAttemptService.isBlocked(any())).thenReturn(false);
+            when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser));
+            when(passwordEncoder.matches(any(), any())).thenReturn(true);
             when(jwtService.generateToken(userId)).thenReturn("tok");
+            when(userRepository.save(any())).thenReturn(activeUser);
 
-            authService.signup(req, response);
+            LoginRequest req = new LoginRequest();
+            req.setEmail("user@example.com");
+            req.setPassword("pw");
+            authService.login(req, response);
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(response).addHeader(eq("Set-Cookie"), captor.capture());
@@ -344,7 +335,7 @@ class AuthServiceTest {
 
             assertThat(header).contains("HttpOnly");
             assertThat(header).contains("SameSite=Lax");
-            assertThat(header).doesNotContain("auth_token=;");  // 빈 값이 아님
+            assertThat(header).contains("auth_token=tok");
         }
     }
 }

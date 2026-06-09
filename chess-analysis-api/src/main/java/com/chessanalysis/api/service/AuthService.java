@@ -19,8 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HexFormat;
 
 @Service
 @RequiredArgsConstructor
@@ -30,31 +32,96 @@ public class AuthService {
 
     // BCrypt dummy — 타이밍 공격 방어용 (로그인 실패 시 일관된 응답 시간 유지)
     private static final String DUMMY_HASH = "$2a$12$hBjBEqRmXCLB6nD/6ZP4OOKiCE3yW6K8mHaLBiKKp5nQesMayfTKa";
+    private static final int TOKEN_EXPIRY_HOURS = 24;
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptService loginAttemptService;
+    private final SignupRateLimitService signupRateLimitService;
     private final JwtProperties jwtProperties;
+    private final EmailService emailService;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
 
+    // ── 회원가입 ─────────────────────────────────────────────────────────────
+
     @Transactional
-    public AuthResponse signup(SignupRequest req, HttpServletResponse response) {
+    public void signup(SignupRequest req, String clientIp) {
+        signupRateLimitService.checkSignupLimit(clientIp);
+
         try {
+            String token = generateVerificationToken();
+            LocalDateTime now = LocalDateTime.now();
             User user = User.builder()
-                    .email(req.getEmail().toLowerCase())
+                    .email(req.getEmail().toLowerCase().strip())
                     .passwordHash(passwordEncoder.encode(req.getPassword()))
-                    .name(req.getName())
+                    .name(req.getName().strip())   // 앞뒤 공백 제거
+                    .verificationToken(token)
+                    .verificationTokenExpiresAt(now.plusHours(TOKEN_EXPIRY_HOURS))
+                    .termsAgreedAt(now)            // 약관 동의 시간 기록 (PIPA)
+                    .privacyAgreedAt(now)          // 개인정보 동의 시간 기록 (PIPA)
                     .build();
             userRepository.saveAndFlush(user);
-            setAuthCookie(response, jwtService.generateToken(user.getId()));
-            return toResponse(user);
+            emailService.sendVerificationEmail(user.getEmail(), token);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
         }
     }
+
+    // 이메일 중복 확인 (실시간 검사용)
+    public boolean isEmailAvailable(String email, String clientIp) {
+        signupRateLimitService.checkEmailCheckLimit(clientIp);
+        return !userRepository.existsByEmail(email.toLowerCase().strip());
+    }
+
+    // 이름 중복 확인 (실시간 검사용, 대소문자 무관)
+    public boolean isNameAvailable(String name, String clientIp) {
+        signupRateLimitService.checkNameCheckLimit(clientIp);
+        return !userRepository.existsByNameIgnoreCase(name.strip());
+    }
+
+    // ── 이메일 인증 ──────────────────────────────────────────────────────────
+
+    @Transactional
+    public AuthResponse verifyEmail(String token, HttpServletResponse response) {
+        User user = userRepository.findByVerificationToken(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 인증 링크입니다."));
+
+        if (user.getVerificationTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "인증 링크가 만료되었습니다. 재발송을 요청해주세요.");
+        }
+
+        user.setEmailVerified(true);
+        user.setVerificationToken(null);
+        user.setVerificationTokenExpiresAt(null);
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        setAuthCookie(response, jwtService.generateToken(user.getId()));
+        return toResponse(user);
+    }
+
+    // ── 인증 메일 재발송 ─────────────────────────────────────────────────────
+
+    @Transactional
+    public void resendVerification(String email) {
+        signupRateLimitService.checkResendLimit(email);
+
+        // 이메일 열거 공격 방어: 존재하지 않는 이메일도 200 반환 (에러 노출 안 함)
+        userRepository.findByEmail(email.toLowerCase().strip())
+                .filter(u -> !u.isEmailVerified())
+                .ifPresent(user -> {
+                    user.setVerificationToken(generateVerificationToken());
+                    user.setVerificationTokenExpiresAt(LocalDateTime.now().plusHours(TOKEN_EXPIRY_HOURS));
+                    userRepository.save(user);
+                    emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+                });
+    }
+
+    // ── 로그인 ──────────────────────────────────────────────────────────────
 
     public AuthResponse login(LoginRequest req, HttpServletResponse response) {
         String email = req.getEmail().toLowerCase();
@@ -78,6 +145,10 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "비활성화된 계정입니다.");
         }
 
+        if (!user.isEmailVerified()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED");
+        }
+
         loginAttemptService.clearFailures(email);
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
@@ -85,6 +156,8 @@ public class AuthService {
         setAuthCookie(response, jwtService.generateToken(user.getId()));
         return toResponse(user);
     }
+
+    // ── 로그아웃 ────────────────────────────────────────────────────────────
 
     public void logout(HttpServletResponse response) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
@@ -97,6 +170,8 @@ public class AuthService {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
+    // ── 내 정보 ─────────────────────────────────────────────────────────────
+
     public AuthResponse getCurrentUser(HttpServletRequest request) {
         String token = extractToken(request);
         if (token == null || !jwtService.isValid(token)) {
@@ -107,6 +182,14 @@ public class AuthService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
 
         return toResponse(user);
+    }
+
+    // ── 내부 유틸 ────────────────────────────────────────────────────────────
+
+    private String generateVerificationToken() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
     }
 
     private void setAuthCookie(HttpServletResponse response, String token) {

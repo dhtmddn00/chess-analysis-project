@@ -15,26 +15,40 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [notVerified, setNotVerified] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotVerified(false);
     setLoading(true);
     try {
       await login(form.email, form.password);
       router.push('/');
     } catch (err: unknown) {
-      const e = err as Error & { status?: number };
+      const e = err as Error & { status?: number; message?: string };
       if (e.status === 429) {
         setError(t('errorTooManyAttempts'));
       } else if (e.status === 401) {
         setError(t('errorInvalidCredentials'));
+      } else if (e.status === 403 && e.message === 'EMAIL_NOT_VERIFIED') {
+        setNotVerified(true);
       } else {
         setError(t('errorGeneric'));
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResend = async () => {
+    await fetch('/api/v1/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email }),
+    }).catch(() => {});
+    setResendDone(true);
   };
 
   return (
@@ -50,8 +64,21 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           {error && (
-            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          )}
+
+          {notVerified && (
+            <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-semibold">{t('errorNotVerified')}</p>
+              <p className="mt-0.5">{t('errorNotVerifiedDesc')}</p>
+              {!resendDone ? (
+                <button onClick={handleResend}
+                  className="mt-2 font-semibold underline hover:no-underline">
+                  {t('resendEmail')}
+                </button>
+              ) : (
+                <p className="mt-2 font-semibold">{t('resendDone')}</p>
+              )}
             </div>
           )}
 

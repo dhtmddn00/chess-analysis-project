@@ -6,6 +6,9 @@ primary_region = "nrt"
   SPRING_PROFILES_ACTIVE = "prod"
   REDIS_SSL = "true"
   SHORTLINK_BASE_URL = "https://chess-analysis-api-prod.fly.dev/s"
+  COOKIE_SECURE = "true"
+  FRONTEND_URL = "https://chesslab.kr"
+  RESEND_FROM = "noreply@chesslab.kr"
 
 [http_service]
   internal_port = 8080

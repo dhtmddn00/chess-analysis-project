@@ -21,6 +21,13 @@ export DB_PASSWORD=local-dev-only
 
 export NEXT_PUBLIC_API_URL=http://localhost:8080
 
+# Auth
+export JWT_SECRET="local-dev-jwt-secret-key-minimum-32-bytes-long"
+export COOKIE_SECURE=false
+export FRONTEND_URL=http://localhost:3000
+# RESEND_API_KEY 없으면 인증 URL이 서버 콘솔에 출력됨 (로컬 테스트용)
+export RESEND_API_KEY=
+
 case "$1" in
   start)
     echo "🚀 Starting Local Development Environment..."

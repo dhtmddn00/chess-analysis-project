@@ -64,6 +64,13 @@ jwt:
 cookie:
   secure: ${COOKIE_SECURE:true}
 
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from: ${RESEND_FROM:onboarding@resend.dev}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
 # Custom Application Properties
 chess-analysis:
   chess-com:

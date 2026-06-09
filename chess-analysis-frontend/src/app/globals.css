@@ -298,6 +298,17 @@ body {
    Specificity 0,0,2,1 beats the global h-tag rule (0,0,1,1),
    so these !important overrides always win. */
 
+/* shadow-lg / shadow-sm force white background on .chess-toss — cancel that
+   for explicitly dark sections so bg-zinc-950 is preserved. */
+.chess-toss .dark-surface.shadow-lg,
+.chess-toss .dark-surface.shadow-sm,
+.chess-toss .dark-surface .shadow-lg,
+.chess-toss .dark-surface .shadow-sm {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
 /* bg-zinc-950 dark sections tagged with .dark-surface */
 .chess-toss .dark-surface h1,
 .chess-toss .dark-surface h2,

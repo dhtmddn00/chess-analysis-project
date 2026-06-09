@@ -73,7 +73,8 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
     <div className="space-y-8">
 
       {/* ── Executive Summary ──────────────────────────────────────────────── */}
-      <div id="section-top" className="rounded-xl bg-zinc-950 text-white shadow-lg p-4 sm:p-6">
+      {/* dark-surface: globals.css 의 .chess-toss p/h 강제 색상을 흰색으로 복원 */}
+      <div id="section-top" className="dark-surface rounded-xl bg-zinc-950 text-white shadow-lg p-4 sm:p-6">
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-lg bg-white text-xl sm:text-2xl text-black">♔</div>
           <div>

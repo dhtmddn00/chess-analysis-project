@@ -85,7 +85,7 @@ class ChessAnalysisWorker:
             # AI narrative service — optional, degrades gracefully if key absent
             self.narrative_service = NarrativeService(
                 redis_client=self.redis_client,
-                api_key=os.getenv("GEMINI_API_KEY"),
+                api_key=os.getenv("GROQ_API_KEY"),
             )
             self.narrative_service.initialize()
 

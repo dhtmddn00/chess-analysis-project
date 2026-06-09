@@ -214,35 +214,20 @@ class NarrativeService:
     # ── Initialisation ─────────────────────────────────────────────────────────
 
     def initialize(self) -> None:
-        """Configure Gemini client. Safe to call even if api_key is absent."""
+        """Configure Groq client. Safe to call even if api_key is absent."""
         if not self._api_key:
             logger.warning(
-                "GEMINI_API_KEY not set — NarrativeService disabled, "
+                "GROQ_API_KEY not set — NarrativeService disabled, "
                 "rule-based fallback will be used"
             )
             return
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self._api_key)
-            # Store the genai module so _get_model() can create locale-specific instances
-            self._genai = genai
+            from groq import Groq
+            self._client = Groq(api_key=self._api_key)
             self._enabled = True
-            logger.info("NarrativeService ready (Gemini 2.0 Flash)")
+            logger.info("NarrativeService ready (Groq / Llama-3.3-70B)")
         except Exception as exc:
             logger.error(f"NarrativeService initialisation failed: {exc}")
-
-    def _get_model(self, locale: str):
-        """Return a Gemini model configured with the correct system prompt for locale."""
-        system_prompt = SYSTEM_PROMPT_EN if locale == "en" else SYSTEM_PROMPT_KO
-        return self._genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            generation_config={
-                "temperature": 0.7,
-                "max_output_tokens": 600,
-                "response_mime_type": "application/json",
-            },
-            system_instruction=system_prompt,
-        )
 
     # ── Rate-limit helpers ─────────────────────────────────────────────────────
 
@@ -455,20 +440,31 @@ class NarrativeService:
             return self._fallback(ctx)
 
         try:
-            prompt = self._format_prompt(ctx)
-            model = self._get_model(locale)
+            system_prompt = SYSTEM_PROMPT_EN if locale == "en" else SYSTEM_PROMPT_KO
+            user_prompt = self._format_prompt(ctx)
             logger.info(
                 f"Generating AI narrative [{locale}] for {ctx['username']} "
                 f"({ctx['total_games']} games, rating {ctx['average_rating']})"
             )
 
-            # Use asyncio.to_thread since google-generativeai's sync client
-            # is thread-safe; avoids blocking the event loop.
-            response = await asyncio.to_thread(model.generate_content, prompt)
+            # Groq client is sync — run in thread to avoid blocking the event loop
+            def _call_groq():
+                return self._client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": user_prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=600,
+                    response_format={"type": "json_object"},
+                )
+
+            response = await asyncio.to_thread(_call_groq)
             self._increment_counter()
 
-            raw = response.text.strip()
-            # Belt-and-suspenders: strip markdown fences if present despite JSON mode
+            raw = response.choices[0].message.content.strip()
+            # Belt-and-suspenders: strip markdown fences if Groq wraps output
             if raw.startswith("```"):
                 parts = raw.split("```")
                 raw = parts[1].lstrip("json").strip() if len(parts) > 1 else raw

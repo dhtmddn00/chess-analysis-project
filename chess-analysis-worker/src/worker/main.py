@@ -724,7 +724,7 @@ class ChessAnalysisWorker:
     async def _fetch_aggregate_stats(self, analysis_id: str) -> dict:
         """Aggregate accuracy and blunder counts from already-stored game_analyses rows."""
         try:
-            rows = await self.db_client.fetch(
+            rows = await self.db_client.fetch_all(
                 """
                 SELECT
                     AVG(accuracy)       AS avg_accuracy,

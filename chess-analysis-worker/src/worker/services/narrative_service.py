@@ -34,9 +34,9 @@ DIMENSION_KR = {
     "risk_taking":            "리스크 감수",
     "exchange_preference":    "기물 교환 선호",
     "opening_variety":        "오프닝 다양성",
+    "book_deviation":         "오프닝 이탈 성향",
     "lead_conversion":        "우세 전환 능력",
     "swindle_resistance":     "역전 허용 저항",
-    "blunder_tendency":       "블런더 경향",
 }
 
 DIMENSION_EN = {
@@ -49,9 +49,9 @@ DIMENSION_EN = {
     "risk_taking":            "Risk-Taking",
     "exchange_preference":    "Exchange Preference",
     "opening_variety":        "Opening Variety",
+    "book_deviation":         "Opening Deviation",
     "lead_conversion":        "Lead Conversion",
     "swindle_resistance":     "Swindle Resistance",
-    "blunder_tendency":       "Blunder Tendency",
 }
 
 # ── Prompts ────────────────────────────────────────────────────────────────────

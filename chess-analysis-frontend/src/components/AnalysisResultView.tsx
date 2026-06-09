@@ -84,28 +84,26 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
 
         {/* AI coaching narrative — shown only when generated */}
         {coachNarrative && (
-          <div className="mt-5 border-t border-zinc-800 pt-5 space-y-4">
+          <div className="mt-6 border-t border-zinc-700 pt-5 space-y-4">
             {/* AI label */}
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300 tracking-wide uppercase">
-                ✦ AI 코치 진단
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-[11px] font-bold text-white tracking-widest uppercase">
+              ✦ AI 코치 진단
+            </span>
 
             {/* Pattern: the chess identity */}
-            <p className="text-base sm:text-lg font-semibold text-white leading-snug">
+            <p className="text-base sm:text-lg font-bold text-white leading-snug">
               {coachNarrative.pattern}
             </p>
 
             {/* Why losing: the mechanism */}
-            <p className="text-sm text-zinc-300 leading-relaxed">
+            <p className="text-sm text-zinc-200 leading-relaxed">
               {coachNarrative.why_losing}
             </p>
 
             {/* One action: clear CTA */}
-            <div className="flex items-start gap-2.5 rounded-lg bg-zinc-800/70 border border-zinc-700/50 px-3.5 py-3">
-              <span className="mt-0.5 text-sm font-bold text-zinc-400 shrink-0">→</span>
-              <p className="text-sm font-semibold text-zinc-100 leading-snug">
+            <div className="flex items-start gap-3 rounded-xl bg-white/10 border border-white/15 px-4 py-3.5">
+              <span className="mt-0.5 text-white font-bold shrink-0">→</span>
+              <p className="text-sm font-semibold text-white leading-snug">
                 {coachNarrative.one_action}
               </p>
             </div>

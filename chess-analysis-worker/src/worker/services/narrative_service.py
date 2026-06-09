@@ -376,46 +376,52 @@ class NarrativeService:
     def _fallback(self, ctx: dict) -> dict:
         """
         Rule-based fallback for when AI is unavailable.
-        Still better than hardcoded strings — uses actual player data.
+        Uses actual player data — avoids raw numbers and internal variable names.
         """
         strongest = ctx["strongest"]
         weakest = ctx["weakest"]
+        win_rate = ctx["win_rate"]
         loss_rate = ctx["loss_rate"]
-        gap = ctx["gap"]
+        username = ctx["username"]
 
-        # Pattern: highlight the contrast
+        # Pattern: cross-dimensional causal framing
         pattern = (
-            f"{strongest} 능력은 뛰어나지만 "
-            f"{weakest} 부분에서 약점이 드러나 전체 성과를 제한하고 있습니다"
+            f"{username}님의 가장 두드러진 특징은 {strongest}입니다. "
+            f"그러나 {weakest}이(가) 반복적으로 발목을 잡아 실력 발휘를 막고 있습니다."
         )
 
-        # Why losing: use what we know
+        # Why losing: more concrete, no raw "gap" numbers
         if loss_rate > 50:
             why_losing = (
-                f"패배율 {loss_rate}%는 상당히 높습니다. "
-                f"{strongest}에서는 기회를 만들지만 "
-                f"{weakest} 상황에서 그 기회를 유지하지 못하는 패턴이 반복됩니다. "
-                f"두 차원의 점수 격차({gap}점)가 크다는 것은 특정 포지션 유형에서 집중적으로 무너진다는 의미입니다."
+                f"승률 {win_rate}%는 {strongest}에서 충분한 기회를 만들고 있다는 뜻입니다. "
+                f"문제는 {weakest} 국면에 접어들면 그 우위를 지키지 못하는 것입니다. "
+                f"패배 게임 대부분은 이 전환점을 넘지 못하고 역전을 허용하는 패턴을 보입니다."
             )
         else:
             why_losing = (
-                f"{weakest} 개선이 승률 향상에 가장 직접적인 영향을 줄 것입니다. "
-                f"{strongest}로 만든 기회를 {weakest} 단계에서 잃는 패턴이 보입니다. "
-                f"두 차원의 {gap}점 격차를 줄이는 것이 핵심 과제입니다."
+                f"{strongest} 덕분에 좋은 포지션을 자주 만들지만, "
+                f"{weakest} 단계에서 그 이점을 마무리로 연결하지 못하고 있습니다. "
+                f"이 부분만 보완해도 현재 승률에서 눈에 띄는 향상을 기대할 수 있습니다."
             )
 
-        # One action: map weakness to resource
+        # One action: concrete, specific resource per weakness
         action_map = {
-            "엔드게임 기술":      "Lichess 엔드게임 연습(lichess.org/practice) > Rook Endgames 카테고리 20문제",
-            "전술 플레이":       "Chess Tempo(chesstempo.com) 전술 문제 하루 15분, 1주일",
-            "포지셔널 플레이":    "Lichess Studies에서 'Pawn Structures' 관련 강의 2개 시청",
-            "시간 관리":         "Lichess에서 10+0 블리츠 게임 5판 — 시간이 부족할 때 어떤 수를 포기할지 연습",
-            "안정성":            "Chess.com 퍼즐 러시 3분 세션 — 빠른 판단력 안정화 훈련",
-            "우세 전환 능력":    "Lichess > 연습 > '우세한 포지션 마무리' 카테고리 15문제",
-            "공격성":            "Kings Indian / Sicilian Dragon 오프닝 라인 1개를 YouTube에서 공부",
-            "기물 교환 선호":    "Silman의 'How to Reassess Your Chess' 3장 — 교환의 판단 기준",
+            "엔드게임 기술":       "Lichess 엔드게임 연습(lichess.org/practice) → Rook Endgames 카테고리 20문제부터 시작하세요",
+            "전술 플레이":        "Chess Tempo(chesstempo.com)에서 매일 15분 전술 문제 — 1주일이면 패턴 인식이 달라집니다",
+            "포지셔널 플레이":     "Lichess Studies에서 'Pawn Structures' 강의 2개 시청 — 장기 플랜 수립 능력을 키워드립니다",
+            "시간 관리":          "10+5 게임 10판을 두면서 30초 이하로 줄었을 때 어떤 수를 선택할지 의식적으로 연습하세요",
+            "안정성":             "Chess.com 퍼즐 러시 3분 세션을 매일 — 빠른 계산과 패턴 인식으로 일관성을 높입니다",
+            "우세 전환 능력":     "Lichess 연습 → '결정적 우위 마무리' 카테고리 15문제 — 이기고 있을 때 어떻게 닫는지 배웁니다",
+            "공격성":             "Sicilian Defense 또는 King's Indian 오프닝 하나를 YouTube에서 깊이 공부해 공격 레퍼토리를 강화하세요",
+            "기물 교환 선호":     "교환이 이루어질 때마다 '내가 유리한가?'를 5초간 체크하는 습관을 들이세요 — 블리츠에서도 가능합니다",
+            "오프닝 다양성":      "지금 주로 쓰는 오프닝 하나를 Lichess Opening Explorer로 분석해 핵심 변화를 외우세요",
+            "오프닝 이탈 성향":   "Lichess Opening Explorer에서 본인의 오프닝 실수 패턴을 확인하고 핵심 라인 5수를 암기하세요",
+            "역전 허용 저항":     "우세한 포지션에서 계속 공격하는 대신 '상대의 반격 경로를 먼저 막기' 연습을 해보세요",
         }
-        default_action = f"Lichess(lichess.org/practice)에서 {weakest} 관련 연습 문제를 집중적으로 풀어보세요"
+        default_action = (
+            f"Lichess(lichess.org/practice)에서 {weakest} 관련 카테고리를 찾아 "
+            f"이번 주 20문제를 집중적으로 풀어보세요"
+        )
         one_action = action_map.get(weakest, default_action)
 
         return {

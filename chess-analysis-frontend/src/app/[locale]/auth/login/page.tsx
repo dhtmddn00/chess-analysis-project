@@ -43,12 +43,22 @@ export default function LoginPage() {
   };
 
   const handleResend = async () => {
-    await fetch('/api/v1/auth/resend-verification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: form.email }),
-    }).catch(() => {});
-    setResendDone(true);
+    try {
+      const res = await fetch('/api/v1/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      });
+      // 서버는 이메일 존재 여부와 무관하게 200 반환 (열거 공격 방어)
+      // 네트워크 레벨 실패 시에만 에러 표시
+      if (res.ok) {
+        setResendDone(true);
+      } else {
+        setError(t('errorGeneric'));
+      }
+    } catch {
+      setError(t('errorGeneric'));
+    }
   };
 
   return (

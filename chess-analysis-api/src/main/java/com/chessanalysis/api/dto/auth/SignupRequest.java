@@ -24,11 +24,12 @@ public class SignupRequest {
     )
     private String name;
 
+    // primitive boolean: null 불허 + @AssertTrue가 false 값을 잡음 (PIPA 필수 동의)
     @AssertTrue(message = "이용약관에 동의해주세요.")
-    private Boolean termsAgreed;
+    private boolean termsAgreed;
 
     @AssertTrue(message = "개인정보처리방침에 동의해주세요.")
-    private Boolean privacyAgreed;
+    private boolean privacyAgreed;
 
     // 비밀번호 복잡도: 영문·숫자·특수문자 중 2종류 이상 (KISA 가이드라인)
     @AssertTrue(message = "비밀번호는 영문, 숫자, 특수문자 중 2가지 이상을 포함해야 합니다.")

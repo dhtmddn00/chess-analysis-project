@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState, useCallback, useRef } from 'react';
+import { FormEvent, useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Eye, EyeOff, UserPlus, Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -88,6 +88,14 @@ export default function SignupPage() {
   // 이메일 중복 검사 상태
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 언마운트 시 진행 중인 debounce 타이머 정리 (setState on unmounted component 방지)
+  useEffect(() => {
+    return () => {
+      if (nameCheckTimer.current) clearTimeout(nameCheckTimer.current);
+      if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    };
+  }, []);
 
   const pwStrength = getPasswordStrength(form.password);
   const nameValid = form.name.length === 0 ? null : isValidName(form.name);

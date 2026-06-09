@@ -43,7 +43,7 @@ server:
   servlet:
     context-path: /api/v1
   error:
-    include-message: always
+    include-message: never   # 내부 예외 메시지(DB 스키마 등) 클라이언트 노출 방지
 
 # Management/Actuator Configuration
 management:

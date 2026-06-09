@@ -16,11 +16,28 @@ Design principles:
 import asyncio
 import json
 import logging
+import unicodedata
 from datetime import datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _korean_subject_particle(word: str) -> str:
+    """받침(종성) 유무에 따라 '이' 또는 '가'를 반환합니다.
+
+    한글 음절 유니코드: 가(0xAC00) ~ 힣(0xD7A3)
+    종성 공식: (code_point - 0xAC00) % 28  — 0이면 받침 없음
+    """
+    if not word:
+        return "이"
+    last_char = word.rstrip()[-1] if word.rstrip() else word[-1]
+    code = ord(last_char)
+    if 0xAC00 <= code <= 0xD7A3:
+        return "가" if (code - 0xAC00) % 28 == 0 else "이"
+    # 한글 음절이 아닌 경우 (영문·숫자 등): 기본값 '이'
+    return "이"
 
 # ── Korean labels for StyleDimension enum values ──────────────────────────────
 
@@ -374,17 +391,20 @@ class NarrativeService:
         loss_rate = ctx["loss_rate"]
         username = ctx["username"]
 
+        # 조사 선택: 받침 유무에 따라 '이' / '가' 자동 결정
+        weakest_particle = _korean_subject_particle(weakest)
+
         # Pattern: cross-dimensional causal framing
         pattern = (
             f"{username}님의 가장 두드러진 특징은 {strongest}입니다. "
-            f"그러나 {weakest}이(가) 반복적으로 발목을 잡아 실력 발휘를 막고 있습니다."
+            f"그러나 {weakest}{weakest_particle} 반복적으로 발목을 잡아 실력 발휘를 막고 있습니다."
         )
 
-        # Why losing: more concrete, no raw "gap" numbers
+        # Why losing: concrete cause-effect, no misleading win_rate framing
         if loss_rate > 50:
             why_losing = (
-                f"승률 {win_rate}%는 {strongest}에서 충분한 기회를 만들고 있다는 뜻입니다. "
-                f"문제는 {weakest} 국면에 접어들면 그 우위를 지키지 못하는 것입니다. "
+                f"{strongest}에서 기회를 만들고 있지만, "
+                f"{weakest} 국면에 접어들면 그 우위를 지키지 못하는 것이 반복됩니다. "
                 f"패배 게임 대부분은 이 전환점을 넘지 못하고 역전을 허용하는 패턴을 보입니다."
             )
         else:

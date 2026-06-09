@@ -19,6 +19,8 @@ export default function VerifyEmailPage() {
     const token = searchParams.get('token');
     if (!token) { setState('invalid'); return; }
 
+    setState('loading');
+
     fetch(`/api/v1/auth/verify-email?token=${encodeURIComponent(token)}`, {
       credentials: 'include',
     })
@@ -34,7 +36,7 @@ export default function VerifyEmailPage() {
         }
       })
       .catch(() => setState('invalid'));
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">

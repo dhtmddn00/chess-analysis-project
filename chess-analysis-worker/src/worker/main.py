@@ -9,6 +9,8 @@ import os
 from typing import Dict, Any
 from pathlib import Path
 from dataclasses import asdict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import redis
 import psycopg2
@@ -224,8 +226,10 @@ class ChessAnalysisWorker:
                 analysis_id, 'IN_PROGRESS', 96, 'Generating coaching narrative'
             )
             locale = job_data.get('locale', 'ko')
+            user_id = job_data.get('userId')              # None for guest analyses
+            is_admin = bool(job_data.get('admin', False)) # server-set flag (trusted)
             await self._generate_and_store_narrative(
-                analysis_id, profile_data, game_analyses, locale
+                analysis_id, profile_data, game_analyses, locale, user_id, is_admin
             )
 
             # Step 7: Complete analysis (98-100%)
@@ -691,16 +695,66 @@ class ChessAnalysisWorker:
             # Don't raise - this is supplementary
     
         
+    def _narrative_daily_key(self, user_id: str) -> str:
+        """일일 1회 제한용 Redis 키 (KST 달력 날짜 기준)."""
+        date = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+        return f"ai:narrative:daily:{user_id}:{date}"
+
+    def _reserve_daily_slot(self, user_id: str) -> bool:
+        """SET NX EX 로 원자적 슬롯 확보. 이미 사용했으면 False.
+
+        키에 날짜가 포함되므로 달력 하루 단위. TTL 2일은 정리용.
+        """
+        try:
+            key = self._narrative_daily_key(user_id)
+            # nx=True: 없을 때만 설정, ex: TTL(초). 원자적 → 동시 요청 안전.
+            reserved = self.redis_client.set(key, "1", nx=True, ex=86400 * 2)
+            return bool(reserved)
+        except Exception as exc:
+            # Redis 장애 시: 안전하게 생성 차단 (무료 한도 보호 우선)
+            logger.warning(f"Daily slot reservation failed (blocking narrative): {exc}")
+            return False
+
+    def _release_daily_slot(self, user_id: str) -> None:
+        """생성 실패 시 슬롯 롤백 — 사용자가 같은 날 재시도 가능하도록."""
+        try:
+            self.redis_client.delete(self._narrative_daily_key(user_id))
+        except Exception:
+            pass  # 롤백 실패는 무시 (다음날 자동 만료)
+
     async def _generate_and_store_narrative(
-        self, analysis_id: str, profile_data, game_analyses: list, locale: str = "ko"
+        self, analysis_id: str, profile_data, game_analyses: list,
+        locale: str = "ko", user_id: str = None, is_admin: bool = False
     ) -> None:
         """
         Generate an AI coaching narrative and persist it to style_profiles_worker.
+
+        Access policy:
+          - 계정 필수: user_id 없으면 생성 안 함
+          - 일일 1회: 일반 계정은 user당 하루 1회 (KST)
+          - 관리자 면제: is_admin 이면 무제한
+
         Completely non-fatal: any error is logged and swallowed.
         """
+        # ── 접근 제어 ───────────────────────────────────────────────────────────
+        if not user_id:
+            logger.info(f"Narrative skipped — login required (analysis {analysis_id})")
+            return
+
+        slot_reserved = False
+        if not is_admin:
+            if not self._reserve_daily_slot(user_id):
+                logger.info(
+                    f"Narrative skipped — daily limit reached for user {user_id} "
+                    f"(analysis {analysis_id})"
+                )
+                return
+            slot_reserved = True
+        else:
+            logger.info(f"Admin user {user_id} — bypassing daily narrative limit")
+
+        # ── 생성 + 저장 ─────────────────────────────────────────────────────────
         try:
-            # Fetch pre-computed per-game accuracy/blunder stats from DB
-            # (stored in Step 5 by store_analysis_results)
             username = getattr(profile_data, 'player_name', '') or ''
             stats = await self._fetch_aggregate_stats(analysis_id, username=username)
 
@@ -716,6 +770,9 @@ class ChessAnalysisWorker:
             )
             logger.info(f"Coaching narrative stored for analysis {analysis_id}")
         except Exception as exc:
+            # 생성 실패 시 슬롯 롤백 (관리자는 슬롯 없음)
+            if slot_reserved:
+                self._release_daily_slot(user_id)
             # Never let narrative failure block analysis completion
             logger.error(
                 f"_generate_and_store_narrative failed for {analysis_id}: {exc} "

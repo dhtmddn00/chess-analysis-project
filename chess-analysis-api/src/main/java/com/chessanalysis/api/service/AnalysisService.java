@@ -6,10 +6,13 @@ import com.chessanalysis.api.entity.Analysis;
 import com.chessanalysis.api.queue.AnalysisJobDto;
 import com.chessanalysis.api.queue.AnalysisQueueService;
 import com.chessanalysis.api.repository.AnalysisRepository;
+import com.chessanalysis.api.repository.UserRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -24,21 +27,50 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AnalysisService {
-    
+
     private final AnalysisRepository analysisRepository;
     private final AnalysisQueueService queueService;
     private final ShortLinkService shortLinkService;
     private final AnalysisRateLimitService rateLimitService;
+    private final UserRepository userRepository;
     private final DataSource dataSource;
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+
+    // 관리자 이메일 화이트리스트 — 환경변수(ADMIN_EMAILS)로만 설정.
+    // DB role 컬럼보다 안전: DB 침해로도 권한 상승 불가 (인프라 레벨 시크릿).
+    @Value("${admin.emails:}")
+    private String adminEmailsCsv;
+    private Set<String> adminEmailSet = Set.of();
+
+    @PostConstruct
+    void initAdminEmails() {
+        if (adminEmailsCsv == null || adminEmailsCsv.isBlank()) {
+            adminEmailSet = Set.of();
+            return;
+        }
+        adminEmailSet = Arrays.stream(adminEmailsCsv.split(","))
+                .map(s -> s.toLowerCase(Locale.ROOT).strip())
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
+        log.info("Admin whitelist initialized: {} email(s)", adminEmailSet.size());
+    }
+
+    /** userId로 관리자 여부 판정. 서버 사이드 전용 — 클라이언트 입력 경로 없음. */
+    private boolean isAdminUser(UUID userId) {
+        if (userId == null || adminEmailSet.isEmpty()) return false;
+        return userRepository.findById(userId)
+                .map(u -> adminEmailSet.contains(u.getEmail().toLowerCase(Locale.ROOT).strip()))
+                .orElse(false);
+    }
 
     private static final Duration ANALYSIS_CREATE_LOCK_TTL = Duration.ofSeconds(30);
     private static final Duration PENDING_STALE_AFTER = Duration.ofMinutes(45);
@@ -64,7 +96,13 @@ public class AnalysisService {
         request.setGameCount(normalizedGameCount);
         String lockKey = activeCreationLockKey(normalizedPlatform, normalizedUsername);
 
-        rateLimitService.enforceLimits(request, clientIp);
+        // 관리자 판정 (서버 사이드) — 관리자는 분석 생성 rate limit 면제
+        boolean isAdmin = isAdminUser(userId);
+        if (!isAdmin) {
+            rateLimitService.enforceLimits(request, clientIp);
+        } else {
+            log.info("Admin user {} — bypassing analysis rate limit", userId);
+        }
 
         Boolean lockAcquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", ANALYSIS_CREATE_LOCK_TTL);
         if (!Boolean.TRUE.equals(lockAcquired)) {
@@ -110,7 +148,8 @@ public class AnalysisService {
                 request.getTimeControl(),
                 normalizedPriority,
                 request.getLocale(),
-                userId
+                userId,
+                isAdmin
         );
         
         try {

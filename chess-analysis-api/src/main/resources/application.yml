@@ -73,6 +73,11 @@ resend:
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
+# 관리자 이메일 화이트리스트 (쉼표 구분) — rate limit 면제 대상
+# 보안: DB role 컬럼이 아닌 환경변수로만 관리 → DB 침해로도 권한 상승 불가
+admin:
+  emails: ${ADMIN_EMAILS:}
+
 # Custom Application Properties
 chess-analysis:
   chess-com:

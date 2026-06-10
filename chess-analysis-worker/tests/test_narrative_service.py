@@ -145,25 +145,33 @@ class TestFallback:
         svc = NarrativeService(redis_client=MagicMock())
         ctx = {
             'username': 'user', 'strongest': '전술 플레이', 'weakest': '엔드게임 기술',
-            'loss_rate': 45.0, 'gap': 30.0, 'style_dict': {},
+            'win_rate': 40.0, 'loss_rate': 45.0, 'gap': 30.0, 'style_dict': {},
         }
         result = svc._fallback(ctx)
-        assert set(result.keys()) == {'pattern', 'why_losing', 'one_action'}
+        assert set(result.keys()) == {'pattern', 'why_losing', 'actions'}
         assert len(result['pattern']) > 10
         assert len(result['why_losing']) > 10
-        assert len(result['one_action']) > 10
+        # actions: 2~3개 문자열 리스트
+        assert isinstance(result['actions'], list)
+        assert 2 <= len(result['actions']) <= 3
+        assert all(isinstance(a, str) and len(a) > 10 for a in result['actions'])
 
-    def test_fallback_high_loss_rate_message(self):
+    def test_fallback_high_loss_rate_branch(self):
         svc = NarrativeService(redis_client=MagicMock())
-        ctx = {'strongest': 'A', 'weakest': 'B', 'loss_rate': 60.0, 'gap': 20.0, 'style_dict': {}}
+        ctx = {'username': 'u', 'strongest': 'A', 'weakest': 'B',
+               'win_rate': 30.0, 'loss_rate': 60.0, 'gap': 20.0, 'style_dict': {}}
         result = svc._fallback(ctx)
-        assert '60' in result['why_losing']  # 수치 인용
+        # 패배율 높은 분기: 역전/전환점 메시지
+        assert '역전' in result['why_losing'] or '전환점' in result['why_losing']
 
     def test_fallback_endgame_weakness_maps_to_lichess(self):
         svc = NarrativeService(redis_client=MagicMock())
-        ctx = {'strongest': 'A', 'weakest': '엔드게임 기술', 'loss_rate': 40.0, 'gap': 20.0, 'style_dict': {}}
+        ctx = {'username': 'u', 'strongest': 'A', 'weakest': '엔드게임 기술',
+               'win_rate': 50.0, 'loss_rate': 40.0, 'gap': 20.0, 'style_dict': {}}
         result = svc._fallback(ctx)
-        assert 'Lichess' in result['one_action'] or 'lichess' in result['one_action']
+        # actions 중 하나는 Lichess 엔드게임 연습을 포함
+        joined = ' '.join(result['actions'])
+        assert 'Lichess' in joined or 'lichess' in joined
 
 
 @pytest.mark.asyncio
@@ -177,9 +185,10 @@ class TestGenerateWithoutApi:
         profile = FakeProfile()
         result = await svc.generate(profile, SAMPLE_STATS, locale='ko')
 
-        assert set(result.keys()) == {'pattern', 'why_losing', 'one_action'}
+        assert set(result.keys()) == {'pattern', 'why_losing', 'actions'}
         assert isinstance(result['pattern'], str)
         assert len(result['pattern']) > 0
+        assert isinstance(result['actions'], list) and len(result['actions']) >= 2
 
     async def test_falls_back_when_limit_reached(self):
         redis = MagicMock()

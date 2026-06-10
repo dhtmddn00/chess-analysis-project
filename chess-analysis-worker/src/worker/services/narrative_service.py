@@ -97,9 +97,18 @@ SYSTEM_PROMPT_KO = """\
 {
   "pattern": "이 플레이어의 체스 패턴 — 강점과 약점의 인과관계 1문장",
   "why_losing": "패배가 발생하는 구체적 메커니즘 2~3문장. 수치 1~2개 인용 필수. 어떤 상황에서, 어떤 수순으로 무너지는지",
-  "one_action": "지금 당장 실행 가능한 행동 1개. 플랫폼·카테고리·분량까지 구체적으로"
+  "actions": [
+    "즉시 실행 가능한 핵심 훈련 — 플랫폼·카테고리·분량 명시",
+    "두 번째 훈련 — 첫 번째와 다른 측면을 보완",
+    "세 번째 훈련 (선택, 첫 두 개보다 장기적인 내용일 때만)"
+  ]
 }
 ```
+
+actions 작성 규칙:
+- 반드시 2개, 데이터가 뚜렷한 패턴을 3개 지지할 때만 3개
+- 각 항목은 서로 다른 문제(오프닝/미들게임/엔드게임, 또는 전술/포지셔널)를 다룰 것
+- "전술 문제를 풀어라" 같은 범용 조언 금지 — 이 플레이어의 실수 패턴에 직접 연결된 것만
 
 ## 예시로 배우기
 
@@ -107,14 +116,17 @@ SYSTEM_PROMPT_KO = """\
 {
   "pattern": "공격적인 스타일을 가지고 있으며 전술 능력이 좋습니다",
   "why_losing": "실수가 많아서 지고 있습니다. 더 신중하게 플레이해야 합니다",
-  "one_action": "매일 체스 전술 문제를 풀어보세요"
+  "actions": ["매일 체스 전술 문제를 풀어보세요", "시간 관리를 연습하세요"]
 }
 
 ✅ 좋은 예 (이 방향으로 작성하세요):
 {
   "pattern": "킹사이드 공격을 만드는 감각은 뛰어나지만, 공격이 막혔을 때 전환할 포지셔널 플랜이 없습니다",
-  "why_losing": "패배 게임의 상당수가 30수를 넘어가면서 역전됩니다. 복잡한 미들게임은 잘 이끌지만 기물 교환 후 단순화된 포지션에서 어떻게 이겨야 하는지 모르는 패턴이 반복됩니다. 특히 흑으로 플레이할 때 이 경향이 두드러집니다",
-  "one_action": "Lichess 엔드게임 연습(lichess.org/practice) > Rook Endgames 카테고리에서 이번 주 20문제를 집중적으로 푸세요"
+  "why_losing": "패배 게임의 상당수가 30수를 넘어가면서 역전됩니다. 기물 교환 후 단순화된 포지션에서 어떻게 이겨야 하는지 모르는 패턴이 반복됩니다. 특히 흑으로 플레이할 때 이 경향이 두드러집니다",
+  "actions": [
+    "Lichess 엔드게임 연습(lichess.org/practice) > Rook Endgames 카테고리 20문제 — 단순화 후 마무리 능력",
+    "패배한 게임 3개를 Lichess 분석 도구로 직접 복기하며 30수 이후 어느 수에서 방향을 잃었는지 표시하세요"
+  ]
 }
 """
 
@@ -137,9 +149,18 @@ Don't list numbers — find ONE causal relationship by cross-correlating multipl
 {
   "pattern": "This player's chess identity — how strength and weakness are causally linked (1 sentence)",
   "why_losing": "The specific mechanism causing losses — what situation, what sequence breaks down (2-3 sentences, cite 1-2 numbers)",
-  "one_action": "One immediately actionable next step — specific platform, category, and quantity"
+  "actions": [
+    "Core drill — specific platform, category, quantity",
+    "Second drill — addresses a different aspect than the first",
+    "Third drill (optional — only if the data clearly supports a 3rd distinct problem)"
+  ]
 }
 ```
+
+actions rules:
+- Always 2 items; only 3 when data shows 3 clearly distinct patterns
+- Each item must address a different problem area (opening vs endgame, tactical vs positional)
+- No generic advice — each must connect directly to this player's mistake patterns
 
 ## Learn from examples
 
@@ -147,14 +168,17 @@ Don't list numbers — find ONE causal relationship by cross-correlating multipl
 {
   "pattern": "You have an aggressive style with good tactical ability",
   "why_losing": "You lose because of too many mistakes. Play more carefully.",
-  "one_action": "Solve chess tactics puzzles every day"
+  "actions": ["Solve chess tactics puzzles every day", "Practice time management"]
 }
 
 ✅ Good (aim for this):
 {
   "pattern": "You're excellent at creating kingside attacks but have no positional Plan B when the attack is stopped",
-  "why_losing": "A significant portion of your losses are reverse after move 30. You navigate complex middlegames well, but once pieces are exchanged and the position simplifies, you don't know how to convert. This pattern is especially pronounced when playing Black.",
-  "one_action": "Complete 20 problems in the Rook Endgames category on Lichess (lichess.org/practice) this week"
+  "why_losing": "A significant portion of your losses are reversed after move 30. Once pieces are exchanged and the position simplifies, you don't know how to convert. This pattern is especially pronounced when playing Black.",
+  "actions": [
+    "Complete 20 problems in the Rook Endgames category on Lichess (lichess.org/practice) — build your conversion ability",
+    "Review your 3 most recent losses in Lichess analysis — mark the exact move where you lost direction after move 30"
+  ]
 }
 """
 
@@ -441,30 +465,64 @@ class NarrativeService:
                 f"이 부분만 보완해도 현재 승률에서 눈에 띄는 향상을 기대할 수 있습니다."
             )
 
-        # One action: concrete, specific resource per weakness
+        # Actions: 약점별 2개 고품질 훈련 추천
+        # 각 항목은 서로 다른 문제(즉시/중기, 전술/포지셔널)를 다룸
         action_map = {
-            "엔드게임 기술":       "Lichess 엔드게임 연습(lichess.org/practice) → Rook Endgames 카테고리 20문제부터 시작하세요",
-            "전술 플레이":        "Chess Tempo(chesstempo.com)에서 매일 15분 전술 문제 — 1주일이면 패턴 인식이 달라집니다",
-            "포지셔널 플레이":     "Lichess Studies에서 'Pawn Structures' 강의 2개 시청 — 장기 플랜 수립 능력을 키워드립니다",
-            "시간 관리":          "10+5 게임 10판을 두면서 30초 이하로 줄었을 때 어떤 수를 선택할지 의식적으로 연습하세요",
-            "안정성":             "Chess.com 퍼즐 러시 3분 세션을 매일 — 빠른 계산과 패턴 인식으로 일관성을 높입니다",
-            "우세 전환 능력":     "Lichess 연습 → '결정적 우위 마무리' 카테고리 15문제 — 이기고 있을 때 어떻게 닫는지 배웁니다",
-            "공격성":             "Sicilian Defense 또는 King's Indian 오프닝 하나를 YouTube에서 깊이 공부해 공격 레퍼토리를 강화하세요",
-            "기물 교환 선호":     "교환이 이루어질 때마다 '내가 유리한가?'를 5초간 체크하는 습관을 들이세요 — 블리츠에서도 가능합니다",
-            "오프닝 다양성":      "지금 주로 쓰는 오프닝 하나를 Lichess Opening Explorer로 분석해 핵심 변화를 외우세요",
-            "오프닝 이탈 성향":   "Lichess Opening Explorer에서 본인의 오프닝 실수 패턴을 확인하고 핵심 라인 5수를 암기하세요",
-            "역전 허용 저항":     "우세한 포지션에서 계속 공격하는 대신 '상대의 반격 경로를 먼저 막기' 연습을 해보세요",
+            "엔드게임 기술": [
+                "Lichess 엔드게임 연습(lichess.org/practice) → Rook Endgames 카테고리 20문제 — 단순화 후 마무리 능력 집중 훈련",
+                "최근 패배 게임 3개를 복기하며 '언제 우위를 잃었는가'를 정확히 표시하세요 — 패턴이 보입니다",
+            ],
+            "전술 플레이": [
+                "Chess Tempo(chesstempo.com) 전술 문제 하루 15분, 1주일 — 포크·핀·스큐어 카테고리 집중",
+                "Lichess 분석 도구로 패배 게임의 놓친 전술 기회를 찾아 직접 풀어보세요",
+            ],
+            "포지셔널 플레이": [
+                "Lichess Studies에서 'Pawn Structures' 강의 2개 시청 — 장기 플랜 수립 능력",
+                "폰 구조가 고정된 포지션에서 어느 쪽이 더 나은 기물 배치를 가졌는지 매 게임 기록해보세요",
+            ],
+            "시간 관리": [
+                "10+5 게임 10판 — 30초 이하로 줄었을 때 어떤 수를 포기할지 미리 결정해두는 연습",
+                "Chess.com 일일 퍼즐로 빠른 패턴 인식 훈련 — 느린 계산 없이 판단하는 근육을 키웁니다",
+            ],
+            "안정성": [
+                "Chess.com 퍼즐 러시 3분 세션 매일 — 빠른 계산과 패턴 인식으로 일관성을 높입니다",
+                "게임 중 '상대의 위협을 먼저 확인' 루틴을 습관화하세요 — 블리츠에서도 1수 전 체크",
+            ],
+            "우세 전환 능력": [
+                "Lichess 연습 → '결정적 우위 마무리' 카테고리 15문제 — 이기고 있을 때 어떻게 닫는지",
+                "우세할 때 기물을 교환하려는 충동을 억제하고 '압박 유지' 전략을 의식적으로 시도해보세요",
+            ],
+            "공격성": [
+                "Sicilian Defense 또는 King's Indian 오프닝 하나를 YouTube로 깊이 공부해 공격 레퍼토리 강화",
+                "Lichess Studies에서 공격적 미들게임 강의 1개 시청 — 킹사이드 공격의 조건과 타이밍",
+            ],
+            "기물 교환 선호": [
+                "교환할 때마다 '내가 더 활성화된 기물을 얻는가?'를 5초 체크하는 습관 — 블리츠에서도 가능",
+                "Silman의 포지셔널 체스 원리 학습 — 어떤 기물이 좋은 교환인지 판단 기준 정립",
+            ],
+            "오프닝 다양성": [
+                "현재 가장 많이 쓰는 오프닝 1개를 Lichess Opening Explorer로 분석해 핵심 변화 5수 암기",
+                "새 오프닝 1개를 추가로 배우기 전에 현재 레퍼토리의 약점 라인부터 보완하세요",
+            ],
+            "오프닝 이탈 성향": [
+                "Lichess Opening Explorer에서 본인의 오프닝 실수 패턴 확인 — 어느 수에서 이론을 벗어나는지",
+                "주 오프닝 핵심 라인 10수를 Chessable로 암기 — 반복 노출이 가장 효율적인 방법입니다",
+            ],
+            "역전 허용 저항": [
+                "우세한 포지션에서 '공격 계속' 대신 '상대 반격 경로 차단'을 먼저 찾는 습관 훈련",
+                "방어 포지션 연습 — Lichess Studies에서 수비적 자원을 찾는 훈련 문제 10개",
+            ],
         }
-        default_action = (
-            f"Lichess(lichess.org/practice)에서 {weakest} 관련 카테고리를 찾아 "
-            f"이번 주 20문제를 집중적으로 풀어보세요"
-        )
-        one_action = action_map.get(weakest, default_action)
+        default_actions = [
+            f"Lichess(lichess.org/practice)에서 {weakest} 관련 카테고리를 찾아 이번 주 20문제를 집중적으로 풀어보세요",
+            f"최근 패배 게임 2개를 복기하며 {weakest}이 어떻게 결과에 영향을 줬는지 직접 확인해보세요",
+        ]
+        actions = action_map.get(weakest, default_actions)
 
         return {
             "pattern": pattern,
             "why_losing": why_losing,
-            "one_action": one_action,
+            "actions": actions,
         }
 
     # ── Main entry point ───────────────────────────────────────────────────────
@@ -479,7 +537,7 @@ class NarrativeService:
             locale:   "ko" (Korean, default) or "en" (English)
 
         Returns:
-            dict with keys: pattern, why_losing, one_action
+            dict with keys: pattern, why_losing, actions (list of 2-3 strings)
             Never raises — always falls back to rule-based output on any error.
         """
         locale = locale if locale in ("ko", "en") else "ko"
@@ -508,7 +566,7 @@ class NarrativeService:
                         {"role": "user",   "content": user_prompt},
                     ],
                     temperature=0.7,
-                    max_tokens=600,
+                    max_tokens=1000,   # actions 2~3개 포함 — 잘림 방지
                     response_format={"type": "json_object"},
                 )
 
@@ -523,13 +581,33 @@ class NarrativeService:
 
             narrative = json.loads(raw)
 
-            required_keys = {"pattern", "why_losing", "one_action"}
+            required_keys = {"pattern", "why_losing", "actions"}
             missing = required_keys - narrative.keys()
             if missing:
-                raise ValueError(f"AI response missing keys: {missing}")
+                # 하위 호환: 구형 one_action 필드가 오면 actions로 변환
+                if "one_action" in narrative and "actions" not in narrative:
+                    narrative["actions"] = [narrative["one_action"]]
+                    missing.discard("actions")
+                if missing:
+                    raise ValueError(f"AI response missing keys: {missing}")
 
-            logger.info(f"AI narrative generated successfully for {ctx['username']}")
-            return {k: narrative[k] for k in required_keys}  # strip extra keys
+            # actions 검증: 반드시 2~3개 문자열 리스트
+            actions = narrative.get("actions", [])
+            if not isinstance(actions, list) or len(actions) < 1:
+                raise ValueError(f"actions must be a non-empty list, got: {actions}")
+            # 1개면 fallback의 두 번째 항목으로 보완
+            if len(actions) == 1:
+                ctx_fallback = self._fallback(ctx)
+                actions = [actions[0]] + ctx_fallback["actions"][1:]
+            # 3개 초과면 상위 3개만
+            actions = actions[:3]
+
+            logger.info(f"AI narrative generated ({len(actions)} actions) for {ctx['username']}")
+            return {
+                "pattern":    narrative["pattern"],
+                "why_losing": narrative["why_losing"],
+                "actions":    actions,
+            }
 
         except Exception as exc:
             logger.error(

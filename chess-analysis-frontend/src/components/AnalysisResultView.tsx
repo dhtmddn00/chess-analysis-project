@@ -60,10 +60,19 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
     if (!raw) return null;
     try {
       const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (parsed?.pattern && parsed?.why_losing && parsed?.one_action) return parsed as {
-        pattern: string;
-        why_losing: string;
-        one_action: string;
+      if (!parsed?.pattern || !parsed?.why_losing) return null;
+      // actions: 신형(배열) 우선, 구형 one_action(문자열) 하위 호환
+      let actions: string[] = [];
+      if (Array.isArray(parsed.actions)) {
+        actions = parsed.actions.filter((a: unknown): a is string => typeof a === 'string' && a.length > 0);
+      } else if (typeof parsed.one_action === 'string') {
+        actions = [parsed.one_action];
+      }
+      if (actions.length === 0) return null;
+      return {
+        pattern: parsed.pattern as string,
+        why_losing: parsed.why_losing as string,
+        actions: actions.slice(0, 3),
       };
     } catch { /* malformed JSON — degrade gracefully */ }
     return null;
@@ -101,12 +110,18 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
               {coachNarrative.why_losing}
             </p>
 
-            {/* One action: clear CTA */}
-            <div className="flex items-start gap-3 rounded-xl bg-white/10 border border-white/15 px-4 py-3.5">
-              <span className="mt-0.5 text-white font-bold shrink-0">→</span>
-              <p className="text-sm font-semibold text-white leading-snug">
-                {coachNarrative.one_action}
-              </p>
+            {/* Actions: 2~3 concrete training recommendations */}
+            <div className="space-y-2">
+              {coachNarrative.actions.map((action, i) => (
+                <div key={i} className="flex items-start gap-3 rounded-xl bg-white/10 border border-white/15 px-4 py-3.5">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/20 text-[11px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm font-semibold text-white leading-snug">
+                    {action}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         )}

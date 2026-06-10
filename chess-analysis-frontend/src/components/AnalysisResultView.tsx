@@ -172,7 +172,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
       <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 overflow-x-auto bg-white/95 backdrop-blur border-b border-zinc-100 shadow-sm">
         <div className="flex gap-1 px-4 sm:px-6 lg:px-8 py-2 min-w-max">
           {[
-            { id: 'section-review', label: t('navReviewOrder') },
             { id: 'section-performance', label: t('navPerformance') },
             { id: 'section-style', label: t('navStyle') },
             { id: 'section-tactics', label: t('navTactics') },
@@ -196,35 +195,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
           ))}
         </div>
       </div>
-
-      {/* ── Review Order ───────────────────────────────────────────────────── */}
-      <CollapsibleSection
-        id="section-review"
-        icon={<Target className="h-5 w-5" />}
-        title={t('reviewOrder')}
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <div className="text-xs font-black text-zinc-400 uppercase tracking-widest">{t('priority1')}</div>
-            <div className="mt-1 text-base font-black text-zinc-950">{t('decisiveMoments', { count: result.decisiveMoments?.length || 0 })}</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">{t('decisiveMomentsDesc')}</p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <div className="text-xs font-black text-zinc-400 uppercase tracking-widest">{t('priority2')}</div>
-            <div className="mt-1 text-base font-black text-zinc-950">
-              {result.advancedInsights?.openingHoles?.[0]?.name || t('checkOpenings')}
-            </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">{t('checkOpeningsDesc')}</p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <div className="text-xs font-black text-zinc-400 uppercase tracking-widest">{t('priority3')}</div>
-            <div className="mt-1 text-base font-black text-zinc-950">
-              {result.trainingRecommendations?.[0]?.title || t('customTraining')}
-            </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">{t('customTrainingDesc')}</p>
-          </div>
-        </div>
-      </CollapsibleSection>
 
       {/* ── Performance Metrics ────────────────────────────────────────────── */}
       <CollapsibleSection
@@ -317,14 +287,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
               </div>
             </div>
 
-            {result.comparativeInsights.sampleReliability && (
-              <div className="mt-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-zinc-800">
-                {t('sampleReliability', {
-                  label: result.comparativeInsights.sampleReliability.label,
-                  message: result.comparativeInsights.sampleReliability.message,
-                })}
-              </div>
-            )}
           </div>
         )}
 

@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  country?: string;
   chessComUsername?: string;
   lichessUsername?: string;
   subscriptionTier: 'free' | 'premium';

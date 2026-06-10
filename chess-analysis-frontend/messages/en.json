@@ -556,6 +556,9 @@
     "resetDone": "Password changed!",
     "resetDoneDesc": "Redirecting to login...",
     "withdraw": "Delete account",
-    "withdrawConfirm": "Are you sure? Your account and personal data will be deleted and cannot be recovered."
+    "withdrawConfirm": "Are you sure? Your account and personal data will be deleted and cannot be recovered.",
+    "country": "Country",
+    "optional": "optional",
+    "countryPlaceholder": "Select your country"
   }
 }

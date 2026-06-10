@@ -61,6 +61,7 @@ public class AuthService {
                     .email(req.getEmail().toLowerCase().strip())
                     .passwordHash(passwordEncoder.encode(req.getPassword()))
                     .name(req.getName().strip())   // 앞뒤 공백 제거
+                    .country(normalizeCountry(req.getCountry()))
                     .verificationToken(token)
                     .verificationTokenExpiresAt(now.plusHours(TOKEN_EXPIRY_HOURS))
                     .termsAgreedAt(now)            // 약관 동의 시간 기록 (PIPA)
@@ -193,6 +194,7 @@ public class AuthService {
         user.setEmail("deleted_" + user.getId() + "@deleted.local");
         user.setName("deleted_" + user.getId());
         user.setPasswordHash("");
+        user.setCountry(null);
         user.setChessComUsername(null);
         user.setLichessUsername(null);
         user.setVerificationToken(null);
@@ -273,6 +275,12 @@ public class AuthService {
 
     // ── 내부 유틸 ────────────────────────────────────────────────────────────
 
+    // 빈 문자열·공백은 null로 정규화 (선택 입력이므로 미입력 허용)
+    private String normalizeCountry(String country) {
+        if (country == null || country.isBlank()) return null;
+        return country.strip().toUpperCase();
+    }
+
     private String generateVerificationToken() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
@@ -304,6 +312,7 @@ public class AuthService {
                 .id(user.getId())
                 .email(user.getEmail())
                 .name(user.getName())
+                .country(user.getCountry())
                 .chessComUsername(user.getChessComUsername())
                 .lichessUsername(user.getLichessUsername())
                 .subscriptionTier(user.getSubscriptionTier())

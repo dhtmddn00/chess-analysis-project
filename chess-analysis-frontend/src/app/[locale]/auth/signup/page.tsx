@@ -7,8 +7,34 @@ import { Eye, EyeOff, UserPlus, Mail, CheckCircle2, XCircle, Loader2 } from 'luc
 
 // ── API 헬퍼 ────────────────────────────────────────────────────────────────
 
+// ISO 3166-1 alpha-2 — 체스 인구가 많은 국가 우선, 나머지는 알파벳순
+const COUNTRIES: { code: string; name: string }[] = [
+  { code: 'KR', name: '대한민국' },
+  { code: 'US', name: 'United States' },
+  { code: 'IN', name: 'India' },
+  { code: 'RU', name: 'Russia' },
+  { code: 'CN', name: 'China' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'UA', name: 'Ukraine' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'TR', name: 'Türkiye' },
+  { code: 'VN', name: 'Vietnam' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'PH', name: 'Philippines' },
+];
+
 async function requestSignup(data: {
   email: string; password: string; name: string;
+  country: string | null;
   termsAgreed: boolean; privacyAgreed: boolean;
 }) {
   const res = await fetch('/api/v1/auth/signup', {
@@ -72,7 +98,7 @@ export default function SignupPage() {
   const t = useTranslations('Auth');
 
   const [form, setForm] = useState({
-    name: '', email: '', password: '', confirm: '',
+    name: '', email: '', password: '', confirm: '', country: '',
     termsAgreed: false, privacyAgreed: false,
   });
   const [showPw, setShowPw] = useState(false);
@@ -153,6 +179,7 @@ export default function SignupPage() {
         email: form.email,
         password: form.password,
         name: form.name.trim(),
+        country: form.country || null,
         termsAgreed: form.termsAgreed,
         privacyAgreed: form.privacyAgreed,
       });
@@ -275,6 +302,23 @@ export default function SignupPage() {
             {emailStatus === 'available' && (
               <p className="mt-1 text-xs text-emerald-600">{t('emailAvailable')}</p>
             )}
+          </div>
+
+          {/* 국가 (선택) */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">
+              {t('country')} <span className="ml-1 text-xs text-zinc-400">({t('optional')})</span>
+            </label>
+            <select
+              value={form.country}
+              onChange={(e) => setForm(f => ({ ...f, country: e.target.value }))}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            >
+              <option value="">{t('countryPlaceholder')}</option>
+              {COUNTRIES.map(c => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* 비밀번호 */}

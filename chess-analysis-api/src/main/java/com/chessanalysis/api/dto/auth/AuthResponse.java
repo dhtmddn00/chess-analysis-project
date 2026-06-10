@@ -12,6 +12,7 @@ public class AuthResponse {
     private UUID id;
     private String email;
     private String name;
+    private String country;
     private String chessComUsername;
     private String lichessUsername;
     private String subscriptionTier;

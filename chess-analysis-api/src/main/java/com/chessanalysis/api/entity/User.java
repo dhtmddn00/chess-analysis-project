@@ -28,6 +28,9 @@ public class User {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "country", length = 2)
+    private String country;
+
     @Column(name = "chess_com_username")
     private String chessComUsername;
 

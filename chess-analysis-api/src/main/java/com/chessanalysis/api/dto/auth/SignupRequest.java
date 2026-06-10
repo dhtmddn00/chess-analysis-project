@@ -24,6 +24,10 @@ public class SignupRequest {
     )
     private String name;
 
+    // 국가: ISO 3166-1 alpha-2 코드 (선택 입력, 예: KR, US). null 또는 빈 값 허용.
+    @Pattern(regexp = "^[A-Z]{2}$", message = "유효한 국가 코드가 아닙니다.")
+    private String country;
+
     // primitive boolean: null 불허 + @AssertTrue가 false 값을 잡음 (PIPA 필수 동의)
     @AssertTrue(message = "이용약관에 동의해주세요.")
     private boolean termsAgreed;

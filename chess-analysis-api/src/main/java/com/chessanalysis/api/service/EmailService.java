@@ -31,8 +31,12 @@ public class EmailService {
                 .build();
     }
 
+    // 프론트는 next-intl locale-prefixed 라우팅(/ko, /en) 사용.
+    // locale 없는 경로는 미들웨어 리다이렉트에 의존하게 되므로 명시적으로 기본 로케일을 붙인다.
+    private static final String DEFAULT_LOCALE = "/ko";
+
     public void sendVerificationEmail(String toEmail, String token) {
-        String verifyUrl = frontendUrl + "/auth/verify-email?token=" + token;
+        String verifyUrl = frontendUrl + DEFAULT_LOCALE + "/auth/verify-email?token=" + token;
 
         String html = """
                 <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -57,7 +61,7 @@ public class EmailService {
     }
 
     public void sendPasswordResetEmail(String toEmail, String token) {
-        String resetUrl = frontendUrl + "/auth/reset-password?token=" + token;
+        String resetUrl = frontendUrl + DEFAULT_LOCALE + "/auth/reset-password?token=" + token;
 
         String html = """
                 <div style="font-family:sans-serif;max-width:480px;margin:0 auto">

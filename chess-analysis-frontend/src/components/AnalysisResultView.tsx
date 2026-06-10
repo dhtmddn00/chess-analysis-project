@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import {
   Target, BarChart3, Brain, Zap, TrendingUp,
-  BookOpen, ShieldCheck, Trophy, ChevronDown,
+  BookOpen, ShieldCheck, Trophy, ChevronDown, LogIn, Sparkles,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { AnalysisResult, PercentileMetric, STYLE_DIMENSIONS } from '@/types/analysis';
 import { ShareResultCard } from '@/components/ShareResultCard';
 import { StyleArchetypeCard } from '@/components/StyleArchetypeCard';
+import { useAuth } from '@/hooks/useAuth';
+import { Link } from '@/i18n/navigation';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ function getBriefStyleAnalysis(analysis?: string) {
 
 export function AnalysisResultView({ result, winrate, shortLink, jobId }: AnalysisResultViewProps) {
   const t = useTranslations('Analyze');
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const comparisonMetrics = result.comparativeInsights?.performancePercentiles
     ? [
@@ -97,7 +100,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
           <div className="mt-6 border-t border-zinc-700 pt-5 space-y-4">
             {/* AI label */}
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-[11px] font-bold text-white tracking-widest uppercase">
-              ✦ AI 코치 진단
+              {t('aiCoachBadge')}
             </span>
 
             {/* Pattern: the chess identity */}
@@ -123,6 +126,44 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
                 </div>
               ))}
             </div>
+
+            {/* AI disclaimer */}
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              {t('aiDisclaimer')}
+            </p>
+          </div>
+        )}
+
+        {/* AI 진단이 없을 때: 로그인 유도 / 일일 한도 안내 */}
+        {!coachNarrative && !authLoading && (
+          <div className="mt-6 border-t border-zinc-700 pt-5">
+            {!isAuthenticated ? (
+              // 비로그인 → 로그인 유도
+              <div className="rounded-xl bg-white/5 border border-white/15 p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                    <Sparkles className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white">{t('aiLoginTitle')}</p>
+                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">{t('aiLoginDesc')}</p>
+                    <Link
+                      href="/auth/login"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-bold text-zinc-950 hover:bg-zinc-200 transition-colors"
+                    >
+                      <LogIn className="h-3.5 w-3.5" />
+                      {t('aiLoginButton')}
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // 로그인했지만 진단 없음 → 일일 한도 안내
+              <div className="rounded-xl bg-white/5 border border-white/15 p-4 flex items-start gap-3">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+                <p className="text-xs text-zinc-400 leading-relaxed">{t('aiDailyInfo')}</p>
+              </div>
+            )}
           </div>
         )}
       </div>

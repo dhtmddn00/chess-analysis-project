@@ -27,6 +27,10 @@ public class SignupRateLimitService {
     private static final int MAX_CHECK_PER_IP = 30;
     private static final Duration CHECK_WINDOW = Duration.ofMinutes(1);
 
+    // 비밀번호 재설정 요청: 이메일당 1시간에 5회
+    private static final int MAX_RESET_PER_EMAIL = 5;
+    private static final Duration RESET_WINDOW = Duration.ofHours(1);
+
     // INCR + EXPIRE 원자적 처리 (AnalysisRateLimitService와 동일 패턴)
     // EXPIRE가 INCR과 별도로 실행되면 Redis 장애 시 TTL 없는 영구 키가 생성될 수 있음
     private static final RedisScript<Long> INCREMENT_SCRIPT = RedisScript.of(
@@ -52,6 +56,10 @@ public class SignupRateLimitService {
 
     public void checkNameCheckLimit(String ip) {
         enforce("namecheck:ip:" + ip, MAX_CHECK_PER_IP, CHECK_WINDOW);
+    }
+
+    public void checkPasswordResetLimit(String email) {
+        enforce("pwreset:email:" + email.toLowerCase(), MAX_RESET_PER_EMAIL, RESET_WINDOW);
     }
 
     private void enforce(String key, int max, Duration window) {

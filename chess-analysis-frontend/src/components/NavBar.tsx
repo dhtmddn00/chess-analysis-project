@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { LogIn, LogOut, User, ChevronDown, BarChart2, ArrowLeftRight, Search } from 'lucide-react';
+import { LogIn, LogOut, User, UserX, ChevronDown, BarChart2, ArrowLeftRight, Search } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -26,6 +26,14 @@ export function NavBar() {
   }, []);
 
   const handleLogout = async () => {
+    await logout();
+    setMenuOpen(false);
+    router.push('/');
+  };
+
+  const handleWithdraw = async () => {
+    if (!window.confirm(tAuth('withdrawConfirm'))) return;
+    await fetch('/api/v1/auth/me', { method: 'DELETE', credentials: 'include' }).catch(() => {});
     await logout();
     setMenuOpen(false);
     router.push('/');
@@ -92,6 +100,13 @@ export function NavBar() {
                     >
                       <LogOut className="h-4 w-4" />
                       {tAuth('logout')}
+                    </button>
+                    <button
+                      onClick={handleWithdraw}
+                      className="flex w-full items-center gap-2 border-t border-zinc-100 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <UserX className="h-4 w-4" />
+                      {tAuth('withdraw')}
                     </button>
                   </div>
                 )}

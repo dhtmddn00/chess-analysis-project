@@ -538,6 +538,18 @@
     "agreeTermsSuffix": ".",
     "agreePrivacyPrefix": "(Required) I agree to the",
     "privacyLink": "Privacy Policy",
-    "agreePrivacySuffix": "."
+    "agreePrivacySuffix": ".",
+    "forgotPasswordLink": "Forgot password?",
+    "forgotTitle": "Reset password",
+    "forgotSubtitle": "Enter your email and we'll send you a reset link.",
+    "sendResetLink": "Send reset link",
+    "resetLinkSent": "We've sent a reset link to your email. Please check your inbox.",
+    "backToLogin": "Back to login",
+    "resetTitle": "Set new password",
+    "newPassword": "New password",
+    "resetDone": "Password changed!",
+    "resetDoneDesc": "Redirecting to login...",
+    "withdraw": "Delete account",
+    "withdrawConfirm": "Are you sure? Your account and personal data will be deleted and cannot be recovered."
   }
 }

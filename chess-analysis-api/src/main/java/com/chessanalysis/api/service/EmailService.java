@@ -52,6 +52,36 @@ public class EmailService {
             return;
         }
 
+        send(toEmail, "[ChessLab] 이메일 인증을 완료해주세요", html);
+        log.info("[EmailService] 인증 메일 발송 완료: {}", toEmail);
+    }
+
+    public void sendPasswordResetEmail(String toEmail, String token) {
+        String resetUrl = frontendUrl + "/auth/reset-password?token=" + token;
+
+        String html = """
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+                  <h2 style="color:#18181b">♟ ChessLab 비밀번호 재설정</h2>
+                  <p style="color:#52525b">아래 버튼을 클릭해서 비밀번호를 재설정해주세요.<br>링크는 1시간 동안 유효합니다.</p>
+                  <a href="%s"
+                     style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;
+                            padding:12px 24px;border-radius:8px;font-weight:600;margin:16px 0">
+                    비밀번호 재설정
+                  </a>
+                  <p style="color:#a1a1aa;font-size:13px">본인이 요청하지 않았다면 이 메일을 무시하세요.<br>%s</p>
+                </div>
+                """.formatted(resetUrl, resetUrl);
+
+        if (!enabled) {
+            log.warn("[EmailService] RESEND_API_KEY 미설정 — 발송 건너뜀. 재설정 URL: {}", resetUrl);
+            return;
+        }
+
+        send(toEmail, "[ChessLab] 비밀번호 재설정 안내", html);
+        log.info("[EmailService] 비밀번호 재설정 메일 발송 완료: {}", toEmail);
+    }
+
+    private void send(String toEmail, String subject, String html) {
         try {
             restClient.post()
                     .uri("/emails")
@@ -59,12 +89,11 @@ public class EmailService {
                     .body(Map.of(
                             "from", from,
                             "to", new String[]{toEmail},
-                            "subject", "[ChessLab] 이메일 인증을 완료해주세요",
+                            "subject", subject,
                             "html", html
                     ))
                     .retrieve()
                     .toBodilessEntity();
-            log.info("[EmailService] 인증 메일 발송 완료: {}", toEmail);
         } catch (Exception e) {
             log.error("[EmailService] 메일 발송 실패: {}", e.getMessage());
             throw new RuntimeException("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");

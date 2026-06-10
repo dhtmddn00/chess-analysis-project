@@ -124,8 +124,86 @@ public class AuthService {
                     user.setVerificationToken(generateVerificationToken());
                     user.setVerificationTokenExpiresAt(LocalDateTime.now().plusHours(TOKEN_EXPIRY_HOURS));
                     userRepository.save(user);
-                    emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+                    // 메일 발송 실패가 토큰 갱신 트랜잭션을 롤백하지 않도록 분리 (signup과 동일 정책)
+                    try {
+                        emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+                    } catch (Exception emailEx) {
+                        log.warn("[Resend] 인증 메일 발송 실패 (토큰은 갱신됨): {}", emailEx.getMessage());
+                    }
                 });
+    }
+
+    // ── 비밀번호 재설정 ──────────────────────────────────────────────────────
+
+    private static final int RESET_TOKEN_EXPIRY_MINUTES = 60;
+
+    @Transactional
+    public void requestPasswordReset(String email) {
+        signupRateLimitService.checkPasswordResetLimit(email);
+
+        // 이메일 열거 공격 방어: 존재 여부와 무관하게 항상 동일 응답
+        userRepository.findByEmail(email.toLowerCase().strip())
+                .filter(User::isEmailVerified)   // 미인증 계정은 재설정 불가
+                .ifPresent(user -> {
+                    user.setPasswordResetToken(generateVerificationToken());
+                    user.setPasswordResetExpiresAt(LocalDateTime.now().plusMinutes(RESET_TOKEN_EXPIRY_MINUTES));
+                    userRepository.save(user);
+                    try {
+                        emailService.sendPasswordResetEmail(user.getEmail(), user.getPasswordResetToken());
+                    } catch (Exception emailEx) {
+                        log.warn("[PasswordReset] 메일 발송 실패 (토큰은 저장됨): {}", emailEx.getMessage());
+                    }
+                });
+    }
+
+    @Transactional
+    public void confirmPasswordReset(String token, String newPassword) {
+        User user = userRepository.findByPasswordResetToken(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 재설정 링크입니다."));
+
+        if (user.getPasswordResetExpiresAt() == null
+                || user.getPasswordResetExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "재설정 링크가 만료되었습니다. 다시 요청해주세요.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        userRepository.save(user);
+
+        // 비밀번호 변경 후 기존 로그인 실패 카운트 정리
+        loginAttemptService.clearFailures(user.getEmail());
+    }
+
+    // ── 회원 탈퇴 (soft delete + 개인정보 익명화) ──────────────────────────────
+
+    @Transactional
+    public void withdraw(HttpServletRequest request, HttpServletResponse response) {
+        String token = extractToken(request);
+        if (token == null || !jwtService.isValid(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+
+        User user = userRepository.findById(jwtService.extractUserId(token))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
+
+        LocalDateTime now = LocalDateTime.now();
+        // 개인정보 익명화 — 이메일/이름을 식별 불가 값으로 치환, 비밀번호 무효화
+        // 이름은 LOWER(name) 유니크 인덱스가 있으므로 UUID를 포함해 충돌 방지
+        user.setEmail("deleted_" + user.getId() + "@deleted.local");
+        user.setName("deleted_" + user.getId());
+        user.setPasswordHash("");
+        user.setChessComUsername(null);
+        user.setLichessUsername(null);
+        user.setVerificationToken(null);
+        user.setVerificationTokenExpiresAt(null);
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        user.setActive(false);
+        user.setDeletedAt(now);
+        userRepository.save(user);
+
+        logout(response);
     }
 
     // ── 로그인 ──────────────────────────────────────────────────────────────
@@ -148,6 +226,9 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
+        // 비밀번호가 올바르면 실패 카운트 정리 (이후 상태 체크에서 막혀도 잠금 누적 방지)
+        loginAttemptService.clearFailures(email);
+
         if (!user.isActive()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "비활성화된 계정입니다.");
         }
@@ -156,7 +237,6 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED");
         }
 
-        loginAttemptService.clearFailures(email);
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 

@@ -2,8 +2,10 @@ package com.chessanalysis.api.controller;
 
 import com.chessanalysis.api.dto.auth.AuthResponse;
 import com.chessanalysis.api.dto.auth.LoginRequest;
+import com.chessanalysis.api.dto.auth.PasswordResetConfirm;
 import com.chessanalysis.api.dto.auth.SignupRequest;
 import com.chessanalysis.api.service.AuthService;
+import com.chessanalysis.api.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -64,6 +66,33 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "입력하신 이메일로 인증 메일을 발송했습니다."));
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "이메일을 입력해주세요."));
+        }
+        authService.requestPasswordReset(email);
+        // 이메일 열거 공격 방어: 존재 여부와 무관하게 동일 메시지
+        return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 메일을 발송했습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody PasswordResetConfirm req) {
+        authService.confirmPasswordReset(req.getToken(), req.getNewPassword());
+        return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다. 다시 로그인해주세요."));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        authService.withdraw(request, response);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest req,
@@ -82,15 +111,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.getCurrentUser(request));
     }
 
-    // 클라이언트 실제 IP 추출
-    // X-Forwarded-For는 클라이언트가 임의 값을 주입할 수 있어 사용하지 않음 (기존 컨트롤러와 동일 정책)
-    // Fly.io 환경: Fly-Client-IP 헤더가 인프라에서 설정되므로 신뢰 가능
-    // 로컬/기타: RemoteAddr 사용
     private String getClientIp(HttpServletRequest request) {
-        String flyClientIp = request.getHeader("Fly-Client-IP");
-        if (flyClientIp != null && !flyClientIp.isBlank()) {
-            return flyClientIp.strip();
-        }
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolve(request);
     }
 }

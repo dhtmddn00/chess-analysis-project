@@ -58,6 +58,15 @@ public class User {
     @Column(name = "privacy_agreed_at")
     private LocalDateTime privacyAgreedAt;
 
+    @Column(name = "password_reset_token", length = 64)
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_expires_at")
+    private LocalDateTime passwordResetExpiresAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

@@ -71,6 +71,62 @@ DIMENSION_EN = {
     "swindle_resistance":     "Swindle Resistance",
 }
 
+# ── Country(ISO 3166-1 alpha-2) → output language ─────────────────────────────
+# 계정 국가가 있으면 그 나라 주 언어로 AI 응답을 생성한다.
+# "Korean"/"English"는 전용 시스템 프롬프트(KO/EN)를 쓰고,
+# 그 외 언어는 영어 프롬프트(EN) + "respond in {language}" 지시로 처리한다.
+COUNTRY_LANGUAGE = {
+    "KR": "Korean",
+    "US": "English", "GB": "English", "CA": "English", "AU": "English",
+    "NZ": "English", "IE": "English", "IN": "English", "PH": "English",
+    "SG": "English", "ZA": "English",
+    "JP": "Japanese",
+    "CN": "Chinese", "TW": "Chinese", "HK": "Chinese",
+    "DE": "German", "AT": "German", "CH": "German",
+    "FR": "French", "BE": "French",
+    "ES": "Spanish", "MX": "Spanish", "AR": "Spanish", "CO": "Spanish",
+    "CL": "Spanish", "PE": "Spanish",
+    "RU": "Russian", "BY": "Russian", "KZ": "Russian",
+    "BR": "Portuguese", "PT": "Portuguese",
+    "IT": "Italian",
+    "UA": "Ukrainian",
+    "PL": "Polish",
+    "NL": "Dutch",
+    "TR": "Turkish",
+    "VN": "Vietnamese",
+    "ID": "Indonesian",
+    "TH": "Thai",
+    "SE": "Swedish",
+    "NO": "Norwegian",
+    "FI": "Finnish",
+    "GR": "Greek",
+    "CZ": "Czech",
+    "HU": "Hungarian",
+    "RO": "Romanian",
+}
+
+
+def _resolve_language(locale: str, country: Optional[str]) -> tuple[str, str]:
+    """출력 언어를 결정한다.
+
+    우선순위: 계정 국가(country) > UI 로케일(locale).
+
+    반환: (language_name, base_locale)
+      - language_name: "Korean" / "English" / "Japanese" 등 — 프롬프트 지시·로깅용
+      - base_locale:   "ko" 또는 "en" — 데이터 라벨(DIMENSION_KR/EN)과
+                       기본 프롬프트(KO/EN) 선택용
+    """
+    if country:
+        lang = COUNTRY_LANGUAGE.get(country.strip().upper())
+        if lang == "Korean":
+            return ("Korean", "ko")
+        if lang == "English":
+            return ("English", "en")
+        if lang:  # 제3 언어 — 영어 프롬프트 베이스 + 언어 지시
+            return (lang, "en")
+    # 국가 정보 없음/미매핑 → UI 로케일
+    return ("English", "en") if locale == "en" else ("Korean", "ko")
+
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT_KO = """\
@@ -527,22 +583,28 @@ class NarrativeService:
 
     # ── Main entry point ───────────────────────────────────────────────────────
 
-    async def generate(self, profile, stats: dict, locale: str = "ko") -> dict:
+    async def generate(self, profile, stats: dict, locale: str = "ko",
+                       country: Optional[str] = None) -> dict:
         """
         Generate a coaching narrative for the given player.
 
         Args:
             profile:  PlayerProfile dataclass from profiler.py
             stats:    dict with keys avg_accuracy, total_blunders, total_mistakes
-            locale:   "ko" (Korean, default) or "en" (English)
+            locale:   "ko" (Korean, default) or "en" (English) — UI locale
+            country:  ISO 3166-1 alpha-2 account country (optional). When set,
+                      its primary language takes precedence over `locale`.
 
         Returns:
             dict with keys: pattern, why_losing, actions (list of 2-3 strings)
             Never raises — always falls back to rule-based output on any error.
         """
         locale = locale if locale in ("ko", "en") else "ko"
-        ctx = self._build_context(profile, stats, locale=locale)
-        ctx["locale"] = locale  # pass through to _format_prompt
+        # 언어 결정: 계정 국가 우선, 없으면 로케일
+        language, base_locale = _resolve_language(locale, country)
+        # 데이터 라벨·기본 프롬프트는 base_locale(ko/en) 기준
+        ctx = self._build_context(profile, stats, locale=base_locale)
+        ctx["locale"] = base_locale  # pass through to _format_prompt
 
         if not self._can_call_ai():
             reason = "AI disabled" if not self._enabled else "daily limit reached"
@@ -550,10 +612,24 @@ class NarrativeService:
             return self._fallback(ctx)
 
         try:
-            system_prompt = SYSTEM_PROMPT_EN if locale == "en" else SYSTEM_PROMPT_KO
+            # 프롬프트 선택:
+            #  - Korean → SYSTEM_PROMPT_KO (한국어 지시·출력)
+            #  - English → SYSTEM_PROMPT_EN
+            #  - 그 외 언어 → EN 베이스 + 출력 언어 강제 지시
+            if language == "Korean":
+                system_prompt = SYSTEM_PROMPT_KO
+            elif language == "English":
+                system_prompt = SYSTEM_PROMPT_EN
+            else:
+                system_prompt = SYSTEM_PROMPT_EN + (
+                    f"\n\n## CRITICAL LANGUAGE OVERRIDE\n"
+                    f"Write your ENTIRE response — pattern, why_losing, and every action — "
+                    f"in {language}. Do NOT use English or any other language. "
+                    f"Chess platform names (Lichess, Chess.com) may stay in English."
+                )
             user_prompt = self._format_prompt(ctx)
             logger.info(
-                f"Generating AI narrative [{locale}] for {ctx['username']} "
+                f"Generating AI narrative [{language}/{base_locale}] for {ctx['username']} "
                 f"({ctx['total_games']} games, rating {ctx['average_rating']})"
             )
 

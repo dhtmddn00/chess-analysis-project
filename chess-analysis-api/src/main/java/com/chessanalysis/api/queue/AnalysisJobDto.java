@@ -32,10 +32,16 @@ public class AnalysisJobDto {
      */
     @Builder.Default
     private boolean admin = false;
+    /**
+     * Account country (ISO 3166-1 alpha-2, e.g. "KR", "JP") — optional.
+     * Determines the AI narrative output language. null for guests or
+     * users who didn't provide a country.
+     */
+    private String country;
 
     public static AnalysisJobDto create(UUID analysisId, String username, String platform,
                                         Integer gameCount, String timeControl, String priority,
-                                        String locale, UUID userId, boolean admin) {
+                                        String locale, UUID userId, boolean admin, String country) {
         return AnalysisJobDto.builder()
                 .analysisId(analysisId)
                 .username(username)
@@ -47,17 +53,24 @@ public class AnalysisJobDto {
                 .locale(locale != null ? locale : "ko")
                 .userId(userId)
                 .admin(admin)
+                .country(country)
                 .build();
     }
 
     public static AnalysisJobDto create(UUID analysisId, String username, String platform,
                                         Integer gameCount, String timeControl, String priority,
+                                        String locale, UUID userId, boolean admin) {
+        return create(analysisId, username, platform, gameCount, timeControl, priority, locale, userId, admin, null);
+    }
+
+    public static AnalysisJobDto create(UUID analysisId, String username, String platform,
+                                        Integer gameCount, String timeControl, String priority,
                                         String locale, UUID userId) {
-        return create(analysisId, username, platform, gameCount, timeControl, priority, locale, userId, false);
+        return create(analysisId, username, platform, gameCount, timeControl, priority, locale, userId, false, null);
     }
 
     public static AnalysisJobDto create(UUID analysisId, String username, String platform, Integer gameCount, String timeControl, String priority) {
-        return create(analysisId, username, platform, gameCount, timeControl, priority, "ko", null, false);
+        return create(analysisId, username, platform, gameCount, timeControl, priority, "ko", null, false, null);
     }
     
     // Backwards compatibility overload

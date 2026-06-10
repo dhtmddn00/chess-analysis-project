@@ -228,8 +228,9 @@ class ChessAnalysisWorker:
             locale = job_data.get('locale', 'ko')
             user_id = job_data.get('userId')              # None for guest analyses
             is_admin = bool(job_data.get('admin', False)) # server-set flag (trusted)
+            country = job_data.get('country')             # account country (optional) → AI language
             await self._generate_and_store_narrative(
-                analysis_id, profile_data, game_analyses, locale, user_id, is_admin
+                analysis_id, profile_data, game_analyses, locale, user_id, is_admin, country
             )
 
             # Step 7: Complete analysis (98-100%)
@@ -724,7 +725,8 @@ class ChessAnalysisWorker:
 
     async def _generate_and_store_narrative(
         self, analysis_id: str, profile_data, game_analyses: list,
-        locale: str = "ko", user_id: str = None, is_admin: bool = False
+        locale: str = "ko", user_id: str = None, is_admin: bool = False,
+        country: str = None
     ) -> None:
         """
         Generate an AI coaching narrative and persist it to style_profiles_worker.
@@ -758,7 +760,9 @@ class ChessAnalysisWorker:
             username = getattr(profile_data, 'player_name', '') or ''
             stats = await self._fetch_aggregate_stats(analysis_id, username=username)
 
-            narrative = await self.narrative_service.generate(profile_data, stats, locale=locale)
+            narrative = await self.narrative_service.generate(
+                profile_data, stats, locale=locale, country=country
+            )
 
             await self.db_client.execute(
                 """

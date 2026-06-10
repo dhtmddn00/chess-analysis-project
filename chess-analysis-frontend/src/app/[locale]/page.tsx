@@ -9,7 +9,7 @@ import {
   Gauge,
   GitBranch,
   Search,
-  ShieldCheck,
+  Sparkles,
   Swords,
   Clock,
   X,
@@ -74,7 +74,7 @@ export default function Home() {
     { icon: Gauge, title: t('feature0Title'), description: t('feature0Desc') },
     { icon: GitBranch, title: t('feature1Title'), description: t('feature1Desc') },
     { icon: BarChart3, title: t('feature2Title'), description: t('feature2Desc') },
-    { icon: ShieldCheck, title: t('feature3Title'), description: t('feature3Desc') },
+    { icon: Sparkles, title: t('feature3Title'), description: t('feature3Desc') },
   ];
 
   const startAnalysis = (event: FormEvent<HTMLFormElement>) => {

@@ -46,6 +46,7 @@ class AuthServiceTest {
     @Mock JwtProperties jwtProperties;
     @Mock EmailService emailService;
     @Mock SignupRateLimitService signupRateLimitService;
+    @Mock PendingSignupService pendingSignupService;
     @Mock HttpServletResponse response;
     @Mock HttpServletRequest request;
 
@@ -79,45 +80,42 @@ class AuthServiceTest {
     class Signup {
 
         @Test
-        @DisplayName("정상 요청 시 유저 저장 + 인증 메일 발송 (JWT 쿠키 미발급)")
+        @DisplayName("정상 요청 시 Redis pending 저장 + 메일 발송 (DB 저장·JWT 미발급)")
         void success() {
             SignupRequest req = new SignupRequest();
             req.setEmail("NEW@EXAMPLE.COM");
             req.setPassword("password123");
             req.setName("신규유저");
 
+            when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
+            when(userRepository.existsByNameIgnoreCase("신규유저")).thenReturn(false);
             when(passwordEncoder.encode("password123")).thenReturn("hashed");
-            when(userRepository.saveAndFlush(any(User.class))).thenAnswer(inv -> {
-                User u = inv.getArgument(0);
-                ReflectionTestUtils.setField(u, "id", userId);
-                ReflectionTestUtils.setField(u, "createdAt", LocalDateTime.now());
-                return u;
-            });
 
             authService.signup(req, "127.0.0.1");
 
-            verify(userRepository).saveAndFlush(argThat(u ->
-                    "new@example.com".equals(u.getEmail()) && "hashed".equals(u.getPasswordHash())
+            verify(pendingSignupService).store(anyString(), argThat(p ->
+                    "new@example.com".equals(p.email()) && "hashed".equals(p.passwordHash())
             ));
             verify(emailService).sendVerificationEmail(eq("new@example.com"), anyString());
+            verify(userRepository, never()).saveAndFlush(any());
             verify(jwtService, never()).generateToken(any());
         }
 
         @Test
-        @DisplayName("중복 이메일 — DataIntegrityViolation → 409 Conflict")
+        @DisplayName("이미 가입된 이메일 → 409 Conflict")
         void duplicateEmail_throwsConflict() {
             SignupRequest req = new SignupRequest();
             req.setEmail("dup@example.com");
             req.setPassword("password123");
             req.setName("중복유저");
 
-            when(passwordEncoder.encode(any())).thenReturn("hashed");
-            when(userRepository.saveAndFlush(any())).thenThrow(DataIntegrityViolationException.class);
+            when(userRepository.existsByEmail("dup@example.com")).thenReturn(true);
 
             assertThatThrownBy(() -> authService.signup(req, "127.0.0.1"))
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
                             .isEqualTo(HttpStatus.CONFLICT));
+            verify(pendingSignupService, never()).store(any(), any());
         }
     }
 

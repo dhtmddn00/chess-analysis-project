@@ -145,6 +145,30 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.045) !important;
 }
 
+/* dark-surface: 어두운 카드는 위 라이트 강제 규칙에서 제외 (AI 코치 진단 카드 등) */
+.chess-toss .dark-surface,
+.chess-toss .dark-surface.shadow-lg {
+  background: #09090b !important; /* zinc-950 */
+  border-color: #27272a;
+}
+
+.chess-toss .dark-surface h1,
+.chess-toss .dark-surface h2,
+.chess-toss .dark-surface h3,
+.chess-toss .dark-surface h4,
+.chess-toss .dark-surface h5,
+.chess-toss .dark-surface .text-white {
+  color: #ffffff !important;
+}
+
+.chess-toss .dark-surface p {
+  color: #d4d4d8 !important; /* zinc-300 기본 본문 */
+}
+
+.chess-toss .dark-surface .text-zinc-200 { color: #e4e4e7 !important; }
+.chess-toss .dark-surface .text-zinc-400 { color: #a1a1aa !important; }
+.chess-toss .dark-surface .text-zinc-500 { color: #71717a !important; }
+
 .chess-toss .rounded-xl,
 .chess-toss .rounded-lg {
   border-radius: 8px !important;

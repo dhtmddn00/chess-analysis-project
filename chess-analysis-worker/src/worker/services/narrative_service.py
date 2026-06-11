@@ -415,7 +415,13 @@ class NarrativeService:
             "gap": round(strongest_score - weakest_score, 1),
             "openings": openings,
             "style_tags": (profile.style_tags or [])[:5],
-            "decisive_moves": stats.get("decisive_moves", []),
+            # 프롬프트 토큰 상한(~600) 보장: cp_loss가 큰(승부에 가장 영향 준) 수 상위 15개만.
+            # 전체를 넣으면 50게임 기준 1000+개가 들어가 Groq TPM 한도(12k)를 초과한다.
+            "decisive_moves": sorted(
+                stats.get("decisive_moves", []),
+                key=lambda m: m.get("cp_loss", 0),
+                reverse=True,
+            )[:15],
         }
 
     def _format_decisive_lines(self, decisive_moves: list, is_en: bool) -> str:

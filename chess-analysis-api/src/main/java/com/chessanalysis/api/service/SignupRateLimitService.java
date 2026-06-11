@@ -62,6 +62,16 @@ public class SignupRateLimitService {
         enforce("pwreset:email:" + email.toLowerCase(), MAX_RESET_PER_EMAIL, RESET_WINDOW);
     }
 
+    // 게시글: 유저당 10분에 5개
+    public void checkPostLimit(String userId) {
+        enforce("post:user:" + userId, 5, Duration.ofMinutes(10));
+    }
+
+    // 채팅: 유저당 1분에 20개
+    public void checkChatLimit(String userId) {
+        enforce("chat:user:" + userId, 20, Duration.ofMinutes(1));
+    }
+
     private void enforce(String key, int max, Duration window) {
         Long count = redisTemplate.execute(
             INCREMENT_SCRIPT,

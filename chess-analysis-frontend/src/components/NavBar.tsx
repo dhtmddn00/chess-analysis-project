@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { LogIn, LogOut, User, UserX, ChevronDown, BarChart2, ArrowLeftRight, Search } from 'lucide-react';
+import { LogIn, LogOut, User, UserX, ChevronDown, BarChart2, ArrowLeftRight, Search, MessageSquare } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -64,6 +64,13 @@ export function NavBar() {
               {t('compare')}
             </Link>
             <Link
+              href="/community"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              {t('community')}
+            </Link>
+            <Link
               href="/analyze"
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
             >
@@ -94,6 +101,14 @@ export function NavBar() {
                       <p className="truncate text-xs font-semibold text-zinc-900">{user.name}</p>
                       <p className="truncate text-xs text-zinc-400">{user.email}</p>
                     </div>
+                    <Link
+                      href="/mypage"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                    >
+                      <User className="h-4 w-4" />
+                      {tAuth('myPage')}
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"

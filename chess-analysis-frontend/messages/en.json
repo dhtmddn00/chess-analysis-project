@@ -31,7 +31,8 @@
     "history": "History",
     "compare": "Compare",
     "switchLanguage": "한국어",
-    "logoSubtitle": "Stockfish profile lab"
+    "logoSubtitle": "Stockfish profile lab",
+    "community": "Community"
   },
   "Home": {
     "badge": "Chess.com · Lichess game analysis",
@@ -307,7 +308,7 @@
     "priorityHigh": "High",
     "priorityNormal": "Normal",
     "expectedDuration": "Expected duration: 2-4 weeks",
-    "difficulty": "Difficulty: Intermediate",
+    "difficulty": "Difficulty",
     "viewPlan": "View Detailed Plan",
     "generatingPlan": "Generating Training Plan",
     "generatingPlanDesc": "Your personalized training plan is being prepared.",
@@ -339,7 +340,6 @@
     "tacticsEval": "⚡ Tactical Opportunity Evaluation",
     "found": "Found",
     "missed": "Missed",
-    "difficulty": "Difficulty",
     "tacticsStat": "Tactical Statistics Summary",
     "totalTacticsCount": "Total Tactical Opportunities",
     "patternTypes": "Discovered Pattern Types",
@@ -559,6 +559,44 @@
     "withdrawConfirm": "Are you sure? Your account and personal data will be deleted and cannot be recovered.",
     "country": "Country",
     "optional": "optional",
-    "countryPlaceholder": "Select your country"
+    "countryPlaceholder": "Select your country",
+    "myPage": "My Page"
+  },
+  "MyPage": {
+    "joinedAt": "Joined {date}",
+    "trendTitle": "Progress Over Time",
+    "needMoreAnalyses": "Charts appear after 2+ completed analyses.",
+    "accuracyAcpl": "Accuracy · ACPL trend",
+    "accuracy": "Accuracy",
+    "styleDimensions": "Style dimension trends",
+    "tactical": "Tactical",
+    "positional": "Positional",
+    "endgame": "Endgame",
+    "timeManagement": "Time Mgmt",
+    "historyTitle": "Analysis History",
+    "noHistory": "No completed analyses yet.",
+    "games": "games",
+    "settingsTitle": "Account Settings",
+    "save": "Save",
+    "saved": "Saved",
+    "passwordTitle": "Change Password",
+    "currentPassword": "Current password",
+    "changePassword": "Change password",
+    "wrongCurrentPassword": "Current password is incorrect."
+  },
+  "Community": {
+    "boardTitle": "Community",
+    "write": "Write",
+    "cancel": "Cancel",
+    "submit": "Post",
+    "titlePlaceholder": "Title",
+    "contentPlaceholder": "Write something...",
+    "noPosts": "No posts yet. Be the first!",
+    "loginToWrite": "Log in to write a post.",
+    "login": "Log in",
+    "chatTitle": "Global Chat",
+    "noMessages": "No messages yet.",
+    "chatPlaceholder": "Type a message...",
+    "loginToChat": "Log in to chat."
   }
 }

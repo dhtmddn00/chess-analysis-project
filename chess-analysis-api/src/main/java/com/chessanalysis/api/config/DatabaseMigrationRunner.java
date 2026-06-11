@@ -18,16 +18,39 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         // Hibernate ddl-auto: update가 처리 못하는 함수형 인덱스를 여기서 생성
         // IF NOT EXISTS 이므로 재기동 시 안전
-        execIndex("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_name_lower ON users(LOWER(name))",
+        exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_name_lower ON users(LOWER(name))",
                 "idx_users_name_lower");
-        execIndex("CREATE INDEX IF NOT EXISTS idx_users_password_reset_token ON users(password_reset_token)",
+        exec("CREATE INDEX IF NOT EXISTS idx_users_password_reset_token ON users(password_reset_token)",
                 "idx_users_password_reset_token");
+
+        // 커뮤니티·채팅 테이블 — JPA 엔티티 없이 JdbcTemplate로만 접근하므로 여기서 생성
+        exec("""
+                CREATE TABLE IF NOT EXISTS community_posts (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    author_name VARCHAR(30) NOT NULL,
+                    title VARCHAR(120) NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )""", "community_posts");
+        exec("CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created_at DESC)",
+                "idx_community_posts_created");
+        exec("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    author_name VARCHAR(30) NOT NULL,
+                    content VARCHAR(500) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )""", "chat_messages");
+        exec("CREATE INDEX IF NOT EXISTS idx_chat_messages_id ON chat_messages(id DESC)",
+                "idx_chat_messages_id");
     }
 
-    private void execIndex(String sql, String name) {
+    private void exec(String sql, String name) {
         try {
             jdbcTemplate.execute(sql);
-            log.info("[Migration] {} 인덱스 확인 완료", name);
+            log.info("[Migration] {} 확인 완료", name);
         } catch (Exception e) {
             log.warn("[Migration] {} 생성 실패 (무시): {}", name, e.getMessage());
         }

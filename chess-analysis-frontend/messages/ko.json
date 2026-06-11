@@ -31,7 +31,8 @@
     "history": "이력",
     "compare": "비교",
     "switchLanguage": "English",
-    "logoSubtitle": "Stockfish profile lab"
+    "logoSubtitle": "Stockfish profile lab",
+    "community": "커뮤니티"
   },
   "Home": {
     "badge": "Chess.com · Lichess 게임 분석",
@@ -307,7 +308,7 @@
     "priorityHigh": "높음",
     "priorityNormal": "보통",
     "expectedDuration": "예상 기간: 2-4주",
-    "difficulty": "난이도: 중급",
+    "difficulty": "난이도",
     "viewPlan": "세부 계획 보기",
     "generatingPlan": "훈련 계획 생성 중",
     "generatingPlanDesc": "개인 맞춤 훈련 계획이 준비되는 중입니다.",
@@ -339,7 +340,6 @@
     "tacticsEval": "⚡ 전술적 기회 평가",
     "found": "찾은 기회",
     "missed": "놓친 기회",
-    "difficulty": "난이도",
     "tacticsStat": "전술 통계 요약",
     "totalTacticsCount": "총 전술 기회",
     "patternTypes": "발견된 패턴 종류",
@@ -559,6 +559,44 @@
     "withdrawConfirm": "정말 탈퇴하시겠습니까? 계정과 개인정보가 삭제되며 되돌릴 수 없습니다.",
     "country": "국가",
     "optional": "선택",
-    "countryPlaceholder": "국가를 선택하세요"
+    "countryPlaceholder": "국가를 선택하세요",
+    "myPage": "마이페이지"
+  },
+  "MyPage": {
+    "joinedAt": "{date} 가입",
+    "trendTitle": "지표 변화",
+    "needMoreAnalyses": "분석이 2회 이상 쌓이면 변화 그래프가 표시됩니다.",
+    "accuracyAcpl": "정확도 · ACPL 추이",
+    "accuracy": "정확도",
+    "styleDimensions": "스타일 지표 추이",
+    "tactical": "전술",
+    "positional": "포지셔널",
+    "endgame": "엔드게임",
+    "timeManagement": "시간 관리",
+    "historyTitle": "분석 이력",
+    "noHistory": "아직 완료된 분석이 없습니다.",
+    "games": "게임",
+    "settingsTitle": "계정 설정",
+    "save": "저장",
+    "saved": "저장됨",
+    "passwordTitle": "비밀번호 변경",
+    "currentPassword": "현재 비밀번호",
+    "changePassword": "비밀번호 변경",
+    "wrongCurrentPassword": "현재 비밀번호가 올바르지 않습니다."
+  },
+  "Community": {
+    "boardTitle": "커뮤니티",
+    "write": "글쓰기",
+    "cancel": "취소",
+    "submit": "등록",
+    "titlePlaceholder": "제목",
+    "contentPlaceholder": "내용을 입력하세요",
+    "noPosts": "아직 게시글이 없습니다. 첫 글을 남겨보세요!",
+    "loginToWrite": "글을 쓰려면 로그인이 필요합니다.",
+    "login": "로그인",
+    "chatTitle": "글로벌 채팅",
+    "noMessages": "아직 메시지가 없습니다.",
+    "chatPlaceholder": "메시지 입력...",
+    "loginToChat": "채팅은 로그인 후 이용할 수 있습니다."
   }
 }

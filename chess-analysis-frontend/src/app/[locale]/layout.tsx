@@ -18,36 +18,72 @@ const inter = Inter({
 
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-export const metadata: Metadata = {
-  metadataBase: new URL('https://chesslab.kr'),
-  title: 'Chess Analysis Pro',
-  description: 'Stockfish 기반 체스 게임 심층 분석. 플레이 스타일을 파악하고 약점을 발견해 실력을 향상시키세요.',
-  keywords: 'chess, analysis, stockfish, chess.com, game analysis, chess improvement, tactics, strategy',
-  authors: [{ name: 'Chess Analysis Pro Team' }],
-  creator: 'Chess Analysis Pro',
-  publisher: 'Chess Analysis Pro',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
+const SITE_METADATA: Record<string, { title: string; description: string; ogTitle: string; ogDescription: string; keywords: string }> = {
+  ko: {
     title: 'Chess Analysis Pro',
+    description: 'Stockfish 기반 체스 게임 심층 분석. 플레이 스타일을 파악하고 약점을 발견해 실력을 향상시키세요.',
+    ogTitle: 'Chess Analysis Pro - Stockfish 기반 체스 분석',
+    ogDescription: 'Stockfish 엔진으로 체스 게임을 분석하세요. 플레이 스타일, 약점, 전술 기회를 한눈에 확인.',
+    keywords: '체스, 체스 분석, 스톡피시, chess.com, 게임 분석, 체스 실력 향상, 전술, 전략',
   },
-  openGraph: {
-    type: 'website',
-    siteName: 'Chess Analysis Pro',
-    title: 'Chess Analysis Pro - Stockfish 기반 체스 분석',
-    description: 'Stockfish 엔진으로 체스 게임을 분석하세요. 플레이 스타일, 약점, 전술 기회를 한눈에 확인.',
-    url: 'https://chesslab.kr',
-  },
-  twitter: {
-    card: 'summary_large_image',
+  en: {
     title: 'Chess Analysis Pro',
-    description: 'Stockfish 기반 체스 게임 심층 분석',
-  },
-  icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    description: 'In-depth chess game analysis powered by Stockfish. Understand your playing style and uncover weaknesses to improve your rating.',
+    ogTitle: 'Chess Analysis Pro - Stockfish-Powered Chess Analysis',
+    ogDescription: 'Analyze your chess games with the Stockfish engine. See your playing style, weaknesses, and tactical opportunities at a glance.',
+    keywords: 'chess, chess analysis, stockfish, chess.com, game analysis, chess improvement, tactics, strategy',
   },
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const meta = SITE_METADATA[locale] ?? SITE_METADATA.ko;
+  const path = locale === routing.defaultLocale ? '/' : `/${locale}`;
+
+  return {
+    metadataBase: new URL('https://chesslab.kr'),
+    title: meta.title,
+    description: meta.description,
+    keywords: meta.keywords,
+    authors: [{ name: 'Chess Analysis Pro Team' }],
+    creator: 'Chess Analysis Pro',
+    publisher: 'Chess Analysis Pro',
+    manifest: '/manifest.json',
+    alternates: {
+      canonical: path,
+      languages: {
+        ko: '/ko',
+        en: '/en',
+        'x-default': '/ko',
+      },
+    },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'default',
+      title: 'Chess Analysis Pro',
+    },
+    openGraph: {
+      type: 'website',
+      siteName: 'Chess Analysis Pro',
+      title: meta.ogTitle,
+      description: meta.ogDescription,
+      url: path,
+      locale: locale === 'en' ? 'en_US' : 'ko_KR',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: meta.ogTitle,
+      description: meta.ogDescription,
+    },
+    icons: {
+      icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    },
+  };
+}
 
 export default async function LocaleLayout({
   children,

@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = {
-  title: '개인정보처리방침 — ChessLab',
-  description: 'ChessLab 개인정보처리방침',
+const META: Record<string, { title: string; description: string }> = {
+  ko: { title: '개인정보처리방침 — ChessLab', description: 'ChessLab 개인정보처리방침' },
+  en: { title: 'Privacy Policy — ChessLab', description: 'ChessLab Privacy Policy' },
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return META[locale] ?? META.ko;
+}
 
 const UPDATED = '2026년 6월 10일';
 
@@ -12,7 +21,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-zinc-50 px-4 py-12">
       <article className="mx-auto max-w-2xl rounded-2xl border border-zinc-200 bg-white p-6 sm:p-10 shadow-sm">
-        <Link href="/" className="text-sm font-bold text-zinc-900 hover:underline">♟ ChessLab</Link>
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-bold text-zinc-900 hover:underline"><img src="/logo.svg" alt="" className="h-4 w-4" />ChessLab</Link>
         <h1 className="mt-4 text-2xl font-bold text-zinc-900">개인정보처리방침</h1>
         <p className="mt-1 text-sm text-zinc-500">시행일: {UPDATED}</p>
 

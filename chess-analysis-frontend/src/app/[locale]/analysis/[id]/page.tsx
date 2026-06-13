@@ -62,8 +62,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       type: 'website',
-      // Note: /api/og image route is not yet implemented — omit images rather
-      // than referencing a 404 URL that breaks social scrapers.
+      // No images set here — inherits the generic OG image from
+      // [locale]/opengraph-image.tsx via Next.js metadata convention.
     },
     twitter: {
       card: 'summary',

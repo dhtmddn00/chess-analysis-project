@@ -50,7 +50,7 @@ export function TrendChart({ series, xLabels, height = 180, yMin, yMax, unit = '
             <line x1={PAD.left} x2={W - PAD.right} y1={y(gv)} y2={y(gv)}
               stroke="#e4e4e7" strokeWidth="1" strokeDasharray={i === 0 ? '' : '3 4'} />
             <text x={PAD.left - 6} y={y(gv) + 4} textAnchor="end"
-              fontSize="10" fill="#a1a1aa">{Math.round(gv)}{unit}</text>
+              fontSize="13" fill="#a1a1aa">{Math.round(gv)}{unit}</text>
           </g>
         ))}
 
@@ -58,7 +58,7 @@ export function TrendChart({ series, xLabels, height = 180, yMin, yMax, unit = '
         {[0, Math.floor((n - 1) / 2), n - 1]
           .filter((v, i, arr) => arr.indexOf(v) === i)
           .map(i => (
-            <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#a1a1aa">
+            <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="13" fill="#a1a1aa">
               {xLabels[i]}
             </text>
           ))}

@@ -380,13 +380,14 @@ class NarrativeService:
         strongest_name, strongest_score = sorted_dims[-1]
 
         # Top 2 openings per colour (max 4 total)
+        colour_labels = {"white": "White", "black": "Black"} if locale == "en" else {"white": "백", "black": "흑"}
         openings: list[dict] = []
-        for colour_key, colour_kr in (("white", "백"), ("black", "흑")):
+        for colour_key in ("white", "black"):
             repertoire = (profile.opening_repertoire or {}).get(colour_key, {})
             top = sorted(repertoire.items(), key=lambda x: x[1].get("games", 0), reverse=True)
             for name, data in top[:2]:
                 openings.append({
-                    "colour": colour_kr,
+                    "colour": colour_labels[colour_key],
                     "name": name,
                     "games": data.get("games", 0),
                     "win_pct": round(data.get("win_rate", 0.0) * 100, 1),
@@ -437,7 +438,12 @@ class NarrativeService:
             opening = f" [{m['opening']}]" if m.get("opening") else ""
             result = f" ({m['result']})" if m.get("result") else ""
             color = m.get("color", "")
-            color_str = f" {color}" if color else ""
+            if color:
+                color_label = {"white": "White", "black": "Black"}.get(color, color) if is_en \
+                    else {"white": "백", "black": "흑"}.get(color, color)
+                color_str = f" {color_label}"
+            else:
+                color_str = ""
 
             if is_en:
                 lines.append(
@@ -503,6 +509,10 @@ class NarrativeService:
         win_rate = ctx["win_rate"]
         loss_rate = ctx["loss_rate"]
         username = ctx["username"]
+        is_en = ctx.get("locale", "ko") == "en"
+
+        if is_en:
+            return self._fallback_en(ctx, strongest, weakest, loss_rate, username)
 
         # 조사 선택: 받침 유무에 따라 '이' / '가' 자동 결정
         weakest_particle = _korean_subject_particle(weakest)
@@ -578,6 +588,84 @@ class NarrativeService:
         default_actions = [
             f"Lichess(lichess.org/practice)에서 {weakest} 관련 카테고리를 찾아 이번 주 20문제를 집중적으로 풀어보세요",
             f"최근 패배 게임 2개를 복기하며 {weakest}이 어떻게 결과에 영향을 줬는지 직접 확인해보세요",
+        ]
+        actions = action_map.get(weakest, default_actions)
+
+        return {
+            "pattern": pattern,
+            "why_losing": why_losing,
+            "actions": actions,
+        }
+
+    def _fallback_en(self, ctx: dict, strongest: str, weakest: str, loss_rate: float, username: str) -> dict:
+        """English rule-based fallback (mirrors _fallback's Korean version)."""
+        pattern = (
+            f"{username}'s most prominent strength is {strongest}. "
+            f"However, {weakest} repeatedly holds back the overall performance."
+        )
+
+        if loss_rate > 50:
+            why_losing = (
+                f"You're creating chances through {strongest}, but once the game shifts into "
+                f"a {weakest} situation, that advantage repeatedly slips away. "
+                f"Most losses follow this pattern — failing to convert at this turning point and allowing a reversal."
+            )
+        else:
+            why_losing = (
+                f"{strongest} regularly gives you good positions, but {weakest} prevents you from "
+                f"converting that edge into a finish. "
+                f"Improving just this area should produce a noticeable boost to your current win rate."
+            )
+
+        action_map = {
+            "Endgame Technique": [
+                "Lichess endgame practice (lichess.org/practice) → Rook Endgames category, 20 problems — focus on converting simplified positions",
+                "Review your last 3 losses and mark exactly where you lost your advantage — a pattern will emerge",
+            ],
+            "Tactical Play": [
+                "Chess Tempo (chesstempo.com) tactics, 15 minutes/day for a week — focus on forks, pins, and skewers",
+                "Use Lichess analysis to find missed tactical opportunities in your losses and solve them yourself",
+            ],
+            "Positional Play": [
+                "Watch 2 'Pawn Structures' lectures on Lichess Studies — build long-term planning skills",
+                "In games with fixed pawn structures, note each time which side has the better piece placement",
+            ],
+            "Time Management": [
+                "Play 10 games of 10+5 — decide in advance which moves to skip when under 30 seconds",
+                "Use Chess.com daily puzzles to train fast pattern recognition without slow calculation",
+            ],
+            "Consistency": [
+                "Daily 3-minute Puzzle Rush sessions on Chess.com — build consistency through fast calculation and pattern recognition",
+                "Make 'check opponent's threats first' a habit — even in blitz, take one extra moment to check",
+            ],
+            "Lead Conversion": [
+                "Lichess practice → 'Converting a Decisive Advantage' category, 15 problems — learn how to close out winning positions",
+                "When ahead, resist the urge to trade pieces immediately — consciously try to maintain pressure instead",
+            ],
+            "Aggression": [
+                "Study the Sicilian Defense or King's Indian in depth on YouTube to strengthen your attacking repertoire",
+                "Watch an attacking middlegame lecture on Lichess Studies — learn the conditions and timing for kingside attacks",
+            ],
+            "Exchange Preference": [
+                "Before every trade, take 5 seconds to ask 'will I end up with the more active piece?' — doable even in blitz",
+                "Study Silman's positional chess principles to build criteria for evaluating good trades",
+            ],
+            "Opening Variety": [
+                "Analyze your most-played opening in the Lichess Opening Explorer and memorize the key 5-move line",
+                "Before adding a new opening, shore up the weak lines in your current repertoire",
+            ],
+            "Opening Deviation": [
+                "Check your opening mistake patterns in the Lichess Opening Explorer — find where you tend to leave theory",
+                "Memorize the first 10 moves of your main opening line with Chessable — repetition is the most efficient method",
+            ],
+            "Swindle Resistance": [
+                "When ahead, train yourself to look for 'block the opponent's counterplay' before 'continue attacking'",
+                "Practice defense — solve 10 problems on Lichess Studies focused on finding defensive resources",
+            ],
+        }
+        default_actions = [
+            f"On Lichess (lichess.org/practice), find a category related to {weakest} and focus on 20 problems this week",
+            f"Review 2 recent losses and see exactly how {weakest} affected the outcome",
         ]
         actions = action_map.get(weakest, default_actions)
 
@@ -693,7 +781,8 @@ class NarrativeService:
 
         except Exception as exc:
             logger.error(
-                f"AI narrative generation failed for {ctx.get('username', '?')}: {exc} "
-                f"— falling back to rule-based output"
+                f"AI narrative generation failed for {ctx.get('username', '?')}: "
+                f"[{type(exc).__name__}] {exc} — falling back to rule-based output",
+                exc_info=True,
             )
             return self._fallback(ctx)

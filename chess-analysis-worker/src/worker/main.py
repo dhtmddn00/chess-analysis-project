@@ -845,7 +845,7 @@ class ChessAnalysisWorker:
                     "quality": r.get("quality", "mistake"),
                     "result":  r.get("result", "?"),
                     "opening": r.get("opening", ""),
-                    "color":   "백" if r.get("white_player", "").lower() == username.lower() else "흑",
+                    "color":   "white" if r.get("white_player", "").lower() == username.lower() else "black",
                 })
             stats["decisive_moves"] = decisive
             logger.info(f"Fetched {len(decisive)} decisive moves for narrative context")
@@ -1012,7 +1012,7 @@ class ChessAnalysisWorker:
                 # Dictionary format
                 params = [
                     analysis_id,
-                    str(profile.get('playing_style', 'Balanced')),
+                    str(profile.get('playing_style', 'balanced_player')),
                     json.dumps(profile.get('strengths', []), ensure_ascii=False),
                     json.dumps(profile.get('weaknesses', []), ensure_ascii=False),
                     json.dumps(profile.get('opening_repertoire', {}), ensure_ascii=False),
@@ -1192,7 +1192,7 @@ class ChessAnalysisWorker:
             logger.error(f"Failed to convert profile to dict: {e}")
             # Return default profile
             return {
-                'playing_style': 'Balanced',
+                'playing_style': 'balanced_player',
                 'tactical_rating': 50.0,
                 'positional_rating': 50.0,
                 'endgame_rating': 50.0,
@@ -1214,24 +1214,29 @@ class ChessAnalysisWorker:
             }
     
     def _determine_playing_style(self, style_scores):
-        """12차원 점수를 기반으로 플레이 스타일 결정"""
+        """12차원 점수를 기반으로 플레이 스타일 결정.
+
+        프론트엔드 i18n(PlayingStyle 네임스페이스)에서 locale에 맞게 번역되는
+        언어 중립적 키를 반환한다 (한국어/영어 등 특정 언어 텍스트를 직접
+        반환하지 않음 — 글로벌 서비스 대응).
+        """
         aggression = style_scores.get('aggression', 50.0)
         tactical = style_scores.get('tactical_dependency', 50.0)
         positional = style_scores.get('positional_orientation', 50.0)
         risk = style_scores.get('risk_taking', 50.0)
-        
+
         if tactical > 75 and aggression > 70:
-            return "전술적 공격수 (Tactical Aggressor)"
+            return "tactical_aggressor"
         elif positional > 75 and risk < 40:
-            return "포지셔널 마스터 (Positional Master)"
+            return "positional_master"
         elif aggression > 75:
-            return "공격형 플레이어 (Attacking Player)"
+            return "attacking_player"
         elif positional > 70 and tactical > 70:
-            return "완전체 플레이어 (Complete Player)"
+            return "complete_player"
         elif risk > 70:
-            return "모험가 스타일 (Risk Taker)"
+            return "risk_taker"
         else:
-            return "균형잡힌 플레이어 (Balanced Player)"
+            return "balanced_player"
     
     def _extract_strengths(self, style_scores):
         """상위 점수 차원을 강점으로 추출"""

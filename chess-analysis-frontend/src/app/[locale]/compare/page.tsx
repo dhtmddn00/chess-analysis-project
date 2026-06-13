@@ -2,10 +2,11 @@
 
 import { useState, useCallback } from 'react';
 import { ArrowLeft, ArrowLeftRight, Loader2, AlertCircle, GitCompare } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '../../../i18n/navigation';
 import type { AnalysisResult, StyleNumericKey } from '@/types/analysis';
 import { STYLE_DIMENSIONS } from '@/types/analysis';
+import { translatePlayingStyle } from '@/lib/playingStyle';
 
 // ── SVG Radar Chart ───────────────────────────────────────────────────────────
 
@@ -375,6 +376,7 @@ function PlayerCard({
   tH: TFunc;
 }) {
   const accent = color === 'blue' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-zinc-900 bg-zinc-100 border-zinc-200';
+  const locale = useLocale();
 
   if (data.loading) {
     return (
@@ -409,7 +411,7 @@ function PlayerCard({
         <p className="text-xl font-black text-zinc-900">{r.username}</p>
         {r.styleProfile?.playingStyle && (
           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold mt-1 ${accent}`}>
-            {r.styleProfile.playingStyle}
+            {translatePlayingStyle(r.styleProfile.playingStyle, locale)}
           </span>
         )}
       </div>

@@ -1,8 +1,9 @@
 'use client';
 
 import { FormEvent, useState, useRef, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '../../i18n/navigation';
+import { translatePlayingStyle } from '@/lib/playingStyle';
 import {
   ArrowRight,
   BarChart3,
@@ -31,6 +32,7 @@ const boardPieces = [
 
 export default function Home() {
   const t = useTranslations('Home');
+  const locale = useLocale();
 
   const router = useRouter();
   const [username, setUsername] = useState('');
@@ -232,7 +234,7 @@ export default function Home() {
                           </span>
                           {entry.playingStyle && (
                             <span className="text-xs text-zinc-400 truncate">
-                              {entry.playingStyle}
+                              {translatePlayingStyle(entry.playingStyle, locale)}
                             </span>
                           )}
                         </div>

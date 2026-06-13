@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, RefreshCw, Clock, CheckCircle, XCircle, Loader2, BarChart2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, Link } from '../../../i18n/navigation';
+import { translatePlayingStyle } from '@/lib/playingStyle';
 import { useSearchParams } from 'next/navigation';
 import { useLocalHistory } from '@/hooks/useLocalHistory';
 
@@ -80,6 +81,7 @@ function StatusBadge({ status, t }: { status: AnalysisEntry['status']; t: (k: st
 export default function HistoryPage() {
   const t = useTranslations('History');
   const tCommon = useTranslations('Common');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { recentAnalyses } = useLocalHistory();
@@ -273,7 +275,7 @@ export default function HistoryPage() {
                       </div>
                       {entry.playingStyle && (
                         <span className="inline-block text-xs text-zinc-600 bg-zinc-100 rounded-full px-2 py-0.5 font-semibold mb-1.5">
-                          {entry.playingStyle}
+                          {translatePlayingStyle(entry.playingStyle, locale)}
                         </span>
                       )}
                       {entry.accuracy != null && (

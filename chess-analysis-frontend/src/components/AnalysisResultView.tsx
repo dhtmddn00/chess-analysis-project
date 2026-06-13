@@ -5,8 +5,9 @@ import {
   Target, BarChart3, Brain, Zap, TrendingUp,
   BookOpen, ShieldCheck, Trophy, ChevronDown, LogIn, Sparkles,
 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { AnalysisResult, PercentileMetric, STYLE_DIMENSIONS } from '@/types/analysis';
+import { translatePlayingStyle } from '@/lib/playingStyle';
 import { ShareResultCard } from '@/components/ShareResultCard';
 import { StyleArchetypeCard } from '@/components/StyleArchetypeCard';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,6 +45,7 @@ function getBriefStyleAnalysis(analysis?: string) {
 
 export function AnalysisResultView({ result, winrate, shortLink, jobId }: AnalysisResultViewProps) {
   const t = useTranslations('Analyze');
+  const locale = useLocale();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const comparisonMetrics = result.comparativeInsights?.performancePercentiles
@@ -584,7 +586,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-zinc-950 text-2xl text-white">♚</div>
             <h5 className="mb-2 text-sm font-black uppercase tracking-widest text-zinc-500">{t('mainStyle')}</h5>
             <div className="text-2xl font-black text-zinc-950">
-              {result.styleProfile?.playingStyle || t('analyzing')}
+              {translatePlayingStyle(result.styleProfile?.playingStyle, locale) || t('analyzing')}
             </div>
             {result.styleProfile?.dimensionExplanations?.overallStyleAnalysis && (
               <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600">
@@ -745,7 +747,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
         averageAccuracy={result.averageAccuracy ?? 0}
         averageCentipawnLoss={result.averageCentipawnLoss ?? 0}
         totalBlunders={result.totalBlunders ?? 0}
-        playingStyle={result.styleProfile?.playingStyle ?? ''}
+        playingStyle={translatePlayingStyle(result.styleProfile?.playingStyle, locale)}
         winrate={winrate}
         shortLink={shortLink ?? null}
         jobId={jobId}

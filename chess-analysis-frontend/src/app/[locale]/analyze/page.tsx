@@ -4,8 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Search, Clock, Target, Zap, Brain, BarChart3, TrendingUp, ShieldCheck, ArrowLeft, ExternalLink, X, Trash2 } from 'lucide-react';
 import { sendGAEvent } from '@next/third-parties/google';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter as useIntlRouter } from '../../../i18n/navigation';
+import { translatePlayingStyle } from '../../../lib/playingStyle';
 import { usePlayerSummary } from '../../../hooks/usePlayerSummary';
 import { useAnalysis } from '../../../hooks/useAnalysis';
 import { useLocalHistory } from '../../../hooks/useLocalHistory';
@@ -55,6 +56,7 @@ export default function UnifiedAnalyzePage() {
   const t = useTranslations('Analyze');
   const tCommon = useTranslations('Common');
   const tHome = useTranslations('Home');
+  const locale = useLocale();
   const router = useIntlRouter();
   const [searchForm, setSearchForm] = useState({
     platform: 'chess.com',
@@ -370,7 +372,7 @@ export default function UnifiedAnalyzePage() {
                       </span>
                       {entry.playingStyle && (
                         <span className="text-xs text-zinc-400 truncate hidden sm:inline">
-                          {entry.playingStyle}
+                          {translatePlayingStyle(entry.playingStyle, locale)}
                         </span>
                       )}
                     </div>

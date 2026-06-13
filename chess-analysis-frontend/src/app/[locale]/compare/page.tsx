@@ -93,7 +93,7 @@ interface PlayerData {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function fetchLatestCompletedResult(username: string, platform: string): Promise<AnalysisResult> {
+async function fetchLatestCompletedResult(username: string, platform: string, locale: string): Promise<AnalysisResult> {
   // 1. Get list of analyses for this user
   const listRes = await fetch(
     `/api/v1/analysis/user/${encodeURIComponent(username)}?platform=${encodeURIComponent(platform)}`
@@ -108,7 +108,7 @@ async function fetchLatestCompletedResult(username: string, platform: string): P
   if (completed.length === 0) throw new Error('NO_ANALYSIS');
 
   // 3. Fetch result
-  const resultRes = await fetch(`/api/v1/analysis/${completed[0].id}/result`);
+  const resultRes = await fetch(`/api/v1/analysis/${completed[0].id}/result?locale=${locale}`);
   if (!resultRes.ok) throw new Error(`HTTP ${resultRes.status}`);
   return resultRes.json();
 }
@@ -143,6 +143,7 @@ export default function ComparePage() {
   const tA = useTranslations('Analyze');
   const tCommon = useTranslations('Common');
   const router  = useRouter();
+  const locale = useLocale();
 
   const [u1, setU1] = useState('');
   const [u2, setU2] = useState('');
@@ -157,7 +158,7 @@ export default function ComparePage() {
     if (!username.trim()) return;
     setter({ result: null, loading: true, error: null });
     try {
-      const result = await fetchLatestCompletedResult(username.trim(), platform);
+      const result = await fetchLatestCompletedResult(username.trim(), platform, locale);
       setter({ result, loading: false, error: null });
     } catch (err) {
       const msg = err instanceof Error && err.message === 'NO_ANALYSIS'
@@ -165,7 +166,7 @@ export default function ComparePage() {
         : t('errorFetch');
       setter({ result: null, loading: false, error: msg });
     }
-  }, [platform, t]);
+  }, [platform, t, locale]);
 
   const handleCompare = (e: React.FormEvent) => {
     e.preventDefault();

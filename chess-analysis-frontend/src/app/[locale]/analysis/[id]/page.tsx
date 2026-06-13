@@ -13,9 +13,9 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ??
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
-async function fetchResult(id: string): Promise<AnalysisResult | null> {
+async function fetchResult(id: string, locale: string): Promise<AnalysisResult | null> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/analysis/${id}/result`, {
+    const res = await fetch(`${BASE_URL}/api/v1/analysis/${id}/result?locale=${locale}`, {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
@@ -28,8 +28,8 @@ async function fetchResult(id: string): Promise<AnalysisResult | null> {
 // ── P1-2: Dynamic OG metadata for social sharing ─────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  const data = await fetchResult(id);
+  const { id, locale } = await params;
+  const data = await fetchResult(id, locale);
 
   if (!data) {
     return {
@@ -78,7 +78,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // without a second round-trip (no loading spinner on the static result page).
 
 export default async function AnalysisResultPage({ params }: Props) {
-  const { id } = await params;
-  const initialResult = await fetchResult(id);
+  const { id, locale } = await params;
+  const initialResult = await fetchResult(id, locale);
   return <AnalysisResultClient initialResult={initialResult} />;
 }

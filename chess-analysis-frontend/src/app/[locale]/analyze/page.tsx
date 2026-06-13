@@ -228,7 +228,7 @@ export default function UnifiedAnalyzePage() {
       if (isDone && jobId) {
         try {
           setResultError(null);
-          const response = await fetch(`/api/v1/analysis/${jobId}/result`);
+          const response = await fetch(`/api/v1/analysis/${jobId}/result?locale=${locale}`);
           if (response.ok) {
             const data = await response.json();
             setDetailedResult(data);
@@ -263,7 +263,7 @@ export default function UnifiedAnalyzePage() {
     };
 
     fetchDetailedResult();
-  }, [isDone, jobId]);
+  }, [isDone, jobId, locale]);
 
   useEffect(() => {
     const maxGames = MODE_MAX_GAMES[searchForm.priority];
@@ -791,7 +791,7 @@ export default function UnifiedAnalyzePage() {
                 <p className="mt-2 text-sm text-zinc-600">{resultError}</p>
                 <button
                   type="button"
-                  onClick={() => jobId && fetch(`/api/v1/analysis/${jobId}/result`).then(async (response) => {
+                  onClick={() => jobId && fetch(`/api/v1/analysis/${jobId}/result?locale=${locale}`).then(async (response) => {
                     if (!response.ok) throw new Error(await response.text());
                     setDetailedResult(await response.json());
                     setResultError(null);

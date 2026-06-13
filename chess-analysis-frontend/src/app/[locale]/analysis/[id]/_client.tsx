@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '../../../../i18n/navigation';
 import { useParams } from 'next/navigation';
 import type { AnalysisResult } from '@/types/analysis';
@@ -20,6 +20,7 @@ export function AnalysisResultClient({ initialResult }: Props = {}) {
   const tCommon = useTranslations('Common');
   const params = useParams();
   const router = useRouter();
+  const locale = useLocale();
 
   // If the server already gave us the result, start with it (no loading state).
   const [result, setResult] = useState<AnalysisResult | null>(initialResult ?? null);
@@ -37,7 +38,7 @@ export function AnalysisResultClient({ initialResult }: Props = {}) {
     const load = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/v1/analysis/${analysisId}/result`);
+        const response = await fetch(`/api/v1/analysis/${analysisId}/result?locale=${locale}`);
         if (!response.ok) {
           const body = await response.text();
           throw new Error(body || t('notFound'));
@@ -53,7 +54,7 @@ export function AnalysisResultClient({ initialResult }: Props = {}) {
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisId, t]); // initialResult is intentionally excluded: it's a one-time seed
+  }, [analysisId, t, locale]); // initialResult is intentionally excluded: it's a one-time seed
 
   // ── Derived player profile (must be above all early returns — Rules of Hooks) ─
   const playerProfile = useMemo(() => {

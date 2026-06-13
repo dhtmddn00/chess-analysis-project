@@ -163,9 +163,11 @@ public class AnalysisController {
     }
     
     @GetMapping("/{analysisId}/result")
-    public ResponseEntity<Map<String, Object>> getAnalysisResult(@PathVariable UUID analysisId) {
+    public ResponseEntity<Map<String, Object>> getAnalysisResult(
+            @PathVariable UUID analysisId,
+            @RequestParam(defaultValue = "ko") String locale) {
         try {
-            Map<String, Object> result = analysisService.getAnalysisResult(analysisId);
+            Map<String, Object> result = analysisService.getAnalysisResult(analysisId, locale);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("Failed to get analysis result for {}: {}", analysisId, e.getMessage());

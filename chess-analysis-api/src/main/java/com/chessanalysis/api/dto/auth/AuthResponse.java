@@ -17,4 +17,5 @@ public class AuthResponse {
     private String lichessUsername;
     private String subscriptionTier;
     private LocalDateTime createdAt;
+    private boolean admin;
 }

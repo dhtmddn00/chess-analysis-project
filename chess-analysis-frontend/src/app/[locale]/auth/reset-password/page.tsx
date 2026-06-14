@@ -92,7 +92,7 @@ export default function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link href="/" className="mb-4 inline-block text-2xl font-black text-zinc-900">♟ ChessLab</Link>
+          <Link href="/" className="mb-4 inline-flex items-center justify-center gap-2 text-2xl font-black text-zinc-900"><img src="/logo.svg" alt="" className="h-7 w-7" />ChessLab</Link>
           <h1 className="text-xl font-bold text-zinc-900">{t('resetTitle')}</h1>
         </div>
 

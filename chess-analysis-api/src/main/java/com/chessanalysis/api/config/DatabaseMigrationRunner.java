@@ -45,6 +45,17 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
                 )""", "chat_messages");
         exec("CREATE INDEX IF NOT EXISTS idx_chat_messages_id ON chat_messages(id DESC)",
                 "idx_chat_messages_id");
+        exec("""
+                CREATE TABLE IF NOT EXISTS community_comments (
+                    id BIGSERIAL PRIMARY KEY,
+                    post_id BIGINT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+                    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    author_name VARCHAR(30) NOT NULL,
+                    content VARCHAR(1000) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )""", "community_comments");
+        exec("CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments(post_id, id)",
+                "idx_community_comments_post");
     }
 
     private void exec(String sql, String name) {

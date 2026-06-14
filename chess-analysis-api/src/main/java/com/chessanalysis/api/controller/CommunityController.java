@@ -1,6 +1,7 @@
 package com.chessanalysis.api.controller;
 
 import com.chessanalysis.api.entity.User;
+import com.chessanalysis.api.service.AuthService;
 import com.chessanalysis.api.service.SignupRateLimitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import java.util.Map;
 /**
  * 간단한 커뮤니티(게시판) + 글로벌 채팅(폴링 기반).
  * 읽기는 공개, 쓰기는 로그인 필수. content는 프론트(React)가 escape하므로 저장은 원문.
+ * 글/댓글은 작성자 또는 관리자가 삭제 가능, 채팅은 관리자만 삭제 가능.
  */
 @RestController
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ public class CommunityController {
 
     private final JdbcTemplate jdbcTemplate;
     private final SignupRateLimitService rateLimitService;
+    private final AuthService authService;
 
     // ── 게시판 ──────────────────────────────────────────────────────────────
 
@@ -32,7 +35,7 @@ public class CommunityController {
         int capped = Math.min(Math.max(limit, 1), 50);
         return ResponseEntity.ok(jdbcTemplate.queryForList(
                 """
-                SELECT id, author_name, title, LEFT(content, 200) AS preview, created_at
+                SELECT id, user_id, author_name, title, LEFT(content, 200) AS preview, created_at
                 FROM community_posts ORDER BY id DESC LIMIT ?
                 """, capped));
     }
@@ -40,7 +43,7 @@ public class CommunityController {
     @GetMapping("/community/posts/{id}")
     public ResponseEntity<Map<String, Object>> getPost(@PathVariable long id) {
         var rows = jdbcTemplate.queryForList(
-                "SELECT id, author_name, title, content, created_at FROM community_posts WHERE id = ?", id);
+                "SELECT id, user_id, author_name, title, content, created_at FROM community_posts WHERE id = ?", id);
         if (rows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
         }
@@ -61,6 +64,60 @@ public class CommunityController {
                 "INSERT INTO community_posts (user_id, author_name, title, content) VALUES (?, ?, ?, ?) RETURNING id",
                 Long.class, user.getId(), user.getName(), title, content);
         return ResponseEntity.status(201).body(Map.of("id", id));
+    }
+
+    @DeleteMapping("/community/posts/{id}")
+    public ResponseEntity<Void> deletePost(@PathVariable long id) {
+        User user = requireUser();
+        var rows = jdbcTemplate.queryForList("SELECT user_id FROM community_posts WHERE id = ?", id);
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
+        }
+        requireOwnerOrAdmin(user, (java.util.UUID) rows.get(0).get("user_id"));
+
+        jdbcTemplate.update("DELETE FROM community_posts WHERE id = ?", id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── 댓글 ────────────────────────────────────────────────────────────────
+
+    @GetMapping("/community/posts/{id}/comments")
+    public ResponseEntity<List<Map<String, Object>>> listComments(@PathVariable long id) {
+        return ResponseEntity.ok(jdbcTemplate.queryForList(
+                "SELECT id, post_id, user_id, author_name, content, created_at FROM community_comments WHERE post_id = ? ORDER BY id ASC",
+                id));
+    }
+
+    @PostMapping("/community/posts/{id}/comments")
+    public ResponseEntity<Map<String, Object>> createComment(@PathVariable long id, @RequestBody Map<String, String> body) {
+        User user = requireUser();
+        String content = strip(body.get("content"), 1000);
+        if (content.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "댓글을 입력해주세요.");
+        }
+        if (jdbcTemplate.queryForList("SELECT id FROM community_posts WHERE id = ?", id).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
+        }
+        rateLimitService.checkChatLimit(user.getId().toString());
+
+        Long commentId = jdbcTemplate.queryForObject(
+                "INSERT INTO community_comments (post_id, user_id, author_name, content) VALUES (?, ?, ?, ?) RETURNING id",
+                Long.class, id, user.getId(), user.getName(), content);
+        return ResponseEntity.status(201).body(Map.of("id", commentId));
+    }
+
+    @DeleteMapping("/community/posts/{postId}/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(@PathVariable long postId, @PathVariable long commentId) {
+        User user = requireUser();
+        var rows = jdbcTemplate.queryForList(
+                "SELECT user_id FROM community_comments WHERE id = ? AND post_id = ?", commentId, postId);
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다.");
+        }
+        requireOwnerOrAdmin(user, (java.util.UUID) rows.get(0).get("user_id"));
+
+        jdbcTemplate.update("DELETE FROM community_comments WHERE id = ?", commentId);
+        return ResponseEntity.noContent().build();
     }
 
     // ── 글로벌 채팅 (폴링) ────────────────────────────────────────────────────
@@ -93,6 +150,16 @@ public class CommunityController {
         return ResponseEntity.status(201).body(Map.of("id", id));
     }
 
+    @DeleteMapping("/chat/messages/{id}")
+    public ResponseEntity<Void> deleteMessage(@PathVariable long id) {
+        User user = requireUser();
+        if (!authService.isAdmin(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "삭제 권한이 없습니다.");
+        }
+        jdbcTemplate.update("DELETE FROM chat_messages WHERE id = ?", id);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── 내부 유틸 ────────────────────────────────────────────────────────────
 
     private User requireUser() {
@@ -101,6 +168,13 @@ public class CommunityController {
             return user;
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+    }
+
+    private void requireOwnerOrAdmin(User user, java.util.UUID ownerId) {
+        if (user.getId().equals(ownerId) || authService.isAdmin(user)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "삭제 권한이 없습니다.");
     }
 
     private String strip(String s, int maxLen) {

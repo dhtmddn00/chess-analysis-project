@@ -43,8 +43,9 @@ export function NavBar() {
     <nav className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 text-sm font-bold text-zinc-900">
-            ♟ ChessLab
+          <Link href="/" className="flex items-center gap-1.5 text-sm font-bold text-zinc-900">
+            <img src="/logo.svg" alt="" className="h-4 w-4" />
+            ChessLab
           </Link>
 
           {/* Page links */}

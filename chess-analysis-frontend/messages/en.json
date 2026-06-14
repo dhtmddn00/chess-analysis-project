@@ -597,6 +597,13 @@
     "chatTitle": "Global Chat",
     "noMessages": "No messages yet.",
     "chatPlaceholder": "Type a message...",
-    "loginToChat": "Log in to chat."
+    "loginToChat": "Log in to chat.",
+    "deletePost": "Delete post",
+    "deleteComment": "Delete comment",
+    "deleteMessage": "Delete message",
+    "deleteConfirm": "Are you sure you want to delete this?",
+    "commentsTitle": "Comments",
+    "noComments": "No comments yet.",
+    "commentPlaceholder": "Write a comment"
   }
 }

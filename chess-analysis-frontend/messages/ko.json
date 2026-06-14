@@ -597,6 +597,13 @@
     "chatTitle": "글로벌 채팅",
     "noMessages": "아직 메시지가 없습니다.",
     "chatPlaceholder": "메시지 입력...",
-    "loginToChat": "채팅은 로그인 후 이용할 수 있습니다."
+    "loginToChat": "채팅은 로그인 후 이용할 수 있습니다.",
+    "deletePost": "게시글 삭제",
+    "deleteComment": "댓글 삭제",
+    "deleteMessage": "메시지 삭제",
+    "deleteConfirm": "삭제하시겠습니까?",
+    "commentsTitle": "댓글",
+    "noComments": "아직 댓글이 없습니다.",
+    "commentPlaceholder": "댓글을 입력하세요"
   }
 }

@@ -9,6 +9,7 @@ export interface AuthUser {
   lichessUsername?: string;
   subscriptionTier: 'free' | 'premium';
   createdAt: string;
+  admin?: boolean;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

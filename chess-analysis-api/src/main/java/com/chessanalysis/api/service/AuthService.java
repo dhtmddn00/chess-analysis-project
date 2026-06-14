@@ -25,6 +25,8 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +50,25 @@ public class AuthService {
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
+
+    @Value("${admin.emails:}")
+    private String adminEmailsCsv;
+    private Set<String> adminEmailSet = Set.of();
+
+    @jakarta.annotation.PostConstruct
+    void initAdminEmails() {
+        adminEmailSet = adminEmailsCsv == null || adminEmailsCsv.isBlank()
+                ? Set.of()
+                : Arrays.stream(adminEmailsCsv.split(","))
+                        .map(s -> s.toLowerCase(Locale.ROOT).strip())
+                        .filter(s -> !s.isEmpty())
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    // 게시글/댓글/채팅 전체 삭제 권한 등 관리자 여부 판단에 사용
+    public boolean isAdmin(User user) {
+        return user != null && adminEmailSet.contains(user.getEmail().toLowerCase(Locale.ROOT).strip());
+    }
 
     // ── 회원가입 ─────────────────────────────────────────────────────────────
 
@@ -341,6 +362,7 @@ public class AuthService {
                 .lichessUsername(user.getLichessUsername())
                 .subscriptionTier(user.getSubscriptionTier())
                 .createdAt(user.getCreatedAt())
+                .admin(isAdmin(user))
                 .build();
     }
 }

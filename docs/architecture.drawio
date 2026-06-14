@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Architecture" id="chess-architecture">
+    <mxGraphModel dx="934" dy="1268" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1450" pageHeight="640" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="grp_client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=13;fillColor=none;strokeColor=light-dark(#000000,#000000);dashed=1;fontColor=light-dark(#000000,#000000);" value="Client" vertex="1">
+          <mxGeometry height="160" width="140" x="20" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_frontend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=13;fillColor=none;strokeColor=light-dark(#000000,#000000);dashed=1;fontColor=light-dark(#000000,#000000);" value="Frontend" vertex="1">
+          <mxGeometry height="200" width="200" x="200" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_backend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=13;fillColor=none;strokeColor=light-dark(#000000,#000000);dashed=1;fontColor=light-dark(#000000,#000000);" value="Backend (Fly.io · nrt region, Docker Compose)" vertex="1">
+          <mxGeometry height="580" width="700" x="440" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_external" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=13;fillColor=none;strokeColor=light-dark(#000000,#000000);dashed=1;fontColor=light-dark(#000000,#000000);" value="External APIs" vertex="1">
+          <mxGeometry height="580" width="220" x="1180" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=13;fillColor=#F5F5F5;strokeColor=light-dark(#000000,#000000);dashed=0;fontColor=light-dark(#000000,#000000);" value="범례" vertex="1">
+          <mxGeometry height="120" width="220" x="20" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="user" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#666666;strokeColor=light-dark(#000000,#000000);fontSize=12;fontColor=light-dark(#000000,#000000);" value="User" vertex="1">
+          <mxGeometry height="60" width="40" x="60" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;arcSize=10;fontColor=light-dark(#000000,#000000);" value="🖥️ Next.js Frontend&#xa;(chess-analysis-frontend)" vertex="1">
+          <mxGeometry height="70" width="140" x="230" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;arcSize=0;fontColor=light-dark(#000000,#000000);" value="⚙️ Spring Boot API&#xa;(chess-analysis-api)&#xa;Auth / REST / WebSocket" vertex="1">
+          <mxGeometry height="70" width="170" x="510" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#F8CECC;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="Redis&#xa;Job Queue&#xa;(chess-analysis-queue)" vertex="1">
+          <mxGeometry height="90" width="100" x="740" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;arcSize=10;fontColor=light-dark(#000000,#000000);" value="🤖 Analysis Workers&#xa;(chess-analysis-worker x2)&#xa;Stockfish Engine" vertex="1">
+          <mxGeometry height="70" width="190" x="880" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="postgres" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#D5E8D4;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="PostgreSQL&#xa;Users / Games / Analyses&#xa;Community Posts" vertex="1">
+          <mxGeometry height="100" width="130" x="725" y="398" as="geometry" />
+        </mxCell>
+        <mxCell id="chesscom" parent="1" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="Chess.com&#xa;Public Data API" vertex="1">
+          <mxGeometry height="80" width="160" x="1220" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="lichess" parent="1" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="Lichess API" vertex="1">
+          <mxGeometry height="80" width="160" x="1220" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="groq" parent="1" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=light-dark(#000000,#000000);fontSize=12;fontStyle=1;fontColor=light-dark(#000000,#000000);" value="Groq LLM API&#xa;Llama 3.3 70B&#xa;AI Narrative" vertex="1">
+          <mxGeometry height="80" width="160" x="1220" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_sync_line" edge="1" parent="1" style="edgeStyle=none;html=1;dashed=0;endArrow=classic;startArrow=none;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="35" y="345" as="sourcePoint" />
+            <mxPoint x="75" y="345" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_sync_label" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" value="동기 요청 / 응답 (REST, JDBC)" vertex="1">
+          <mxGeometry height="26" width="135" x="85" y="332" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_async_line" edge="1" parent="1" style="edgeStyle=none;html=1;dashed=1;endArrow=classic;startArrow=none;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="35" y="385" as="sourcePoint" />
+            <mxPoint x="75" y="385" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_async_label" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" value="비동기 큐 / 이벤트 (Redis)" vertex="1">
+          <mxGeometry height="26" width="135" x="85" y="372" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="user" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="frontend" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="frontend" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="api" value="REST API&#xa;(요청 / 결과 폴링)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="api" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=0;entryX=0;entryY=0.5;fontSize=11;dashed=1;exitDx=0;exitDy=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="redis" value="① 분석 작업 등록&#xa;(LPUSH)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="redis" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;fontSize=11;dashed=1;entryDx=0;entryDy=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="worker" value="② 작업 수신&#xa;(BRPOP)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="api" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="postgres" value="사용자/세션/분석 결과&#xa;CRUD">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="worker" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="postgres" value="③ 분석 결과 저장">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="worker" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.3;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="chesscom" value="기보 조회">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="worker" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="lichess" value="기보 조회">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="worker" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.7;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="groq" value="AI 코칭 내러티브 생성">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

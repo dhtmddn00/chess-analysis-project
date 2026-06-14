@@ -29,15 +29,23 @@ public class CommunityController {
 
     // ── 게시판 ──────────────────────────────────────────────────────────────
 
+    private static final int PAGE_SIZE = 20;
+
     @GetMapping("/community/posts")
-    public ResponseEntity<List<Map<String, Object>>> listPosts(
-            @RequestParam(defaultValue = "30") int limit) {
-        int capped = Math.min(Math.max(limit, 1), 50);
-        return ResponseEntity.ok(jdbcTemplate.queryForList(
+    public ResponseEntity<Map<String, Object>> listPosts(
+            @RequestParam(defaultValue = "1") int page) {
+        int safePage = Math.max(page, 1);
+        long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM community_posts", Long.class);
+        List<Map<String, Object>> items = jdbcTemplate.queryForList(
                 """
                 SELECT id, user_id, author_name, title, LEFT(content, 200) AS preview, created_at
-                FROM community_posts ORDER BY id DESC LIMIT ?
-                """, capped));
+                FROM community_posts ORDER BY id DESC LIMIT ? OFFSET ?
+                """, PAGE_SIZE, (long) (safePage - 1) * PAGE_SIZE);
+        return ResponseEntity.ok(Map.of(
+                "items", items,
+                "total", total,
+                "page", safePage,
+                "pageSize", PAGE_SIZE));
     }
 
     @GetMapping("/community/posts/{id}")

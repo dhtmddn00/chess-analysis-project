@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageSquare, Send, PenLine, X, Loader2, Trash2 } from 'lucide-react';
+import { MessageSquare, Send, PenLine, X, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Post {
   id: number;
@@ -40,6 +40,8 @@ export default function CommunityPage() {
 
   // ── 게시판 상태 ─────────────────────────────────────────────────────────
   const [posts, setPosts] = useState<Post[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState({ title: '', content: '' });
@@ -59,14 +61,18 @@ export default function CommunityPage() {
   const canModify = (ownerId: string | null) =>
     !!user && (user.admin || (ownerId !== null && ownerId === user.id));
 
-  const loadPosts = useCallback(() => {
-    fetch('/api/v1/community/posts')
-      .then(r => (r.ok ? r.json() : []))
-      .then(setPosts)
+  const loadPosts = useCallback((targetPage: number) => {
+    fetch(`/api/v1/community/posts?page=${targetPage}`)
+      .then(r => (r.ok ? r.json() : { items: [], total: 0, page: 1, pageSize: 20 }))
+      .then((data: { items: Post[]; total: number; page: number; pageSize: number }) => {
+        setPosts(data.items);
+        setPage(data.page);
+        setTotalPages(Math.max(1, Math.ceil(data.total / data.pageSize)));
+      })
       .catch(() => setPosts([]));
   }, []);
 
-  useEffect(loadPosts, [loadPosts]);
+  useEffect(() => loadPosts(1), [loadPosts]);
 
   // 채팅 폴링 — 첫 로드는 최근 50개, 이후 증분
   useEffect(() => {
@@ -106,7 +112,7 @@ export default function CommunityPage() {
       if (res.ok) {
         setDraft({ title: '', content: '' });
         setWriting(false);
-        loadPosts();
+        loadPosts(1);
       }
     } finally {
       setPosting(false);
@@ -140,7 +146,7 @@ export default function CommunityPage() {
     });
     if (res.ok) {
       if (openPost?.id === id) closePost();
-      loadPosts();
+      loadPosts(page);
     }
   };
 
@@ -337,6 +343,25 @@ export default function CommunityPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {posts !== null && posts.length > 0 && totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-center gap-1">
+            <button onClick={() => loadPosts(page - 1)} disabled={page <= 1}
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+              <button key={n} onClick={() => loadPosts(n)}
+                className={`min-w-[28px] rounded-lg px-2 py-1 text-sm ${n === page ? 'bg-zinc-950 text-white' : 'text-zinc-500 hover:bg-zinc-100'}`}>
+                {n}
+              </button>
+            ))}
+            <button onClick={() => loadPosts(page + 1)} disabled={page >= totalPages}
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         )}
       </section>
 

@@ -49,7 +49,7 @@
     "feature2Title": "12-Dimensional Style",
     "feature2Desc": "Quantify your playing tendencies from aggression to endgame and time management.",
     "feature3Title": "AI Coach Insight",
-    "feature3Desc": "Analyzes decisive mistakes in your actual games to pinpoint your specific weaknesses and exactly what to practice next. (Once per day when logged in)",
+    "feature3Desc": "AI interprets your analysis results and suggests strategies to improve your skills. It analyzes decisive mistakes in your actual games to pinpoint your specific weaknesses and exactly what to practice next. (Once per day when logged in)",
     "recentSearches": "Recent searches",
     "recentAnalyses": "Recent analyses",
     "viewResult": "View result",
@@ -604,6 +604,12 @@
     "deleteConfirm": "Are you sure you want to delete this?",
     "commentsTitle": "Comments",
     "noComments": "No comments yet.",
-    "commentPlaceholder": "Write a comment"
+    "commentPlaceholder": "Write a comment",
+    "categoryFree": "Free Board",
+    "categorySuggestion": "Feature & Bug Reports",
+    "categoryAnalysis": "Analysis Sharing",
+    "pinned": "Pinned",
+    "pin": "Pin post",
+    "unpin": "Unpin post"
   }
 }

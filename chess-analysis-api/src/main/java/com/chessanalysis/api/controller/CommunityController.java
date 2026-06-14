@@ -3,6 +3,8 @@ package com.chessanalysis.api.controller;
 import com.chessanalysis.api.entity.User;
 import com.chessanalysis.api.service.AuthService;
 import com.chessanalysis.api.service.SignupRateLimitService;
+import com.chessanalysis.api.util.ClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 간단한 커뮤니티(게시판) + 글로벌 채팅(폴링 기반).
@@ -30,17 +33,23 @@ public class CommunityController {
     // ── 게시판 ──────────────────────────────────────────────────────────────
 
     private static final int PAGE_SIZE = 20;
+    private static final Set<String> CATEGORIES = Set.of("free", "suggestion", "analysis");
 
     @GetMapping("/community/posts")
     public ResponseEntity<Map<String, Object>> listPosts(
-            @RequestParam(defaultValue = "1") int page) {
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "free") String category) {
         int safePage = Math.max(page, 1);
-        long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM community_posts", Long.class);
+        String safeCategory = CATEGORIES.contains(category) ? category : "free";
+        long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM community_posts WHERE category = ?", Long.class, safeCategory);
         List<Map<String, Object>> items = jdbcTemplate.queryForList(
                 """
-                SELECT id, user_id, author_name, title, LEFT(content, 200) AS preview, created_at
-                FROM community_posts ORDER BY id DESC LIMIT ? OFFSET ?
-                """, PAGE_SIZE, (long) (safePage - 1) * PAGE_SIZE);
+                SELECT id, user_id, author_name, title, LEFT(content, 200) AS preview, created_at,
+                       category, is_pinned, view_count
+                FROM community_posts WHERE category = ?
+                ORDER BY is_pinned DESC, id DESC LIMIT ? OFFSET ?
+                """, safeCategory, PAGE_SIZE, (long) (safePage - 1) * PAGE_SIZE);
         return ResponseEntity.ok(Map.of(
                 "items", items,
                 "total", total,
@@ -49,13 +58,26 @@ public class CommunityController {
     }
 
     @GetMapping("/community/posts/{id}")
-    public ResponseEntity<Map<String, Object>> getPost(@PathVariable long id) {
+    public ResponseEntity<Map<String, Object>> getPost(@PathVariable long id, HttpServletRequest request) {
         var rows = jdbcTemplate.queryForList(
-                "SELECT id, user_id, author_name, title, content, created_at FROM community_posts WHERE id = ?", id);
+                """
+                SELECT id, user_id, author_name, title, content, created_at, category, is_pinned, view_count
+                FROM community_posts WHERE id = ?
+                """, id);
         if (rows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
         }
-        return ResponseEntity.ok(rows.get(0));
+
+        String ip = ClientIpResolver.resolve(request);
+        int inserted = jdbcTemplate.update(
+                "INSERT INTO community_post_views (post_id, ip_address) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                id, ip);
+        var post = new java.util.HashMap<>(rows.get(0));
+        if (inserted > 0) {
+            jdbcTemplate.update("UPDATE community_posts SET view_count = view_count + 1 WHERE id = ?", id);
+            post.put("view_count", ((Number) post.get("view_count")).intValue() + 1);
+        }
+        return ResponseEntity.ok(post);
     }
 
     @PostMapping("/community/posts")
@@ -63,15 +85,34 @@ public class CommunityController {
         User user = requireUser();
         String title = strip(body.get("title"), 120);
         String content = strip(body.get("content"), 5000);
+        String category = body.get("category");
         if (title.isBlank() || content.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "제목과 내용을 입력해주세요.");
+        }
+        if (!CATEGORIES.contains(category)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "올바른 게시판을 선택해주세요.");
         }
         rateLimitService.checkPostLimit(user.getId().toString());
 
         Long id = jdbcTemplate.queryForObject(
-                "INSERT INTO community_posts (user_id, author_name, title, content) VALUES (?, ?, ?, ?) RETURNING id",
-                Long.class, user.getId(), user.getName(), title, content);
+                "INSERT INTO community_posts (user_id, author_name, title, content, category) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                Long.class, user.getId(), user.getName(), title, content, category);
         return ResponseEntity.status(201).body(Map.of("id", id));
+    }
+
+    @PatchMapping("/community/posts/{id}/pin")
+    public ResponseEntity<Map<String, Object>> togglePin(@PathVariable long id) {
+        User user = requireUser();
+        if (!authService.isAdmin(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        }
+        var rows = jdbcTemplate.queryForList("SELECT is_pinned FROM community_posts WHERE id = ?", id);
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
+        }
+        boolean newPinned = !(Boolean) rows.get(0).get("is_pinned");
+        jdbcTemplate.update("UPDATE community_posts SET is_pinned = ? WHERE id = ?", newPinned, id);
+        return ResponseEntity.ok(Map.of("isPinned", newPinned));
     }
 
     @DeleteMapping("/community/posts/{id}")

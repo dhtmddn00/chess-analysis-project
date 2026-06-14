@@ -4,7 +4,10 @@ import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageSquare, Send, PenLine, X, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MessageSquare, Send, PenLine, X, Loader2, Trash2, ChevronLeft, ChevronRight, Pin, PinOff, Eye } from 'lucide-react';
+
+const CATEGORIES = ['free', 'suggestion', 'analysis'] as const;
+type Category = typeof CATEGORIES[number];
 
 interface Post {
   id: number;
@@ -14,6 +17,9 @@ interface Post {
   preview: string;
   content?: string;
   created_at: string;
+  category: Category;
+  is_pinned: boolean;
+  view_count: number;
 }
 
 interface Comment {
@@ -39,6 +45,7 @@ export default function CommunityPage() {
   const { user, isAuthenticated } = useAuth();
 
   // ── 게시판 상태 ─────────────────────────────────────────────────────────
+  const [category, setCategory] = useState<Category>('free');
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -46,6 +53,9 @@ export default function CommunityPage() {
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState({ title: '', content: '' });
   const [posting, setPosting] = useState(false);
+
+  const categoryLabel = (c: Category) =>
+    ({ free: t('categoryFree'), suggestion: t('categorySuggestion'), analysis: t('categoryAnalysis') }[c]);
 
   // ── 댓글 상태 ───────────────────────────────────────────────────────────
   const [comments, setComments] = useState<Comment[] | null>(null);
@@ -61,8 +71,8 @@ export default function CommunityPage() {
   const canModify = (ownerId: string | null) =>
     !!user && (user.admin || (ownerId !== null && ownerId === user.id));
 
-  const loadPosts = useCallback((targetPage: number) => {
-    fetch(`/api/v1/community/posts?page=${targetPage}`)
+  const loadPosts = useCallback((targetPage: number, targetCategory: Category = category) => {
+    fetch(`/api/v1/community/posts?page=${targetPage}&category=${targetCategory}`)
       .then(r => (r.ok ? r.json() : { items: [], total: 0, page: 1, pageSize: 20 }))
       .then((data: { items: Post[]; total: number; page: number; pageSize: number }) => {
         setPosts(data.items);
@@ -70,9 +80,17 @@ export default function CommunityPage() {
         setTotalPages(Math.max(1, Math.ceil(data.total / data.pageSize)));
       })
       .catch(() => setPosts([]));
-  }, []);
+  }, [category]);
 
-  useEffect(() => loadPosts(1), [loadPosts]);
+  const selectCategory = (c: Category) => {
+    setCategory(c);
+    setOpenPost(null);
+    setComments(null);
+    loadPosts(1, c);
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => loadPosts(1, 'free'), []);
 
   // 채팅 폴링 — 첫 로드는 최근 50개, 이후 증분
   useEffect(() => {
@@ -107,7 +125,7 @@ export default function CommunityPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, category }),
       });
       if (res.ok) {
         setDraft({ title: '', content: '' });
@@ -172,6 +190,17 @@ export default function CommunityPage() {
     }
   };
 
+  const togglePin = async (id: number) => {
+    const res = await fetch(`/api/v1/community/posts/${id}/pin`, {
+      method: 'PATCH',
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const { isPinned } = await res.json();
+    setOpenPost(prev => (prev && prev.id === id ? { ...prev, is_pinned: isPinned } : prev));
+    loadPosts(page);
+  };
+
   const deleteComment = async (postId: number, commentId: number) => {
     if (!confirm(t('deleteConfirm'))) return;
     const res = await fetch(`/api/v1/community/posts/${postId}/comments/${commentId}`, {
@@ -227,6 +256,15 @@ export default function CommunityPage() {
           )}
         </div>
 
+        <div className="mb-4 flex gap-1 border-b border-zinc-200">
+          {CATEGORIES.map(c => (
+            <button key={c} onClick={() => selectCategory(c)}
+              className={`px-3 py-2 text-sm font-semibold ${c === category ? 'border-b-2 border-zinc-950 text-zinc-900' : 'text-zinc-400 hover:text-zinc-700'}`}>
+              {categoryLabel(c)}
+            </button>
+          ))}
+        </div>
+
         {!isAuthenticated && (
           <p className="mb-4 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
             {t('loginToWrite')}{' '}
@@ -253,8 +291,17 @@ export default function CommunityPage() {
         {openPost && (
           <div className="mb-4 rounded-xl border border-zinc-300 bg-white p-5">
             <div className="mb-2 flex items-start justify-between gap-3">
-              <h2 className="text-base font-bold text-zinc-900">{openPost.title}</h2>
+              <h2 className="text-base font-bold text-zinc-900">
+                {openPost.is_pinned && <span className="mr-1.5 text-emerald-600">{t('pinned')}</span>}
+                {openPost.title}
+              </h2>
               <div className="flex shrink-0 items-center gap-2">
+                {!!user?.admin && (
+                  <button onClick={() => togglePin(openPost.id)} title={openPost.is_pinned ? t('unpin') : t('pin')}
+                    className="text-zinc-400 hover:text-emerald-600">
+                    {openPost.is_pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                  </button>
+                )}
                 {canModify(openPost.user_id) && (
                   <button onClick={() => deletePost(openPost.id)} title={t('deletePost')}
                     className="text-zinc-400 hover:text-red-600">
@@ -266,8 +313,9 @@ export default function CommunityPage() {
                 </button>
               </div>
             </div>
-            <p className="mb-3 text-xs text-zinc-400">
-              {openPost.author_name} · {new Date(openPost.created_at).toLocaleString()}
+            <p className="mb-3 flex items-center gap-1 text-xs text-zinc-400">
+              <span>{openPost.author_name} · {new Date(openPost.created_at).toLocaleString()}</span>
+              <span className="ml-auto inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{openPost.view_count}</span>
             </p>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{openPost.content}</p>
 
@@ -328,11 +376,21 @@ export default function CommunityPage() {
             {posts.map(p => (
               <li key={p.id} className="flex items-center">
                 <button onClick={() => viewPost(p.id)}
-                  className="block min-w-0 flex-1 px-4 py-3 text-left hover:bg-zinc-50">
-                  <p className="truncate text-sm font-semibold text-zinc-900">{p.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-zinc-400">
-                    {p.author_name} · {new Date(p.created_at).toLocaleString()}
-                  </p>
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50">
+                  {p.is_pinned && (
+                    <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-600">
+                      {t('pinned')}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-zinc-900">{p.title}</p>
+                    <p className="mt-0.5 truncate text-xs text-zinc-400">
+                      {p.author_name} · {new Date(p.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 text-xs text-zinc-400">
+                    <Eye className="h-3.5 w-3.5" />{p.view_count}
+                  </span>
                 </button>
                 {canModify(p.user_id) && (
                   <button onClick={() => deletePost(p.id)} title={t('deletePost')}

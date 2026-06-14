@@ -49,7 +49,7 @@
     "feature2Title": "12차원 스타일",
     "feature2Desc": "공격성, 포지셔널, 엔드게임, 시간관리까지 플레이 성향을 수치화합니다.",
     "feature3Title": "AI 코치 진단",
-    "feature3Desc": "실제 게임 속 결정적 실수를 분석해 당신만의 약점과 다음에 연습할 것을 구체적으로 짚어줍니다. (로그인 시 하루 1회)",
+    "feature3Desc": "AI로 분석결과를 해석하여 실력 개선 전략을 제시합니다. 실제 게임 속 결정적 실수를 분석해 당신만의 약점과 다음에 연습할 것을 구체적으로 짚어줍니다. (로그인 시 하루 1회)",
     "recentSearches": "최근 검색",
     "recentAnalyses": "최근 분석 기록",
     "viewResult": "결과 보기",
@@ -604,6 +604,12 @@
     "deleteConfirm": "삭제하시겠습니까?",
     "commentsTitle": "댓글",
     "noComments": "아직 댓글이 없습니다.",
+    "categoryFree": "자유게시판",
+    "categorySuggestion": "기능 및 오류 건의",
+    "categoryAnalysis": "분석결과 공유 게시판",
+    "pinned": "공지",
+    "pin": "공지로 등록",
+    "unpin": "공지 해제",
     "commentPlaceholder": "댓글을 입력하세요"
   }
 }

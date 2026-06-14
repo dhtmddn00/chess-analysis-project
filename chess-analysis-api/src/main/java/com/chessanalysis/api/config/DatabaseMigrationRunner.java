@@ -56,6 +56,24 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
                 )""", "community_comments");
         exec("CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments(post_id, id)",
                 "idx_community_comments_post");
+
+        // 게시판 카테고리·공지·조회수
+        exec("ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS category VARCHAR(20) NOT NULL DEFAULT 'free'",
+                "community_posts.category");
+        exec("ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT FALSE",
+                "community_posts.is_pinned");
+        exec("ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0",
+                "community_posts.view_count");
+        exec("CREATE INDEX IF NOT EXISTS idx_community_posts_category ON community_posts(category, is_pinned DESC, id DESC)",
+                "idx_community_posts_category");
+
+        // 조회수 IP 중복 방지
+        exec("""
+                CREATE TABLE IF NOT EXISTS community_post_views (
+                    post_id BIGINT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+                    ip_address VARCHAR(45) NOT NULL,
+                    PRIMARY KEY (post_id, ip_address)
+                )""", "community_post_views");
     }
 
     private void exec(String sql, String name) {

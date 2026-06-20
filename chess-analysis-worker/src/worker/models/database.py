@@ -26,8 +26,9 @@ class DatabaseClient:
                 user=self.user,
                 password=self.password,
                 ssl="require" if self.ssl else None,
-                min_size=1,
-                max_size=10
+                min_size=0,
+                max_size=10,
+                max_inactive_connection_lifetime=60,
             )
             logger.info("Database connection pool created")
             

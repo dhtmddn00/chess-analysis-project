@@ -7,6 +7,7 @@ import { useRouter, Link } from '../../../i18n/navigation';
 import { translatePlayingStyle } from '@/lib/playingStyle';
 import { useSearchParams } from 'next/navigation';
 import { useLocalHistory } from '@/hooks/useLocalHistory';
+import { parseApiDate } from '@/lib/date';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ function formatDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',
-    }).format(new Date(iso));
+    }).format(parseApiDate(iso));
   } catch {
     return iso.slice(0, 10);
   }
@@ -120,7 +121,7 @@ export default function HistoryPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: AnalysisEntry[] = await res.json();
       // Sort newest first
-      data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      data.sort((a, b) => parseApiDate(b.createdAt).getTime() - parseApiDate(a.createdAt).getTime());
       setEntries(data);
       setHasSearched(true);
     } catch {

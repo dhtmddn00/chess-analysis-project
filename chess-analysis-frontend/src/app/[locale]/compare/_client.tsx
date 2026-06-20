@@ -7,6 +7,7 @@ import { useRouter } from '../../../i18n/navigation';
 import type { AnalysisResult, StyleNumericKey } from '@/types/analysis';
 import { STYLE_DIMENSIONS } from '@/types/analysis';
 import { translatePlayingStyle } from '@/lib/playingStyle';
+import { parseApiDate } from '@/lib/date';
 
 // ── SVG Radar Chart ───────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ async function fetchLatestCompletedResult(username: string, platform: string, lo
   // 2. Find latest COMPLETED
   const completed = list
     .filter(e => e.status === 'COMPLETED')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => parseApiDate(b.createdAt).getTime() - parseApiDate(a.createdAt).getTime());
   if (completed.length === 0) throw new Error('NO_ANALYSIS');
 
   // 3. Fetch result

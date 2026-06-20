@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { MessageSquare, Send, PenLine, X, Loader2, Trash2, ChevronLeft, ChevronRight, Pin, PinOff, Eye } from 'lucide-react';
+import { parseApiDate } from '@/lib/date';
 
 const CATEGORIES = ['free', 'suggestion', 'analysis'] as const;
 type Category = typeof CATEGORIES[number];
@@ -314,7 +315,7 @@ export default function CommunityPage() {
               </div>
             </div>
             <p className="mb-3 flex items-center gap-1 text-xs text-zinc-400">
-              <span>{openPost.author_name} · {new Date(openPost.created_at).toLocaleString()}</span>
+              <span>{openPost.author_name} · {parseApiDate(openPost.created_at).toLocaleString()}</span>
               <span className="ml-auto inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{openPost.view_count}</span>
             </p>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{openPost.content}</p>
@@ -332,7 +333,7 @@ export default function CommunityPage() {
                     <li key={c.id} className="flex items-start justify-between gap-2 rounded-lg bg-zinc-50 px-3 py-2">
                       <div>
                         <p className="text-xs text-zinc-400">
-                          {c.author_name} · {new Date(c.created_at).toLocaleString()}
+                          {c.author_name} · {parseApiDate(c.created_at).toLocaleString()}
                         </p>
                         <p className="whitespace-pre-wrap text-sm text-zinc-700">{c.content}</p>
                       </div>
@@ -385,7 +386,7 @@ export default function CommunityPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-zinc-900">{p.title}</p>
                     <p className="mt-0.5 truncate text-xs text-zinc-400">
-                      {p.author_name} · {new Date(p.created_at).toLocaleString()}
+                      {p.author_name} · {parseApiDate(p.created_at).toLocaleString()}
                     </p>
                   </div>
                   <span className="shrink-0 inline-flex items-center gap-1 text-xs text-zinc-400">
@@ -437,7 +438,7 @@ export default function CommunityPage() {
             <div key={m.id} className="group flex items-start justify-between gap-2 text-sm">
               <div className="min-w-0">
                 <p className="text-xs text-zinc-400">
-                  {new Date(m.created_at).toLocaleTimeString()}
+                  {parseApiDate(m.created_at).toLocaleTimeString()}
                 </p>
                 <span className={`font-semibold ${m.author_name === user?.name ? 'text-emerald-600' : 'text-zinc-900'}`}>
                   {m.author_name}

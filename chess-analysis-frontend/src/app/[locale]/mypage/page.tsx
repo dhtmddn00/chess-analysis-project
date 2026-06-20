@@ -7,6 +7,7 @@ import { mutate } from 'swr';
 import { useAuth } from '@/hooks/useAuth';
 import { COUNTRIES } from '@/lib/countries';
 import { TrendChart } from '@/components/TrendChart';
+import { parseApiDate } from '@/lib/date';
 import { User, Settings, KeyRound, TrendingUp, History, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface HistoryItem {
@@ -113,7 +114,7 @@ export default function MyPage() {
 
   const completed = (history ?? []).filter(h => h.avgAccuracy != null);
   const xLabels = completed.map(h =>
-    new Date(h.createdAt).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }));
+    parseApiDate(h.createdAt).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }));
 
   const inputCls = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500";
 
@@ -129,7 +130,7 @@ export default function MyPage() {
           <p className="truncate text-sm text-zinc-500">{user.email}</p>
           <p className="mt-0.5 text-xs text-zinc-400">
             {COUNTRIES.find(c => c.code === user.country)?.name ?? ''}
-            {user.country ? ' · ' : ''}{t('joinedAt', { date: new Date(user.createdAt).toLocaleDateString() })}
+            {user.country ? ' · ' : ''}{t('joinedAt', { date: parseApiDate(user.createdAt).toLocaleDateString() })}
           </p>
         </div>
       </div>
@@ -192,7 +193,7 @@ export default function MyPage() {
                       {h.username} <span className="font-normal text-zinc-400">· {h.platform}</span>
                     </p>
                     <p className="text-xs text-zinc-400">
-                      {new Date(h.createdAt).toLocaleDateString()} · {h.gameCount} {t('games')}
+                      {parseApiDate(h.createdAt).toLocaleDateString()} · {h.gameCount} {t('games')}
                     </p>
                   </div>
                   {h.avgAccuracy != null && (

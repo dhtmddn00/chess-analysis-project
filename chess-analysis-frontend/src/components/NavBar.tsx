@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { LogIn, LogOut, User, UserX, ChevronDown, BarChart2, ArrowLeftRight, Search, MessageSquare } from 'lucide-react';
+import { LogIn, LogOut, User, UserX, ChevronDown, BarChart2, ArrowLeftRight, Search, MessageSquare, Menu, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -13,6 +13,7 @@ export function NavBar() {
   const router = useRouter();
   const { user, isLoading, isAuthenticated, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,6 +83,14 @@ export function NavBar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 sm:hidden"
+            aria-label="Menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+
           <LanguageSwitcher />
 
           {!isLoading && (
@@ -139,6 +148,45 @@ export function NavBar() {
           )}
         </div>
       </div>
+
+      {mobileMenuOpen && (
+        <div className="border-t border-zinc-200 px-5 py-2 sm:hidden">
+          <div className="flex flex-col gap-1">
+            <Link
+              href="/history"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <BarChart2 className="h-4 w-4" />
+              {t('history')}
+            </Link>
+            <Link
+              href="/compare"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              {t('compare')}
+            </Link>
+            <Link
+              href="/community"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {t('community')}
+            </Link>
+            <Link
+              href="/analyze"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <Search className="h-4 w-4" />
+              {t('analyzeScreen')}
+            </Link>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

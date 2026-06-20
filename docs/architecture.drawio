@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Architecture" id="chess-architecture">
-    <mxGraphModel dx="934" dy="1268" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1450" pageHeight="640" math="0" shadow="0">
+    <mxGraphModel dx="1222" dy="824" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1450" pageHeight="640" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -77,7 +77,9 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e5" edge="1" parent="1" source="api" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="postgres" value="사용자/세션/분석 결과&#xa;CRUD">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" x="-0.0024" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="e6" edge="1" parent="1" source="worker" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;fontSize=11;dashed=0;fontColor=light-dark(#000000,#000000);strokeColor=light-dark(#000000,#000000);" target="postgres" value="③ 분석 결과 저장">
           <mxGeometry relative="1" as="geometry" />

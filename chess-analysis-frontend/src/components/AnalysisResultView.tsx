@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import {
-  Target, BarChart3, Brain, Zap, TrendingUp,
+  BarChart3, Brain, Zap, TrendingUp,
   BookOpen, ShieldCheck, Trophy, ChevronDown, LogIn, Sparkles,
 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -56,8 +56,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
         result.comparativeInsights.performancePercentiles.consistency,
       ].filter((m): m is PercentileMetric => Boolean(m))
     : [];
-
-  const learningCards = result.learningInsights?.cards ?? [];
 
   // Parse AI coaching narrative (stored as JSON string from API)
   const coachNarrative = (() => {
@@ -177,10 +175,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
             { id: 'section-performance', label: t('navPerformance') },
             { id: 'section-style', label: t('navStyle') },
             { id: 'section-tactics', label: t('navTactics') },
-            // Only show Training nav pill when the section actually renders
-            ...((result.trainingRecommendations ?? []).length > 0
-              ? [{ id: 'section-training', label: t('navTraining') }]
-              : []),
             { id: 'section-share', label: t('navShare') },
           ].map(({ id, label }) => (
             <a
@@ -249,147 +243,22 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
               </div>
             )}
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* GM Match */}
-              <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
-                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
-                  <Trophy className="h-4 w-4" />
-                  {t('gmMatch')}
-                </div>
-                <div className="text-2xl font-black">{result.comparativeInsights.gmMatch?.name || t('analyzing')}</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-700">
-                  {result.comparativeInsights.gmMatch?.styleLabel}{result.comparativeInsights.gmMatch?.styleLabel && ' · '}
-                  {t('gmSimilarity', { similarity: result.comparativeInsights.gmMatch?.similarity ?? 0 })}
-                </div>
-                <p className="mt-3 text-sm font-medium leading-6 text-zinc-700">
-                  {result.comparativeInsights.gmMatch?.reason}
-                </p>
+            {/* GM Match */}
+            <div className="mt-4 rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
+              <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
+                <Trophy className="h-4 w-4" />
+                {t('gmMatch')}
               </div>
-
-              {/* Next Learning */}
-              <div className="rounded-lg border border-white/15 bg-white p-4 text-zinc-950">
-                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-700">
-                  <Target className="h-4 w-4" />
-                  {t('nextLearning')}
-                </div>
-                <p className="mb-3 text-sm font-medium leading-6 text-zinc-700">
-                  {result.learningInsights?.headline || t('nextLearningDesc')}
-                </p>
-                <div className="space-y-2">
-                  {learningCards.slice(0, 3).map((card) => (
-                    <div key={`${card.title}-${card.value}`} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs font-bold text-zinc-500">{card.title}</div>
-                        <div className="text-sm font-black text-zinc-950">{card.value}</div>
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-zinc-600">{card.description}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="text-2xl font-black">{result.comparativeInsights.gmMatch?.name || t('analyzing')}</div>
+              <div className="mt-1 text-sm font-semibold text-zinc-700">
+                {result.comparativeInsights.gmMatch?.styleLabel}{result.comparativeInsights.gmMatch?.styleLabel && ' · '}
+                {t('gmSimilarity', { similarity: result.comparativeInsights.gmMatch?.similarity ?? 0 })}
               </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* Advanced Insights: Story + Style Axes */}
-        {result.advancedInsights && (
-          <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="mb-4 flex items-center gap-2">
-              <Brain className="h-5 w-5 text-zinc-700" />
-              <h5 className="font-semibold text-zinc-900">{t('analysisStory')}</h5>
-            </div>
-
-            {result.advancedInsights.story && (
-              <p className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium leading-6 text-zinc-700">
-                {result.advancedInsights.story}
+              <p className="mt-3 text-sm font-medium leading-6 text-zinc-700">
+                {result.comparativeInsights.gmMatch?.reason}
               </p>
-            )}
-
-            {(result.advancedInsights.styleAxes || []).length > 0 && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                {(result.advancedInsights.styleAxes ?? []).map((axis) => (
-                  <div key={axis.label} className="rounded-lg border border-zinc-200 bg-white p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-bold text-zinc-500">{axis.label}</div>
-                      <div className="rounded-full bg-zinc-950 px-2 py-0.5 text-[11px] font-bold text-white">{axis.band}</div>
-                    </div>
-                    <div className="mt-2 text-2xl font-black text-zinc-950">{axis.value.toFixed(1)}</div>
-                    <div className="mt-1 h-1.5 rounded-full bg-zinc-200">
-                      <div className="h-1.5 rounded-full bg-zinc-950" style={{ width: `${Math.min(axis.value, 100)}%` }} />
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-zinc-600">{axis.description}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {(result.advancedInsights.confidenceBands ?? []).length > 0 && (
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                {(result.advancedInsights.confidenceBands ?? []).map((band) => (
-                  <div key={band.label} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                    <div className="text-xs font-bold text-zinc-500">{band.label}</div>
-                    <div className="mt-1 text-lg font-black text-zinc-950">{band.value.toFixed(1)} ± {band.margin}</div>
-                    <div className="mt-1 text-xs text-zinc-600">{t('expectedRange', { range: band.range })}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Opponent Exploit Plan */}
-        {result.opponentExploitPlan && (
-          <div className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-white dark-surface">
-            <div className="mb-2 flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" />
-              <h5 className="font-semibold">{t('opponentPlanTitle')}</h5>
-            </div>
-            <p className="mb-4 text-sm font-medium leading-6 text-zinc-200">
-              {result.opponentExploitPlan.headline}
-              {result.opponentExploitPlan.confidence && (
-                <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-zinc-950">
-                  {t('confidence', { confidence: result.opponentExploitPlan.confidence })}
-                </span>
-              )}
-            </p>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('weaknessCandidates')}</div>
-                <div className="space-y-2">
-                  {(result.opponentExploitPlan.weaknesses ?? []).map((item) => (
-                    <div key={`w-${item.title}`} className="rounded-lg border border-white/15 bg-white p-3 text-zinc-950">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-bold">{item.title}</div>
-                        <div className="text-xs font-black text-zinc-500">{item.value}</div>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-zinc-600">{item.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('recommendedStrategy')}</div>
-                <div className="space-y-2">
-                  {(result.opponentExploitPlan.recommendations ?? []).map((item) => (
-                    <div key={`r-${item.title}`} className="rounded-lg border border-white/15 bg-zinc-900 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-bold text-white">{item.title}</div>
-                        <div className="text-xs font-black text-zinc-300">{item.value}</div>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-zinc-300">{item.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
 
-            {result.opponentExploitPlan.disclaimer && (
-              <div className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs leading-5 text-zinc-300">
-                {result.opponentExploitPlan.disclaimer}
-              </div>
-            )}
           </div>
         )}
 
@@ -681,31 +550,6 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
           </div>
         )}
       </CollapsibleSection>
-
-      {/* ── Training Recommendations ───────────────────────────────────────── */}
-      {(result.trainingRecommendations ?? []).length > 0 && (
-        <CollapsibleSection
-          id="section-training"
-          icon={<Target className="h-5 w-5" />}
-          title={t('trainingPlan')}
-        >
-          <div className="space-y-3">
-            {(result.trainingRecommendations ?? []).map((rec, index) => (
-              <div key={index} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <h5 className="font-bold text-zinc-950">{rec.title}</h5>
-                  {rec.eloGain > 0 && (
-                    <span className="shrink-0 rounded-full border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold text-zinc-700">
-                      {t('eloGain', { eloGain: rec.eloGain })}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm leading-6 text-zinc-600">{rec.description}</p>
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
 
       {/* ── Player Metadata ────────────────────────────────────────────────── */}
       {result.playerMetadata && (

@@ -709,25 +709,7 @@ public class AnalysisService {
                 );
                 result.put("comparativeInsights", comparativeInsights);
                 result.put("decisiveMoments", getDecisiveMoments(connection, analysisId));
-                result.put("learningInsights", buildLearningInsights(
-                    connection,
-                    analysisId,
-                    analysisResult.getString("username"),
-                    result,
-                    profile,
-                    openingStats,
-                    en
-                ));
                 result.put("advancedInsights", buildAdvancedInsights(
-                    connection,
-                    analysisId,
-                    analysisResult.getString("username"),
-                    result,
-                    profile,
-                    openingStats,
-                    en
-                ));
-                result.put("opponentExploitPlan", buildOpponentExploitPlan(
                     connection,
                     analysisId,
                     analysisResult.getString("username"),
@@ -1192,9 +1174,6 @@ public class AnalysisService {
         Map<String, Object> timePatterns = buildTimePatterns(connection, analysisId, username, en);
         List<Map<String, Object>> openingHoles = buildOpeningHoles(openingStats, en);
 
-        insights.put("story", buildPlayerStory(username, result, profile, criticalMoveStats, timePatterns, openingHoles, en));
-        insights.put("styleAxes", buildStyleAxes(profile, en));
-        insights.put("confidenceBands", buildConfidenceBands(result, profile, en));
         insights.put("criticalMoveStats", criticalMoveStats);
         insights.put("complexityPreference", complexity);
         insights.put("timePatterns", timePatterns);

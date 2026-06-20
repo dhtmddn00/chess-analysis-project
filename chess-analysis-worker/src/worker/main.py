@@ -785,7 +785,12 @@ class ChessAnalysisWorker:
 
     async def _fetch_aggregate_stats(self, analysis_id: str, username: str = "") -> dict:
         """Aggregate stats + all decisive moves (mistakes/blunders) with game context."""
-        stats = {"avg_accuracy": 0.0, "total_blunders": 0, "total_mistakes": 0, "decisive_moves": []}
+        stats = {
+            "avg_accuracy": 0.0, "total_blunders": 0, "total_mistakes": 0,
+            "decisive_moves": [],
+            "phase_cpl": {},   # {opening|middlegame|endgame: {avg, count}}
+            "color_cpl": {},   # {white|black: {avg, count}}
+        }
 
         # ── Aggregate stats ────────────────────────────────────────────────────
         try:
@@ -851,6 +856,65 @@ class ChessAnalysisWorker:
             logger.info(f"Fetched {len(decisive)} decisive moves for narrative context")
         except Exception as exc:
             logger.warning(f"_fetch_aggregate_stats (moves) failed: {exc}")
+
+        # 플레이어 본인 수만 필터링하는 공통 조건 (백=짝수 ply, 흑=홀수 ply, 0-indexed)
+        own_move_filter = (
+            "((LOWER(g.white_player) = LOWER($2) AND MOD(m.move_number, 2) = 0) "
+            " OR (LOWER(g.black_player) = LOWER($2) AND MOD(m.move_number, 2) = 1))"
+        )
+
+        # ── 국면별 손실: 어느 단계에서 무너지는가 ────────────────────────────────
+        # 오프닝 1-12수(ply<24), 미들게임 13-30수(24≤ply<60), 엔드게임 31수+(ply≥60)
+        try:
+            phase_rows = await self.db_client.fetch_all(
+                f"""
+                SELECT
+                    CASE WHEN m.move_number < 24 THEN 'opening'
+                         WHEN m.move_number < 60 THEN 'middlegame'
+                         ELSE 'endgame' END        AS phase,
+                    AVG(m.centipawn_loss)          AS avg_cpl,
+                    COUNT(*)                       AS cnt
+                FROM move_analyses m
+                JOIN games_worker g
+                  ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index
+                WHERE m.analysis_id = $1
+                  AND m.centipawn_loss IS NOT NULL
+                  AND {own_move_filter}
+                GROUP BY phase
+                """,
+                [analysis_id, username],
+            )
+            stats["phase_cpl"] = {
+                r["phase"]: {"avg": round(float(r["avg_cpl"] or 0.0), 1), "count": int(r["cnt"] or 0)}
+                for r in phase_rows
+            }
+        except Exception as exc:
+            logger.warning(f"_fetch_aggregate_stats (phase) failed: {exc}")
+
+        # ── 색깔별 손실: 백/흑 중 어디서 더 흔들리는가 ──────────────────────────
+        try:
+            color_rows = await self.db_client.fetch_all(
+                f"""
+                SELECT
+                    CASE WHEN LOWER(g.white_player) = LOWER($2) THEN 'white' ELSE 'black' END AS color,
+                    AVG(m.centipawn_loss)  AS avg_cpl,
+                    COUNT(*)               AS cnt
+                FROM move_analyses m
+                JOIN games_worker g
+                  ON g.analysis_id = m.analysis_id AND g.game_index = m.game_index
+                WHERE m.analysis_id = $1
+                  AND m.centipawn_loss IS NOT NULL
+                  AND {own_move_filter}
+                GROUP BY color
+                """,
+                [analysis_id, username],
+            )
+            stats["color_cpl"] = {
+                r["color"]: {"avg": round(float(r["avg_cpl"] or 0.0), 1), "count": int(r["cnt"] or 0)}
+                for r in color_rows
+            }
+        except Exception as exc:
+            logger.warning(f"_fetch_aggregate_stats (color) failed: {exc}")
 
         return stats
 

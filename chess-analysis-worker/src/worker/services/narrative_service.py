@@ -152,7 +152,7 @@ SYSTEM_PROMPT_KO = """\
 ```json
 {
   "pattern": "이 플레이어의 체스 패턴 — 강점과 약점의 인과관계 1문장",
-  "why_losing": "패배가 발생하는 구체적 메커니즘 2~3문장. 수치 1~2개 인용 필수. 어떤 상황에서, 어떤 수순으로 무너지는지",
+  "why_losing": "패배가 발생하는 구체적 메커니즘 2~3문장. 반드시 (1) 국면별/색깔별 손실 중 가장 두드러진 격차를 수치로 인용하고(예: '엔드게임 CPL이 미들게임의 2배'), (2) 실수 기록에서 그 패턴을 보여주는 실제 게임·수를 최소 1개 콕 집어 인용하세요(예: '게임7 41수 Rxd4 -180cp').",
   "actions": [
     "즉시 실행 가능한 핵심 훈련 — 플랫폼·카테고리·분량 명시",
     "두 번째 훈련 — 첫 번째와 다른 측면을 보완",
@@ -204,7 +204,7 @@ Don't list numbers — find ONE causal relationship by cross-correlating multipl
 ```json
 {
   "pattern": "This player's chess identity — how strength and weakness are causally linked (1 sentence)",
-  "why_losing": "The specific mechanism causing losses — what situation, what sequence breaks down (2-3 sentences, cite 1-2 numbers)",
+  "why_losing": "The specific mechanism causing losses (2-3 sentences). You MUST (1) cite the most striking gap in the by-phase/by-color loss data with numbers (e.g. 'endgame CPL is double the middlegame'), and (2) point to at least one real game+move from the mistake log that shows the pattern (e.g. 'game 7, move 41 Rxd4 -180cp').",
   "actions": [
     "Core drill — specific platform, category, quantity",
     "Second drill — addresses a different aspect than the first",
@@ -259,6 +259,12 @@ USER_PROMPT_TEMPLATE_KO = """\
 ### 주요 오프닝
 {opening_lines}
 
+### 국면별 평균 손실 (어느 단계에서 무너지는가)
+{phase_lines}
+
+### 색깔별 평균 손실
+{color_lines}
+
 ### 게임별 실수 기록 (50cp 이상 손실, 게임 순서대로)
 이 데이터에서 반복 패턴을 찾으세요 — 같은 수 대역, 같은 오프닝, 같은 색깔에서 반복되는지 확인.
 {decisive_lines}
@@ -284,6 +290,12 @@ Player: {username} | Rating: {average_rating} | Games analyzed: {total_games}
 
 ### Main openings
 {opening_lines}
+
+### Average loss by game phase (where do things break down?)
+{phase_lines}
+
+### Average loss by color
+{color_lines}
 
 ### Mistake log (50cp+ losses, ordered by game)
 Find repeating patterns — same move range, same opening, same color?
@@ -423,6 +435,9 @@ class NarrativeService:
                 key=lambda m: m.get("cp_loss", 0),
                 reverse=True,
             )[:15],
+            # 국면별·색깔별 평균 손실 — "어디서 무너지는가"의 핵심 신호
+            "phase_cpl": stats.get("phase_cpl", {}),
+            "color_cpl": stats.get("color_cpl", {}),
         }
 
     def _format_decisive_lines(self, decisive_moves: list, is_en: bool) -> str:
@@ -457,6 +472,41 @@ class NarrativeService:
                 )
         return "\n".join(lines)
 
+    def _format_phase_lines(self, phase_cpl: dict, is_en: bool) -> str:
+        """국면별 평균 CPL을 AI가 인과 추론할 수 있는 형태로 포맷."""
+        if not phase_cpl:
+            return "  (no data)" if is_en else "  (데이터 없음)"
+        order = ["opening", "middlegame", "endgame"]
+        labels_en = {"opening": "Opening (moves 1-12)", "middlegame": "Middlegame (13-30)", "endgame": "Endgame (31+)"}
+        labels_ko = {"opening": "오프닝(1-12수)", "middlegame": "미들게임(13-30수)", "endgame": "엔드게임(31수+)"}
+        labels = labels_en if is_en else labels_ko
+        unit = "avg loss" if is_en else "평균 손실"
+        moves_word = "moves" if is_en else "수"
+        lines = []
+        for key in order:
+            d = phase_cpl.get(key)
+            if not d or d.get("count", 0) == 0:
+                continue
+            lines.append(f"  {labels[key]}: {unit} {d['avg']}cp ({d['count']} {moves_word})")
+        return "\n".join(lines) if lines else ("  (no data)" if is_en else "  (데이터 없음)")
+
+    def _format_color_lines(self, color_cpl: dict, is_en: bool) -> str:
+        """색깔별 평균 CPL 포맷."""
+        if not color_cpl:
+            return "  (no data)" if is_en else "  (데이터 없음)"
+        labels_en = {"white": "As White", "black": "As Black"}
+        labels_ko = {"white": "백으로 둘 때", "black": "흑으로 둘 때"}
+        labels = labels_en if is_en else labels_ko
+        unit = "avg loss" if is_en else "평균 손실"
+        moves_word = "moves" if is_en else "수"
+        lines = []
+        for key in ("white", "black"):
+            d = color_cpl.get(key)
+            if not d or d.get("count", 0) == 0:
+                continue
+            lines.append(f"  {labels[key]}: {unit} {d['avg']}cp ({d['count']} {moves_word})")
+        return "\n".join(lines) if lines else ("  (no data)" if is_en else "  (데이터 없음)")
+
     def _format_prompt(self, ctx: dict) -> str:
         locale = ctx.get("locale", "ko")
         is_en = locale == "en"
@@ -474,6 +524,8 @@ class NarrativeService:
             for o in ctx["openings"]
         ) or f"  {no_data}"
         decisive_lines = self._format_decisive_lines(ctx.get("decisive_moves", []), is_en)
+        phase_lines = self._format_phase_lines(ctx.get("phase_cpl", {}), is_en)
+        color_lines = self._format_color_lines(ctx.get("color_cpl", {}), is_en)
 
         template = USER_PROMPT_TEMPLATE_EN if is_en else USER_PROMPT_TEMPLATE_KO
         return template.format(
@@ -495,6 +547,8 @@ class NarrativeService:
             weakest_score=ctx["weakest_score"],
             opening_lines=opening_lines,
             decisive_lines=decisive_lines,
+            phase_lines=phase_lines,
+            color_lines=color_lines,
         )
 
     # ── Fallback (rule-based) ──────────────────────────────────────────────────

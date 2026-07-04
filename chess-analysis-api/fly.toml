@@ -10,9 +10,13 @@ primary_region = "nrt"
 [http_service]
   internal_port = 8080
   force_https = true
+  # 최소 1대는 항상 warm 유지 → 콜드스타트로 인한 '죽은 사이트' 체감 방지.
+  # 여분(2번째) 머신은 트래픽 없을 때 auto_stop으로 정리.
+  # Neon/Redis 쿼터는 health check가 더 이상 DB/Redis를 안 건드리므로
+  # API가 warm이어도 idle이면 Neon은 suspend된다(비용 보호 유지).
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   [http_service.concurrency]
@@ -25,11 +29,15 @@ primary_region = "nrt"
   cpus = 1
   memory_mb = 1024
 
+# liveness 체크는 프로세스 생존만 확인하면 충분하다.
+# /api/v1/actuator/health는 매 호출마다 Redis PING + DB 검증을 수행해
+# Upstash/Neon 사용량을 잡아먹으므로, 의존성을 건드리지 않는 정적 /api/v1/health를 사용.
+# interval 30s→60s로 완화(호출 빈도 절반).
 [[http_service.checks]]
   grace_period = "60s"
-  interval = "30s"
+  interval = "60s"
   method = "GET"
-  path = "/api/v1/actuator/health"
+  path = "/api/v1/health"
   port = 8080
   timeout = "10s"
   type = "http"

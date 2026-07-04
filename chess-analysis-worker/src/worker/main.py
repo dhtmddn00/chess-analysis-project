@@ -1357,8 +1357,11 @@ class ChessAnalysisWorker:
         
         while self.running:
             try:
-                # Pop job from Redis queue (blocking with timeout)
-                result = self.redis_client.brpop([self.queue_name], timeout=5)
+                # Pop job from Redis queue (blocking with timeout).
+                # timeout이 클수록 idle 시 Redis 요청 수가 줄어든다(비용↓). BRPOP은 큐에
+                # push되는 즉시 반환하므로 timeout을 늘려도 잡 픽업 지연은 없다.
+                # 5s→30s: idle Redis 요청 ~518k/월 → ~86k/월 (Upstash 무료 50만 한도 대비 여유).
+                result = self.redis_client.brpop([self.queue_name], timeout=30)
                 
                 if result:
                     queue_name, job_data_str = result

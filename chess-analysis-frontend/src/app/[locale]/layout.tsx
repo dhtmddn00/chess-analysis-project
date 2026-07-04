@@ -10,6 +10,7 @@ import { ToastProvider } from '@/components/Toast';
 import { SiteFooter } from '@/components/SiteFooter';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NavBar } from '@/components/NavBar';
+import { ServerWakeBanner } from '@/components/ServerWakeBanner';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -113,6 +114,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <ErrorBoundary>
             <ToastProvider>
+              <ServerWakeBanner />
               <NavBar />
               <div id="main-content">
                 {children}

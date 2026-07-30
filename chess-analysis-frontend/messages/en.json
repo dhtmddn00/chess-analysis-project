@@ -118,6 +118,7 @@
     "navTactics": "Tactics",
     "navTraining": "Training",
     "navScout": "Game plan",
+    "scoutModeBanner": "Scouting {username} — we'll show the game plan first when it's ready",
     "navShare": "Share",
     "aiCoachBadge": "✦ AI Coach Insight",
     "aiDisclaimer": "AI-generated analysis for reference. Use alongside engine evaluation.",

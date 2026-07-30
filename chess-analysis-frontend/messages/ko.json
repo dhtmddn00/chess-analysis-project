@@ -118,6 +118,7 @@
     "navTactics": "전술",
     "navTraining": "훈련",
     "navScout": "공략법",
+    "scoutModeBanner": "{username} 정찰 중 — 완료되면 상대 공략법을 먼저 보여드려요",
     "navShare": "공유",
     "aiCoachBadge": "✦ AI 코치 진단",
     "aiDisclaimer": "AI가 생성한 분석으로 참고용입니다. 엔진 평가와 함께 판단하세요.",

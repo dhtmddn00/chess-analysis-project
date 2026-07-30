@@ -103,6 +103,8 @@ export default function UnifiedAnalyzePage() {
 
   const [detailedResult, setDetailedResult] = useState<AnalysisResult | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
+  // 정찰 모드: 홈의 '상대 정찰' 진입(focus=scout). URL이 jobId로 덮여도 유지되도록 상태로 보관.
+  const [scoutMode, setScoutMode] = useState(false);
   const { addUsername, addAnalysis, recentAnalyses, removeAnalysis, clearHistory } = useLocalHistory();
 
   // modeMeta 는 번역 함수(t)가 바뀔 때만 재생성 — 실제로는 거의 불변
@@ -151,6 +153,10 @@ export default function UnifiedAnalyzePage() {
     const priority = params.get('priority');
     const urlJobId = params.get('jobId');
 
+    if (params.get('focus') === 'scout') {
+      setScoutMode(true);
+    }
+
     // P1-1: If jobId is in URL, resume the analysis session
     if (urlJobId) {
       setAnalysisStarted(true);
@@ -175,15 +181,14 @@ export default function UnifiedAnalyzePage() {
     };
   }, [isDone]);
 
-  // 정찰 진입(focus=scout): 결과가 준비되면 '상대 공략법' 섹션으로 스크롤
+  // 정찰 모드: 결과가 준비되면 '상대 공략법' 섹션으로 스크롤
   useEffect(() => {
-    if (!detailedResult || typeof window === 'undefined') return;
-    if (new URLSearchParams(window.location.search).get('focus') !== 'scout') return;
+    if (!detailedResult || !scoutMode || typeof window === 'undefined') return;
     const timer = setTimeout(() => {
       document.getElementById('section-scout')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 400);
     return () => clearTimeout(timer);
-  }, [detailedResult]);
+  }, [detailedResult, scoutMode]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,9 +221,9 @@ export default function UnifiedAnalyzePage() {
         timeControl: searchForm.timeControl,
       });
       setAnalysisStarted(true);
-      // P1-1: Reflect jobId in URL so page survives refresh
+      // P1-1: Reflect jobId in URL so page survives refresh (정찰 모드도 유지)
       if (newJobId && typeof window !== 'undefined') {
-        window.history.replaceState(null, '', `?jobId=${newJobId}`);
+        window.history.replaceState(null, '', `?jobId=${newJobId}${scoutMode ? '&focus=scout' : ''}`);
       }
       trackEvent('analysis_started', {
         platform: searchForm.platform,
@@ -285,6 +290,15 @@ export default function UnifiedAnalyzePage() {
 
   return (
     <div className="chess-toss min-h-screen bg-gray-50">
+      {/* 정찰 모드 배너 — 일반 분석과 구분되는 진입임을 명확히 */}
+      {scoutMode && (
+        <div className="bg-zinc-950 text-white">
+          <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 text-sm font-semibold sm:px-6 lg:px-8">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span>{t('scoutModeBanner', { username: searchForm.username || '' })}</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-white shadow-sm chess-hero">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -91,6 +91,20 @@ export default function Home() {
     router.push(`/analyze?${params.toString()}`);
   };
 
+  // 상대 정찰: 동일한 분석 흐름을 쓰되 focus=scout로 결과에서 공략법 섹션으로 유도
+  const startScout = () => {
+    const trimmed = username.trim();
+    if (!trimmed) return;
+    addUsername(trimmed);
+    const params = new URLSearchParams();
+    params.set('username', trimmed);
+    params.set('platform', platform);
+    params.set('n', String(gameCount));
+    params.set('priority', priority);
+    params.set('focus', 'scout');
+    router.push(`/analyze?${params.toString()}`);
+  };
+
   return (
     <main className="chess-toss min-h-screen bg-gray-50">
       <section className="chess-hero">
@@ -203,6 +217,17 @@ export default function Home() {
                 </div>
               </div>
             </form>
+
+            {/* ── 상대 정찰 (같은 username으로 공략법 중심 진입) ────────── */}
+            <button
+              type="button"
+              onClick={startScout}
+              disabled={!username.trim()}
+              className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-5 text-sm font-bold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              <Swords className="h-4 w-4" />
+              {t('scoutButton')}
+            </button>
 
             {/* ── 최근 분석 기록 ───────────────────────────────────── */}
             {recentAnalyses.length > 0 && (

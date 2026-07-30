@@ -175,6 +175,16 @@ export default function UnifiedAnalyzePage() {
     };
   }, [isDone]);
 
+  // 정찰 진입(focus=scout): 결과가 준비되면 '상대 공략법' 섹션으로 스크롤
+  useEffect(() => {
+    if (!detailedResult || typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('focus') !== 'scout') return;
+    const timer = setTimeout(() => {
+      document.getElementById('section-scout')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [detailedResult]);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchForm.username.trim()) return;

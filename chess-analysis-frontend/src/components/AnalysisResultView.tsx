@@ -173,6 +173,10 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
         <div className="flex gap-1 px-4 sm:px-6 lg:px-8 py-2 min-w-max">
           {[
             { id: 'section-performance', label: t('navPerformance') },
+            // 정찰(상대 공략법) — opponentExploitPlan이 있을 때만 노출
+            ...(result.opponentExploitPlan
+              ? [{ id: 'section-scout', label: t('navScout') }]
+              : []),
             { id: 'section-style', label: t('navStyle') },
             { id: 'section-tactics', label: t('navTactics') },
             { id: 'section-share', label: t('navShare') },
@@ -264,7 +268,7 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
 
         {/* Opponent Exploit Plan (정찰 — 이 선수를 상대로 공략하는 법) */}
         {result.opponentExploitPlan && (
-          <div className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-white dark-surface">
+          <div id="section-scout" className="mb-6 scroll-mt-16 rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-white dark-surface">
             <div className="mb-2 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5" />
               <h5 className="font-semibold">{t('opponentPlanTitle')}</h5>

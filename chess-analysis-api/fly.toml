@@ -10,11 +10,12 @@ primary_region = "nrt"
 [http_service]
   internal_port = 8080
   force_https = true
-  # 최소 1대는 항상 warm 유지 → 콜드스타트로 인한 '죽은 사이트' 체감 방지.
-  # 여분(2번째) 머신은 트래픽 없을 때 auto_stop으로 정리.
-  # Neon/Redis 쿼터는 health check가 더 이상 DB/Redis를 안 건드리므로
-  # API가 warm이어도 idle이면 Neon은 suspend된다(비용 보호 유지).
-  auto_stop_machines = "stop"
+  # auto_stop을 끄고 머신을 항상 켜둬 콜드스타트 502를 원천 차단한다.
+  # (min_machines_running=1 + auto_stop="stop" 조합이 CI 이미지 배포에서
+  #  머신 정지정책까지 반영되지 않아 idle 시 0대로 내려가 502가 발생했음.)
+  # Neon/Redis 쿼터는 health check가 DB/Redis를 안 건드리므로 API가 항상
+  # 켜져 있어도 idle이면 Neon은 suspend되어 비용 보호는 유지된다.
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]

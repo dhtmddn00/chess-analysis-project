@@ -8,9 +8,16 @@ const DEFAULT_API_ORIGIN =
     : 'http://localhost:8080';
 
 function normalizeApiOrigin(value) {
-  return (value || DEFAULT_API_ORIGIN)
+  let origin = (value || DEFAULT_API_ORIGIN)
     .replace(/\/api\/v1\/?$/, '')
     .replace(/\/$/, '');
+  // Next.js rewrite destination은 반드시 '/', 'http://', 'https://'로 시작해야 한다.
+  // env 값이 스킴 없는 호스트(예: 'host.fly.dev')로 설정된 경우 https://를 보정해
+  // 'Invalid rewrite found' 빌드 실패를 방지한다.
+  if (origin && !/^https?:\/\//.test(origin) && !origin.startsWith('/')) {
+    origin = `https://${origin}`;
+  }
+  return origin;
 }
 
 const nextConfig = {

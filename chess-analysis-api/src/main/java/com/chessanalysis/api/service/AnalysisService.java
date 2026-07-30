@@ -718,7 +718,16 @@ public class AnalysisService {
                     openingStats,
                     en
                 ));
-                
+                result.put("opponentExploitPlan", buildOpponentExploitPlan(
+                    connection,
+                    analysisId,
+                    analysisResult.getString("username"),
+                    result,
+                    profile,
+                    openingStats,
+                    en
+                ));
+
                 // Get tactical opportunities summary from style_profiles_worker.tactical_stats
                 var tacticalSummary = new java.util.ArrayList<Map<String, Object>>();
                 int totalTacticalCount = 0;

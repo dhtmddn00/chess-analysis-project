@@ -262,6 +262,61 @@ export function AnalysisResultView({ result, winrate, shortLink, jobId }: Analys
           </div>
         )}
 
+        {/* Opponent Exploit Plan (정찰 — 이 선수를 상대로 공략하는 법) */}
+        {result.opponentExploitPlan && (
+          <div className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-white dark-surface">
+            <div className="mb-2 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              <h5 className="font-semibold">{t('opponentPlanTitle')}</h5>
+            </div>
+            <p className="mb-4 text-sm font-medium leading-6 text-zinc-200">
+              {result.opponentExploitPlan.headline}
+              {result.opponentExploitPlan.confidence && (
+                <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-zinc-950">
+                  {t('confidence', { confidence: result.opponentExploitPlan.confidence })}
+                </span>
+              )}
+            </p>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('weaknessCandidates')}</div>
+                <div className="space-y-2">
+                  {(result.opponentExploitPlan.weaknesses ?? []).map((item) => (
+                    <div key={`w-${item.title}`} className="rounded-lg border border-white/15 bg-white p-3 text-zinc-950">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-bold">{item.title}</div>
+                        <div className="text-xs font-black text-zinc-500">{item.value}</div>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-zinc-600">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">{t('recommendedStrategy')}</div>
+                <div className="space-y-2">
+                  {(result.opponentExploitPlan.recommendations ?? []).map((item) => (
+                    <div key={`r-${item.title}`} className="rounded-lg border border-white/15 bg-zinc-900 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-bold text-white">{item.title}</div>
+                        <div className="text-xs font-black text-zinc-300">{item.value}</div>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-zinc-300">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {result.opponentExploitPlan.disclaimer && (
+              <div className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs leading-5 text-zinc-300">
+                {result.opponentExploitPlan.disclaimer}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Advanced Patterns */}
         {result.advancedInsights && (
           <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">

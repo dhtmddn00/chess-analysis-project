@@ -1,9 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE =
-  process.env.INTERNAL_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8080';
+const DEFAULT_API_BASE =
+  process.env.NODE_ENV === 'production'
+    ? 'https://chess-analysis-api-prod.fly.dev'
+    : 'http://localhost:8080';
+
+// Vercel 서버에서 도달 가능한 공개 https 호스트인지 검사. Fly 사설망(.internal/.flycast),
+// 도커 서비스명, localhost는 Vercel에서 DNS 해석이 안 돼 502가 나므로 production에서 배제.
+function isPublicHttpOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const h = u.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return false;
+    if (h.endsWith('.internal') || h.endsWith('.flycast')) return false;
+    return h.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+function resolveApiBase(): string {
+  const raw = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || '')
+    .replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production' && !isPublicHttpOrigin(raw)) {
+    return DEFAULT_API_BASE;
+  }
+  return raw || DEFAULT_API_BASE;
+}
+
+const API_BASE = resolveApiBase();
 
 const SUPPORTED_LOCALES = ['ko', 'en'] as const;
 const DEFAULT_LOCALE = 'ko';

@@ -6,7 +6,7 @@ finding the causal relationship between a player's strongest and weakest
 dimensions, then naming one concrete next action.
 
 Design principles:
-  - One Gemini call per analysis; result cached forever in DB (idempotent).
+  - One Groq (gpt-oss-120b) call per analysis; result cached forever in DB (idempotent).
   - Context capped at ~600 tokens; output targeted at ~400 tokens.
   - Hard daily limit tracked in Redis; graceful rule-based fallback if exceeded.
   - Temperature 0.7: natural language without hallucination.
@@ -339,7 +339,7 @@ class NarrativeService:
             from groq import Groq
             self._client = Groq(api_key=self._api_key)
             self._enabled = True
-            logger.info("NarrativeService ready (Groq / Llama-3.3-70B)")
+            logger.info("NarrativeService ready (Groq / gpt-oss-120b)")
         except Exception as exc:
             logger.error(f"NarrativeService initialisation failed: {exc}")
 
@@ -784,13 +784,17 @@ class NarrativeService:
             # Groq client is sync — run in thread to avoid blocking the event loop
             def _call_groq():
                 return self._client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    # llama-3.3-70b-versatile은 2026-08-16 무료/개발자 등급 종료.
+                    # Groq 공식 권장 대체 모델인 gpt-oss-120b로 교체.
+                    model="openai/gpt-oss-120b",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user",   "content": user_prompt},
                     ],
                     temperature=0.7,
-                    max_tokens=1000,   # actions 2~3개 포함 — 잘림 방지
+                    # gpt-oss는 추론(reasoning) 모델이라 답변 전 사고 토큰을 쓴다.
+                    # 추론 + JSON 출력(actions 2~3개)이 잘리지 않도록 여유를 크게 준다.
+                    max_tokens=2500,
                     response_format={"type": "json_object"},
                 )
 

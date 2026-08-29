@@ -2,6 +2,7 @@ package com.chessanalysis.api.service;
 
 import com.chessanalysis.api.config.JwtProperties;
 import com.chessanalysis.api.dto.auth.AuthResponse;
+import com.chessanalysis.api.exception.EmailNotVerifiedException;
 import com.chessanalysis.api.dto.auth.LoginRequest;
 import com.chessanalysis.api.dto.auth.SignupRequest;
 import com.chessanalysis.api.entity.User;
@@ -207,6 +208,18 @@ class AuthServiceTest {
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
                             .isEqualTo(HttpStatus.FORBIDDEN));
+        }
+
+        @Test
+        @DisplayName("이메일 미인증 계정 → EmailNotVerifiedException (프론트가 body.code로 구분)")
+        void unverifiedEmail_throwsEmailNotVerified() {
+            ReflectionTestUtils.setField(activeUser, "emailVerified", false);
+            when(loginAttemptService.isBlocked(any())).thenReturn(false);
+            when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser));
+            when(passwordEncoder.matches(any(), any())).thenReturn(true);
+
+            assertThatThrownBy(() -> authService.login(loginReq("user@example.com", "correctpw"), response))
+                    .isInstanceOf(EmailNotVerifiedException.class);
         }
 
         @Test

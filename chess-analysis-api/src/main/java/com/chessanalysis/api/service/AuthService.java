@@ -6,6 +6,7 @@ import com.chessanalysis.api.dto.auth.LoginRequest;
 import com.chessanalysis.api.dto.auth.PendingSignup;
 import com.chessanalysis.api.dto.auth.SignupRequest;
 import com.chessanalysis.api.entity.User;
+import com.chessanalysis.api.exception.EmailNotVerifiedException;
 import com.chessanalysis.api.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -281,7 +282,9 @@ public class AuthService {
         }
 
         if (!user.isEmailVerified()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED");
+            // include-message=never가 메시지를 지우므로, 프론트가 사유를 구분할 수 있도록
+            // 응답 body의 code 필드로 내려주는 전용 예외를 던진다 (AuthExceptionHandler 처리).
+            throw new EmailNotVerifiedException();
         }
 
         user.setLastLoginAt(LocalDateTime.now());

@@ -27,12 +27,12 @@ export default function LoginPage() {
       await login(form.email, form.password);
       router.push('/');
     } catch (err: unknown) {
-      const e = err as Error & { status?: number; message?: string };
+      const e = err as Error & { status?: number; message?: string; code?: string };
       if (e.status === 429) {
         setError(t('errorTooManyAttempts'));
       } else if (e.status === 401) {
         setError(t('errorInvalidCredentials'));
-      } else if (e.status === 403 && e.message === 'EMAIL_NOT_VERIFIED') {
+      } else if (e.status === 403 && e.code === 'EMAIL_NOT_VERIFIED') {
         setNotVerified(true);
       } else {
         setError(t('errorGeneric'));
